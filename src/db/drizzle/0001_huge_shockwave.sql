@@ -1,0 +1,2 @@
+ALTER TABLE "raffles" ADD COLUMN "winner_ticket_id" text;--> statement-breakpoint
+ALTER TABLE "raffles" ADD CONSTRAINT "raffles_winner_ticket_id_tickets_id_fk" FOREIGN KEY ("winner_ticket_id") REFERENCES "public"."tickets"("id") ON DELETE no action ON UPDATE no action;
