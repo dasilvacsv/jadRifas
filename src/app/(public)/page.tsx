@@ -1,8 +1,10 @@
-'use server';
 import { db } from '@/lib/db';
 import { raffles, tickets } from '@/lib/db/schema';
 import { eq, and, or, gt, desc, isNotNull } from 'drizzle-orm';
 import HomePage from '@/components/home/HomePage';
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
 
 export default async function HomePageServer() {
   // 1. Consulta para rifas activas, contando tickets vendidos Y reservados vigentes
