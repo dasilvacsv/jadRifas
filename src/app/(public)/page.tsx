@@ -1,3 +1,4 @@
+'use server';
 import { db } from '@/lib/db';
 import { raffles, tickets } from '@/lib/db/schema';
 import { eq, and, or, gt, desc, isNotNull } from 'drizzle-orm';
