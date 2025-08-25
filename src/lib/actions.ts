@@ -75,12 +75,50 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
 
   try {
     const reservedData = await db.transaction(async (tx) => {
+      // Check if raffle exists and is active
+      const raffle = await tx.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+      if (!raffle) throw new Error("Rifa no encontrada.");
+      if (raffle.status !== 'active') throw new Error("La rifa no está activa.");
+
+      // Check if tickets exist for this raffle
+      const existingTicketsCount = await tx.select({ count: sql`count(*)` })
+        .from(tickets)
+        .where(eq(tickets.raffleId, raffleId));
+      
+      // If no tickets exist, generate them
+      if (Number(existingTicketsCount[0].count) === 0) {
+        console.log(`Generando tickets para la rifa ${raffleId}...`);
+        const ticketsToGenerate = [];
+        for (let i = 0; i < 10000; i++) {
+          const ticketNumber = i.toString().padStart(4, '0');
+          ticketsToGenerate.push({
+            ticketNumber,
+            raffleId,
+            status: 'available' as const,
+          });
+        }
+
+        // Insert tickets in batches
+        const batchSize = 1000;
+        for (let i = 0; i < ticketsToGenerate.length; i += batchSize) {
+          const batch = ticketsToGenerate.slice(i, i + batchSize);
+          await tx.insert(tickets).values(batch);
+        }
+        console.log(`Tickets generados exitosamente para la rifa ${raffleId}`);
+      }
+
+      // Clean up expired reservations
       await tx.update(tickets).set({ status: 'available', reservedUntil: null, purchaseId: null }).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'reserved'), lt(tickets.reservedUntil, new Date())));
+      
+      // Find available tickets
       const availableTickets = await tx.select({ id: tickets.id, ticketNumber: tickets.ticketNumber }).from(tickets).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'available'))).orderBy(sql`RANDOM()`).limit(ticketCount).for("update", { skipLocked: true });
+      
       if (availableTickets.length < ticketCount) throw new Error("No hay suficientes tickets disponibles para apartar.");
+      
       const ticketIdsToReserve = availableTickets.map(t => t.id);
       const reservationTime = new Date(Date.now() + RESERVATION_MINUTES * 60 * 1000);
       await tx.update(tickets).set({ status: 'reserved', reservedUntil: reservationTime }).where(inArray(tickets.id, ticketIdsToReserve));
+      
       return { reservedTickets: availableTickets.map(t => t.ticketNumber), reservedUntil: reservationTime.toISOString() };
     });
     return { success: true, message: `${ticketCount} tickets apartados por ${RESERVATION_MINUTES} minutos.`, data: reservedData };
@@ -286,7 +324,37 @@ export async function updateRaffleStatusAction(prevState: ActionState, formData:
   if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
   const { raffleId, status } = validatedFields.data;
   try {
-    await db.update(raffles).set({ status, updatedAt: new Date() }).where(eq(raffles.id, raffleId));
+    await db.transaction(async (tx) => {
+      // Get the current raffle to check its status
+      const currentRaffle = await tx.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+      if (!currentRaffle) throw new Error("Rifa no encontrada.");
+
+      // Update the raffle status
+      await tx.update(raffles).set({ status, updatedAt: new Date() }).where(eq(raffles.id, raffleId));
+
+      // If activating a draft raffle, generate tickets
+      if (currentRaffle.status === 'draft' && status === 'active') {
+        const ticketsToGenerate = [];
+        
+        // Generate tickets from 0000 to 9999 (10,000 tickets)
+        for (let i = 0; i < 10000; i++) {
+          const ticketNumber = i.toString().padStart(4, '0');
+          ticketsToGenerate.push({
+            ticketNumber,
+            raffleId,
+            status: 'available' as const,
+          });
+        }
+
+        // Insert tickets in batches to avoid memory issues
+        const batchSize = 1000;
+        for (let i = 0; i < ticketsToGenerate.length; i += batchSize) {
+          const batch = ticketsToGenerate.slice(i, i + batchSize);
+          await tx.insert(tickets).values(batch);
+        }
+      }
+    });
+
     revalidatePath("/rifas");
     revalidatePath(`/rifas/${raffleId}`);
     return { success: true, message: "Estado de la rifa actualizado." };
@@ -441,6 +509,63 @@ export async function postponeRaffleAction(prevState: ActionState, formData: For
     console.error("Error al posponer rifa:", error);
     return { success: false, message: error.message || "Ocurrió un error en el servidor." };
   }
+}
+
+// --- NUEVA FUNCIÓN PARA GENERAR TICKETS EN RIFAS EXISTENTES ---
+export async function generateTicketsForRaffle(raffleId: string): Promise<ActionState> {
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Check if raffle exists and is active
+      const raffle = await tx.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+      if (!raffle) {
+        throw new Error("Rifa no encontrada.");
+      }
+      if (raffle.status !== 'active') {
+        throw new Error("Solo se pueden generar tickets para rifas activas.");
+      }
+
+      // Check if tickets already exist
+      const existingTickets = await tx.query.tickets.findMany({ 
+        where: eq(tickets.raffleId, raffleId),
+        limit: 1 
+      });
+      
+      if (existingTickets.length > 0) {
+        throw new Error("Esta rifa ya tiene tickets generados.");
+      }
+
+      // Generate tickets from 0000 to 9999 (10,000 tickets)
+      const ticketsToGenerate = [];
+      for (let i = 0; i < 10000; i++) {
+        const ticketNumber = i.toString().padStart(4, '0');
+        ticketsToGenerate.push({
+          ticketNumber,
+          raffleId,
+          status: 'available' as const,
+        });
+      }
+
+      // Insert tickets in batches
+      const batchSize = 1000;
+      for (let i = 0; i < ticketsToGenerate.length; i += batchSize) {
+        const batch = ticketsToGenerate.slice(i, i + batchSize);
+        await tx.insert(tickets).values(batch);
+      }
+
+      return { ticketsGenerated: ticketsToGenerate.length };
+    });
+
+    revalidatePath("/rifas");
+    revalidatePath(`/rifas/${raffleId}`);
+    return { 
+      success: true, 
+      message: `Se generaron ${result.ticketsGenerated} tickets exitosamente.`, 
+      data: result 
+    };
+  } catch (error: any) {
+    console.error("Error al generar tickets:", error);
+    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+  }
 }
 
 const PaymentMethodSchema = z.object({
