@@ -1,27 +1,53 @@
 import { db } from '@/lib/db';
-import { raffles } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { raffles, tickets } from '@/lib/db/schema';
+import { eq, and, or, gt, desc, isNotNull } from 'drizzle-orm';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Ticket, Gift, Users, Clock, Award } from 'lucide-react';
+import { Ticket, Gift, Clock, Award, Calendar, Crown } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 export default async function HomePage() {
-  // Ahora también obtenemos las imágenes y los tickets para la barra de progreso
+  // 1. Consulta para rifas activas, contando tickets vendidos Y reservados vigentes
   const activeRaffles = await db.query.raffles.findMany({
     where: eq(raffles.status, 'active'),
-    orderBy: (raffles, { desc }) => [desc(raffles.createdAt)],
+    orderBy: desc(raffles.createdAt),
     with: {
       images: {
-        limit: 1, // Solo necesitamos la primera imagen para la vista previa
+        limit: 1,
       },
       tickets: {
+        where: or(
+          eq(tickets.status, 'sold'),
+          and(
+            eq(tickets.status, 'reserved'),
+            gt(tickets.reservedUntil, new Date())
+          )
+        ),
         columns: {
-          id: true, // Solo contamos los tickets
+          id: true,
         }
       }
+    },
+  });
+
+  // 2. Consulta para rifas finalizadas con un ganador
+  const finishedRaffles = await db.query.raffles.findMany({
+    where: and(
+      eq(raffles.status, 'finished'),
+      isNotNull(raffles.winnerTicketId)
+    ),
+    orderBy: desc(raffles.updatedAt),
+    limit: 3,
+    with: {
+      images: { limit: 1 },
+      winnerTicket: {
+        with: {
+          purchase: true,
+        },
+      },
     },
   });
 
@@ -88,8 +114,8 @@ export default async function HomePage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {activeRaffles.map((raffle) => {
-                const ticketsSoldCount = raffle.tickets.length;
-                const progress = Math.min((ticketsSoldCount / raffle.minimumTickets) * 100, 100);
+                const ticketsTakenCount = raffle.tickets.length;
+                const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
 
                 return (
                   <Card key={raffle.id} className="group overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col border-0">
@@ -103,21 +129,23 @@ export default async function HomePage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                         <div className="absolute bottom-4 left-4">
-                           <h3 className="text-2xl font-bold text-white shadow-md">{raffle.name}</h3>
+                            <h3 className="text-2xl font-bold text-white shadow-md">{raffle.name}</h3>
                         </div>
                       </div>
                     </CardHeader>
                     
                     <CardContent className="p-6 flex-grow flex flex-col">
-                      <p className="text-gray-600 text-sm mb-6 flex-grow line-clamp-3">
+                      <p className="text-gray-600 text-sm mb-4 flex-grow line-clamp-3">
                         {raffle.description}
                       </p>
-
-                      {/* Barra de Progreso */}
+                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                        <Calendar className="h-4 w-4" />
+                        <span>Sorteo: {new Date(raffle.limitDate).toLocaleDateString()}</span>
+                      </div>
                       <div>
                         <div className="flex justify-between items-center mb-2 text-sm">
                           <span className="text-gray-600">
-                            <span className="font-bold text-gray-800">{ticketsSoldCount.toLocaleString()}</span> / {raffle.minimumTickets.toLocaleString()} vendidos
+                            <span className="font-bold text-gray-800">{ticketsTakenCount.toLocaleString()}</span> / {raffle.minimumTickets.toLocaleString()} ocupados
                           </span>
                           <span className="font-semibold text-blue-600">{progress.toFixed(0)}%</span>
                         </div>
@@ -126,7 +154,7 @@ export default async function HomePage() {
                     </CardContent>
 
                     <CardFooter className="p-6 bg-slate-50/50">
-                       <div className="w-full flex justify-between items-center">
+                        <div className="w-full flex justify-between items-center">
                           <div>
                             <p className="text-sm text-gray-500">Precio</p>
                             <p className="text-2xl font-bold text-blue-600">${raffle.price}</p>
@@ -137,7 +165,7 @@ export default async function HomePage() {
                               <Ticket className="ml-2 h-4 w-4" />
                             </Button>
                           </Link>
-                       </div>
+                        </div>
                     </CardFooter>
                   </Card>
                 );
@@ -147,7 +175,60 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* How it works section */}
+      {/* --- SECCIÓN RESULTADOS RECIENTES (CORREGIDA Y MEJORADA) --- */}
+      {finishedRaffles.length > 0 && (
+        <section id="resultados" className="py-20 px-4 bg-white border-t">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Resultados Recientes</h2>
+              <p className="text-lg text-gray-600 mt-4 max-w-2xl mx-auto">¡Felicidades a nuestros últimos ganadores!</p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {finishedRaffles.map((raffle) => (
+                <Card key={raffle.id} className="bg-green-50 border-green-200 rounded-xl shadow-lg flex flex-col">
+                  <CardHeader className="p-0">
+                    <div className="relative aspect-video w-full">
+                      <Image src={raffle.images[0]?.url || '/placeholder.png'} alt={`Premio ganado: ${raffle.name}`} fill className="object-cover rounded-t-xl" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                        <div className="absolute bottom-4 left-4">
+                            <Badge variant="secondary" className="bg-green-600 text-white border-green-700">RIFA FINALIZADA</Badge>
+                        </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6 text-center flex-grow flex flex-col justify-start">
+                    <p className="text-sm text-gray-600">El número ganador para <span className="font-semibold">{raffle.name}</span> fue:</p>
+                    <p className="text-5xl font-bold text-green-700 tracking-widest my-2">{raffle.winnerLotteryNumber}</p>
+                    
+                    <div className="p-4 bg-white rounded-lg border mt-4">
+                      <Crown className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
+                      <p className="font-semibold text-xl text-gray-800">{raffle.winnerTicket?.purchase?.buyerName ?? "Ticket no vendido"}</p>
+                      <div className="mt-1">
+                        Con el ticket: <Badge className="text-md bg-green-100 text-green-800">{raffle.winnerTicket?.ticketNumber}</Badge>
+                      </div>
+                    </div>
+
+                    {/* --- CAMBIO PRINCIPAL AQUÍ --- */}
+                    {/* Se muestra la imagen de prueba directamente, si existe */}
+                    {raffle.winnerProofUrl && (
+                        <div className="relative aspect-video w-full mt-4 rounded-lg overflow-hidden border">
+                            <Image 
+                                src={raffle.winnerProofUrl}
+                                alt={`Prueba del sorteo para ${raffle.name}`}
+                                fill
+                                className="object-contain" // 'contain' asegura que la captura se vea completa
+                            />
+                        </div>
+                    )}
+                    {/* --- FIN DEL CAMBIO --- */}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Sección Cómo Funciona */}
       <section className="py-20 px-4 bg-white border-t">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12">

@@ -5,24 +5,12 @@ import { findMyTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Search, Ticket, Info, CheckCircle, Clock, ImageIcon, DollarSign, Crown } from 'lucide-react';
+import { Loader2, Search, Ticket, CheckCircle, Crown, ExternalLink, Calendar } from 'lucide-react';
 import Image from 'next/image';
 
 const initialState: { success: boolean; message: string; data?: any[] | null } = {
@@ -30,6 +18,54 @@ const initialState: { success: boolean; message: string; data?: any[] | null } =
   message: '',
   data: null
 };
+
+// --- SUBCOMPONENTE CORREGIDO ---
+const WinnerInfo = ({ purchase }: { purchase: any }) => {
+  // Primero, comprobamos si hay un ticket ganador en la rifa
+  if (!purchase.raffle.winnerTicket) {
+    return null;
+  }
+
+  const didIWin = purchase.tickets.some((t: any) => t.id === purchase.raffle.winnerTicket.id);
+
+  return (
+    <div className={`mt-4 p-4 rounded-lg border ${didIWin ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+      <div className="flex items-center gap-3 mb-3">
+        <Crown className={`h-6 w-6 ${didIWin ? 'text-green-600' : 'text-blue-600'}`} />
+        <div>
+          <h4 className="font-semibold">{didIWin ? '¡Felicidades, ganaste esta rifa!' : 'Resultado del Sorteo'}</h4>
+          <p className="text-xs text-gray-600">
+            Número ganador: 
+            <span className="font-bold text-lg"> {purchase.raffle.winnerLotteryNumber}</span>
+          </p>
+        </div>
+      </div>
+      
+      {/* CORRECCIÓN PRINCIPAL AQUÍ */}
+      {/* Si no gané, muestro el nombre del ganador, pero de forma segura */}
+      {!didIWin && (
+        <p className="text-sm text-gray-800">
+          El ganador fue: 
+          <span className="font-semibold">
+            {/* Se usa '?.' para acceder de forma segura y se añade un texto por defecto */}
+            {purchase.raffle.winnerTicket?.purchase?.buyerName ?? " (Ticket no vendido)"}
+          </span>
+        </p>
+      )}
+      {/* FIN DE LA CORRECCIÓN */}
+
+      {purchase.raffle.winnerProofUrl && (
+        <a href={purchase.raffle.winnerProofUrl} target="_blank" rel="noopener noreferrer">
+          <Button variant="outline" size="sm" className="mt-2 w-full sm:w-auto">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Ver Prueba del Sorteo
+          </Button>
+        </a>
+      )}
+    </div>
+  );
+};
+
 
 export function FindMyTicketsForm() {
   const [state, setState] = useState(initialState);
@@ -104,34 +140,19 @@ export function FindMyTicketsForm() {
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{purchase.raffle.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(purchase.createdAt).toLocaleString('es-VE')}
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> 
+                          Sorteo: {new Date(purchase.raffle.limitDate).toLocaleDateString('es-VE')}
                         </div>
-                        {/* Muestra el estado del sorteo */}
-                        {purchase.raffle.winnerTicket?.id && (
-                          <div className="mt-2 text-xs">
-                            {purchase.tickets.some((t: any) => t.id === purchase.raffle.winnerTicket.id) ? (
-                              <div className="flex items-center gap-1 font-bold text-green-600 p-2 bg-green-50 rounded-md">
-                                <Crown className="h-4 w-4" /> ¡Ganaste esta rifa! 🎉
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1 font-semibold text-blue-600">
-                                <Info className="h-4 w-4" />
-                                Ganador: {purchase.raffle.winnerTicket.purchase.buyerName}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <WinnerInfo purchase={purchase} />
                       </TableCell>
                       <TableCell>{getStatusBadge(purchase.status)}</TableCell>
                       <TableCell className="text-right font-medium">${purchase.amount}</TableCell>
                       <TableCell className="text-center">
                         {purchase.status === 'confirmed' && purchase.tickets.length > 0 ? (
-                            <Accordion type="single" collapsible>
+                          <Accordion type="single" collapsible>
                             <AccordionItem value="tickets" className="border-none">
-                              <AccordionTrigger className="text-blue-600 hover:no-underline p-2">
-                                Ver {purchase.tickets.length} tickets
-                              </AccordionTrigger>
+                              <AccordionTrigger className="text-blue-600 hover:no-underline p-2">Ver {purchase.tickets.length} tickets</AccordionTrigger>
                               <AccordionContent className="p-4 bg-slate-50 rounded-md">
                                 <div className="flex flex-wrap gap-2">
                                   {purchase.tickets.map((t: any) => <Badge key={t.ticketNumber} variant="outline" className="font-mono bg-white">{t.ticketNumber}</Badge>)}
@@ -160,42 +181,30 @@ export function FindMyTicketsForm() {
                 </div>
                 <CardHeader>
                   <CardTitle>{purchase.raffle.name}</CardTitle>
-                  <CardDescription>Compra del {new Date(purchase.createdAt).toLocaleDateString('es-VE')}</CardDescription>
+                  <CardDescription>
+                    Sorteo: {new Date(purchase.raffle.limitDate).toLocaleDateString('es-VE')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center text-sm border-t pt-4">
-                    <div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-gray-500" /><span>Monto: <span className="font-bold">${purchase.amount}</span></span></div>
-                    <div className="flex items-center gap-2"><Ticket className="h-4 w-4 text-gray-500" /><span>Tickets: <span className="font-bold">{purchase.ticketCount}</span></span></div>
+                    <span className="font-bold">Monto: ${purchase.amount}</span>
+                    <span className="font-bold">Tickets: {purchase.ticketCount}</span>
                   </div>
                   
-                  {/* Muestra el estado del sorteo */}
-                  {purchase.raffle.winnerTicket?.id && (
-                    <div className="mt-2 text-sm border-t pt-4">
-                      {purchase.tickets.some((t: any) => t.id === purchase.raffle.winnerTicket.id) ? (
-                        <div className="flex items-center gap-2 font-bold text-green-600 text-base">
-                          <Crown className="h-5 w-5" /> ¡Ganaste! 🎉
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 font-semibold text-blue-600">
-                          <Info className="h-5 w-5 flex-shrink-0" />
-                          <span>Ganador: {purchase.raffle.winnerTicket.purchase.buyerName}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <WinnerInfo purchase={purchase} />
 
                   {purchase.status === 'confirmed' && purchase.tickets.length > 0 && (
-                      <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1">
-                          <AccordionTrigger className="text-green-700"><CheckCircle className="h-5 w-5 mr-2" /> Ver mis {purchase.tickets.length} tickets</AccordionTrigger>
-                          <AccordionContent className="p-4 bg-slate-50 rounded-b-md">
-                            <div className="flex flex-wrap gap-2">
-                              {purchase.tickets.map((t: any) => <Badge key={t.ticketNumber} variant="outline" className="text-lg font-mono bg-white">{t.ticketNumber}</Badge>)}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    )}
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="item-1">
+                        <AccordionTrigger className="text-green-700"><CheckCircle className="h-5 w-5 mr-2" /> Ver mis {purchase.tickets.length} tickets</AccordionTrigger>
+                        <AccordionContent className="p-4 bg-slate-50 rounded-b-md">
+                          <div className="flex flex-wrap gap-2">
+                            {purchase.tickets.map((t: any) => <Badge key={t.ticketNumber} variant="outline" className="text-lg font-mono bg-white">{t.ticketNumber}</Badge>)}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )}
                 </CardContent>
               </Card>
             ))}

@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { format } from "date-fns";
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Loader2, Plus, UploadCloud, X } from 'lucide-react';
+
 import { createRaffleAction } from '@/lib/actions';
+import { cn } from "@/lib/utils"; // Utilidad para clases condicionales
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, UploadCloud, X } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
@@ -19,33 +26,43 @@ export function CreateRaffleForm() {
   const [isPending, setIsPending] = useState(false);
   const router = useRouter();
   
-  // NUEVO: Estados para manejar los archivos y sus vistas previas
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  
+  const [date, setDate] = useState<Date | undefined>();
+  const [time, setTime] = useState('');
+  const hiddenDateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (state.success) {
       router.push('/rifas');
     }
   }, [state.success, router]);
+  
+  useEffect(() => {
+    if (date && time && hiddenDateInputRef.current) {
+        // Combina la fecha y la hora en un formato ISO compatible (YYYY-MM-DDTHH:mm)
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const combinedDateTime = `${year}-${month}-${day}T${time}`;
+        hiddenDateInputRef.current.value = combinedDateTime;
+    }
+  }, [date, time]);
 
-  // NUEVO: Handler para cuando el usuario selecciona archivos
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const newFiles = Array.from(event.target.files);
       setFiles(prev => [...prev, ...newFiles]);
-
       const newPreviews = newFiles.map(file => URL.createObjectURL(file));
       setPreviews(prev => [...prev, ...newPreviews]);
     }
   };
 
-  // NUEVO: Handler para remover una imagen de la vista previa
   const removeImage = (indexToRemove: number) => {
     setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
     setPreviews(prev => {
       const newPreviews = prev.filter((_, index) => index !== indexToRemove);
-      // Revocar el Object URL para liberar memoria
       URL.revokeObjectURL(previews[indexToRemove]);
       return newPreviews;
     });
@@ -54,15 +71,9 @@ export function CreateRaffleForm() {
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsPending(true);
-
     const formData = new FormData(event.currentTarget);
-    // NUEVO: Agregamos los archivos al formData
-    files.forEach((file) => {
-      formData.append('images', file);
-    });
-    
+    files.forEach((file) => formData.append('images', file));
     const result = await createRaffleAction(formData);
-
     setState(result);
     setIsPending(false);
   };
@@ -88,13 +99,10 @@ export function CreateRaffleForm() {
               <Label htmlFor="name">Nombre de la rifa</Label>
               <Input id="name" name="name" required disabled={isPending} className="mt-1" placeholder="Ej: iPhone 15 Pro Max" />
             </div>
-
             <div>
               <Label htmlFor="description">Descripción</Label>
               <Textarea id="description" name="description" disabled={isPending} className="mt-1" placeholder="Describe el premio y las condiciones..." rows={4} />
             </div>
-
-            {/* NUEVO: Campo para subir imágenes */}
             <div>
               <Label>Imágenes de la Rifa</Label>
               <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
@@ -111,8 +119,6 @@ export function CreateRaffleForm() {
                 </div>
               </div>
             </div>
-
-            {/* NUEVO: Vista previa de imágenes */}
             {previews.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {previews.map((src, index) => (
@@ -125,16 +131,54 @@ export function CreateRaffleForm() {
                 ))}
               </div>
             )}
-
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="price">Precio por ticket ($)</Label>
                 <Input id="price" name="price" type="number" step="0.01" min="0.01" required disabled={isPending} className="mt-1" placeholder="5.00" />
               </div>
               <div>
-                <Label htmlFor="minimumTickets">Tickets mínimos</Label>
-                <Input id="minimumTickets" name="minimumTickets" type="number" min="1" required disabled={isPending} className="mt-1" placeholder="10000" defaultValue="10000" />
+                <Label htmlFor="minimumTickets">Tickets mínimos (Máx. 9999)</Label>
+                <Input id="minimumTickets" name="minimumTickets" type="number" min="1" max="9999" required disabled={isPending} className="mt-1" placeholder="9999" />
               </div>
+            </div>
+            
+            <div>
+              <Label>Fecha y Hora Límite del Sorteo</Label>
+              <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "flex-1 justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                      disabled={isPending}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                      disabled={(d) => d < new Date(new Date().setDate(new Date().getDate() - 1))}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  disabled={isPending || !date}
+                  required
+                  className="w-full sm:w-[120px]"
+                />
+              </div>
+              <input type="hidden" name="limitDate" ref={hiddenDateInputRef} required />
             </div>
           </div>
 

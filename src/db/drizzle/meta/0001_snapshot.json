@@ -1,6 +1,6 @@
 {
-  "id": "b6666dd2-b30d-4078-8242-a9a846ad6f95",
-  "prevId": "924f4cf2-f18e-4eb4-b751-712b6d8652c1",
+  "id": "97aa74f8-b747-4ba5-83c3-20f031fb0411",
+  "prevId": "a9218f93-6bfe-4d24-84e0-8a250f0b79ee",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -259,6 +259,24 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "limit_date": {
+          "name": "limit_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "winner_lottery_number": {
+          "name": "winner_lottery_number",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winner_proof_url": {
+          "name": "winner_proof_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -295,7 +313,7 @@
         },
         "ticket_number": {
           "name": "ticket_number",
-          "type": "varchar(16)",
+          "type": "varchar(4)",
           "primaryKey": false,
           "notNull": true
         },
@@ -309,7 +327,21 @@
           "name": "purchase_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "ticket_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'available'"
+        },
+        "reserved_until": {
+          "name": "reserved_until",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -359,7 +391,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -446,7 +478,17 @@
         "active",
         "finished",
         "cancelled",
-        "draft"
+        "draft",
+        "postponed"
+      ]
+    },
+    "public.ticket_status": {
+      "name": "ticket_status",
+      "schema": "public",
+      "values": [
+        "available",
+        "reserved",
+        "sold"
       ]
     }
   },

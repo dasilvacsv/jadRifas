@@ -1,36 +1,95 @@
 import { db } from '@/lib/db';
-import { raffles } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { raffles, tickets, paymentMethods } from '@/lib/db/schema'; // Se mantiene paymentMethods para el formulario
+import { eq, and, or, gt } from 'drizzle-orm'; // MODIFICADO: Se importan nuevos operadores
 import { notFound } from 'next/navigation';
 import { BuyTicketsForm } from '@/components/forms/BuyTicketsForm';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Gift, Calendar, DollarSign, Ticket, Users, TicketSlash } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, Ticket, Crown, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { ImageCarousel } from '@/components/rifas/image-carousel';
+import Image from 'next/image';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+// Componente para mostrar al ganador (sin cambios)
+function WinnerDisplayCard({ raffle }: { raffle: any }) {
+  if (!raffle.winnerTicket) return null;
+
+  return (
+    <Card className="bg-green-50 border-green-200 shadow-lg">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-3 text-2xl text-green-800">
+          <Crown className="h-7 w-7" />
+          ¡Ya tenemos un ganador!
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="text-center">
+          <p className="text-sm text-gray-600">El número ganador de la lotería fue:</p>
+          <p className="text-5xl font-bold text-green-700 tracking-widest my-2">{raffle.winnerLotteryNumber}</p>
+        </div>
+        <div className="p-4 bg-white rounded-lg border text-center">
+          <p className="font-semibold text-xl">{raffle.winnerTicket.purchase.buyerName}</p>
+          <p className="text-gray-500">{raffle.winnerTicket.purchase.buyerEmail}</p>
+          <p className="mt-1">
+            Con el ticket: <Badge className="text-lg">{raffle.winnerTicket.ticketNumber}</Badge>
+          </p>
+        </div>
+        {raffle.winnerProofUrl && (
+          <div>
+            <h4 className="font-semibold text-center mb-2 text-gray-700">Prueba del Sorteo</h4>
+            <a href={raffle.winnerProofUrl} target="_blank" rel="noopener noreferrer" className="block relative aspect-video w-full rounded-lg overflow-hidden border-2 hover:border-green-400 transition">
+              <Image src={raffle.winnerProofUrl} alt="Prueba del sorteo" fill className="object-contain" />
+            </a>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default async function RafflePage({ params }: { params: { id: string } }) {
-  // Obtenemos la rifa con sus imágenes y tickets para las estadísticas
+  // Obtenemos la rifa con sus imágenes y tickets
   const raffle = await db.query.raffles.findFirst({
     where: eq(raffles.id, params.id),
     with: {
       images: true,
+      // --- MODIFICACIÓN CLAVE ---
+      // Ahora contamos los tickets vendidos Y los que están reservados y no han expirado.
       tickets: {
+        where: or(
+          eq(tickets.status, 'sold'),
+          and(
+            eq(tickets.status, 'reserved'),
+            gt(tickets.reservedUntil, new Date()) // Comprueba que la reserva no haya expirado
+          )
+        ),
         columns: { id: true }
       },
+      // --- FIN DE LA MODIFICACIÓN ---
+      winnerTicket: {
+        with: {
+          purchase: true
+        }
+      }
     },
+  });
+  
+  // Obtener métodos de pago activos (se mantiene del código original)
+  const activePaymentMethods = await db.query.paymentMethods.findMany({
+    where: eq(paymentMethods.isActive, true),
   });
 
   if (!raffle || raffle.status === 'draft') {
-    // No mostrar rifas que no existen o están en borrador
     notFound();
   }
 
-  const ticketsSoldCount = raffle.tickets.length;
-  const progress = Math.min((ticketsSoldCount / raffle.minimumTickets) * 100, 100);
-  const ticketsRemaining = raffle.minimumTickets - ticketsSoldCount;
-
+  // Se renombra la variable para mayor claridad
+  const ticketsTakenCount = raffle.tickets.length;
+  const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
+  
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -39,6 +98,8 @@ export default async function RafflePage({ params }: { params: { id: string } })
         return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Finalizada</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-100 text-red-800 border-red-300">Cancelada</Badge>;
+      case 'postponed':
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">Pospuesta</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -71,15 +132,16 @@ export default async function RafflePage({ params }: { params: { id: string } })
               <CardContent className="px-0 space-y-6">
                 {raffle.description && (
                   <div className="text-gray-600 leading-relaxed prose">
-                    <p>{raffle.description}</p>
+                      <p>{raffle.description}</p>
                   </div>
                 )}
 
-                {/* Barra de Progreso */}
+                {/* Barra de Progreso MODIFICADA */}
                 <div className="pt-4">
                   <div className="flex justify-between items-center mb-2 text-sm">
                     <span className="text-gray-600">
-                      <span className="font-bold text-gray-800">{ticketsSoldCount.toLocaleString()}</span> de {raffle.minimumTickets.toLocaleString()} vendidos
+                      {/* Se actualiza el texto */}
+                      <span className="font-bold text-gray-800">{ticketsTakenCount.toLocaleString()}</span> de {raffle.minimumTickets.toLocaleString()} ocupados
                     </span>
                     <span className="font-semibold text-blue-600">{progress.toFixed(0)}% completado</span>
                   </div>
@@ -95,23 +157,45 @@ export default async function RafflePage({ params }: { params: { id: string } })
                   </div>
                   <div className="p-4 bg-white rounded-lg border">
                     <Ticket className="h-6 w-6 text-green-500 mb-2" />
-                    <p className="text-xs text-gray-500">Tickets Vendidos</p>
-                    <p className="text-xl font-bold text-gray-900">{ticketsSoldCount.toLocaleString()}</p>
+                    {/* MODIFICADO: Título y valor actualizados */}
+                    <p className="text-xs text-gray-500">Tickets Ocupados</p>
+                    <p className="text-xl font-bold text-gray-900">{ticketsTakenCount.toLocaleString()}</p>
                   </div>
-                   <div className="p-4 bg-white rounded-lg border">
-                    <TicketSlash className="h-6 w-6 text-yellow-500 mb-2" />
-                    <p className="text-xs text-gray-500">Quedan</p>
-                    <p className="text-xl font-bold text-gray-900">{ticketsRemaining >= 0 ? ticketsRemaining.toLocaleString() : 0}</p>
+                  <div className="p-4 bg-white rounded-lg border">
+                    <Calendar className="h-6 w-6 text-purple-500 mb-2" />
+                    <p className="text-xs text-gray-500">Fecha del Sorteo</p>
+                    <p className="text-lg font-bold text-gray-900">{new Date(raffle.limitDate).toLocaleDateString()}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Columna Derecha: Formulario de Compra */}
+          {/* Columna Derecha: Formulario de Compra o Ganador */}
           <div className="lg:col-span-2">
             <div className="lg:sticky lg:top-8">
-              <BuyTicketsForm raffle={raffle} />
+              {/* LÓGICA CONDICIONAL: Muestra el ganador o el formulario de compra */}
+              {raffle.status === 'finished' && raffle.winnerTicketId ? (
+                <WinnerDisplayCard raffle={raffle} />
+              ) : raffle.status === 'active' ? (
+                <BuyTicketsForm raffle={raffle} paymentMethods={activePaymentMethods} />
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <Alert variant={raffle.status === 'finished' ? "default" : "destructive"}>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        {
+                          raffle.status === 'finished' ? "Esta rifa ha finalizado. ¡El ganador será anunciado pronto!" :
+                          raffle.status === 'cancelled' ? "Esta rifa ha sido cancelada." :
+                          raffle.status === 'postponed' ? `El sorteo ha sido pospuesto. Nueva fecha: ${new Date(raffle.limitDate).toLocaleDateString()}` :
+                          "Esta rifa no está disponible para la compra."
+                        }
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className="mt-8">
                 <CardHeader>
@@ -122,11 +206,11 @@ export default async function RafflePage({ params }: { params: { id: string } })
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">1</div>
                     <p>Completa el formulario con tus datos y la cantidad de tickets que deseas.</p>
                   </div>
-                   <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">2</div>
                     <p>Realiza el pago usando tu método preferido y anota la referencia.</p>
                   </div>
-                   <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">3</div>
                     <p>Una vez verifiquemos tu pago, tus números de la suerte serán enviados a tu email.</p>
                   </div>

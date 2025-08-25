@@ -1,48 +1,74 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Se importa useEffect
 import { updateRaffleAction } from '@/lib/actions';
+import { format } from "date-fns";
+import { es } from 'date-fns/locale'; // Importación para el formato de fecha en español
+
+// Componentes de UI y utilidades
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Edit, UploadCloud, X, Ban } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+
+// Iconos
+import { Loader2, Edit, UploadCloud, X, Ban, Calendar as CalendarIcon } from 'lucide-react';
 import Image from 'next/image';
 
-// Se espera recibir una rifa con sus imágenes
 type RaffleWithImages = {
   id: string;
   name: string;
   description: string | null;
   price: string;
   minimumTickets: number;
+  limitDate: Date;
   images: { id: string; url: string }[];
 };
 
-// Se añade la prop 'onCancel' para volver al modo vista
 export function EditRaffleForm({ raffle, onCancel }: { raffle: RaffleWithImages; onCancel: () => void; }) {
   const [state, setState] = useState({ success: false, message: '' });
   const [isPending, setIsPending] = useState(false);
 
   // Estados para manejar las imágenes
-  const [existingImages, setExistingImages] = useState(raffle.images);
+  const uniqueImages = Array.from(new Map(raffle.images.map(image => [image.id, image])).values());
+const [existingImages, setExistingImages] = useState(uniqueImages);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
-  
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
-  // Handler para cuando el usuario selecciona nuevos archivos
+  // Estado para la fecha límite
+  const [limitDate, setLimitDate] = useState<Date | undefined>(new Date(raffle.limitDate));
+  
+  // --- NUEVO useEffect para limpiar previews al desmontar el componente ---
+  useEffect(() => {
+    // Esta función de limpieza se ejecuta cuando el componente se desmonta.
+    // Revoca todas las URLs de objetos creadas para evitar fugas de memoria.
+    return () => {
+      previews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []); // El array vacío asegura que esto solo se ejecute al montar y desmontar.
+
+  // --- FUNCIÓN CORREGIDA para evitar duplicados ---
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Primero, revocar las URLs de las previews anteriores para liberar memoria
+    previews.forEach(url => URL.revokeObjectURL(url));
+
     if (event.target.files) {
       const files = Array.from(event.target.files);
-      setNewFiles(prev => [...prev, ...files]);
-      setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+      setNewFiles(files); // Reemplaza la selección anterior con la nueva
+      setPreviews(files.map(f => URL.createObjectURL(f))); // Crea nuevas previews solo para la selección actual
+    } else {
+      // Si se cancela la selección de archivos, se limpian los estados
+      setNewFiles([]);
+      setPreviews([]);
     }
   };
 
-  // Handler para remover una nueva imagen de la vista previa
   const removeNewImage = (indexToRemove: number) => {
     setNewFiles(prev => prev.filter((_, i) => i !== indexToRemove));
     setPreviews(prev => {
@@ -51,10 +77,24 @@ export function EditRaffleForm({ raffle, onCancel }: { raffle: RaffleWithImages;
     });
   };
 
-  // Handler para marcar una imagen existente para ser borrada
   const removeExistingImage = (imageId: string) => {
     setExistingImages(prev => prev.filter(img => img.id !== imageId));
     setImagesToDelete(prev => [...prev, imageId]);
+  };
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'hour' | 'minute') => {
+    if (!limitDate) return;
+
+    const value = parseInt(e.target.value, 10);
+    const newDate = new Date(limitDate);
+
+    if (type === 'hour' && !isNaN(value) && value >= 0 && value <= 23) {
+      newDate.setHours(value);
+    } else if (type === 'minute' && !isNaN(value) && value >= 0 && value <= 59) {
+      newDate.setMinutes(value);
+    }
+    
+    setLimitDate(newDate);
   };
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -62,6 +102,11 @@ export function EditRaffleForm({ raffle, onCancel }: { raffle: RaffleWithImages;
     setIsPending(true);
 
     const formData = new FormData(event.currentTarget);
+    
+    if (limitDate) {
+      formData.set('limitDate', limitDate.toISOString());
+    }
+
     newFiles.forEach(file => formData.append('images', file));
     if (imagesToDelete.length > 0) {
       formData.set('imagesToDelete', imagesToDelete.join(','));
@@ -69,8 +114,6 @@ export function EditRaffleForm({ raffle, onCancel }: { raffle: RaffleWithImages;
     
     const result = await updateRaffleAction(formData);
     
-    // Si la acción es exitosa, llama a onCancel para volver a la vista de detalles.
-    // La revalidación del path en la Server Action mostrará los datos actualizados.
     if (result.success) {
       onCancel(); 
     } else {
@@ -113,8 +156,61 @@ export function EditRaffleForm({ raffle, onCancel }: { raffle: RaffleWithImages;
                 <Input id="price" name="price" type="number" step="0.01" min="0.01" required disabled={isPending} defaultValue={raffle.price} className="mt-1" />
               </div>
               <div>
-                <Label htmlFor="minimumTickets">Tickets mínimos</Label>
-                <Input id="minimumTickets" name="minimumTickets" type="number" min="1" required disabled={isPending} defaultValue={raffle.minimumTickets} className="mt-1" />
+                {/* --- LÍNEAS CORREGIDAS --- */}
+                <Label htmlFor="minimumTickets">Tickets mínimos (Máx. 9999)</Label>
+                <Input id="minimumTickets" name="minimumTickets" type="number" min="1" max="9999" required disabled={isPending} defaultValue={raffle.minimumTickets} className="mt-1" />
+                {/* --- FIN DE LA CORRECCIÓN --- */}
+              </div>
+            </div>
+              
+            {/* Selector de Fecha y Hora */}
+            <div>
+              <Label>Fecha y Hora Límite del Sorteo</Label>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full sm:w-[240px] justify-start text-left font-normal",
+                        !limitDate && "text-muted-foreground"
+                      )}
+                      disabled={isPending}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {limitDate ? format(limitDate, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={limitDate}
+                      onSelect={setLimitDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    type="number" 
+                    min="0" max="23"
+                    className="w-20"
+                    placeholder="HH"
+                    defaultValue={limitDate ? limitDate.getHours().toString().padStart(2, '0') : ''}
+                    onChange={(e) => handleTimeChange(e, 'hour')}
+                    disabled={isPending || !limitDate}
+                  />
+                  <span>:</span>
+                  <Input 
+                    type="number" 
+                    min="0" max="59"
+                    className="w-20"
+                    placeholder="MM"
+                    defaultValue={limitDate ? limitDate.getMinutes().toString().padStart(2, '0') : ''}
+                    onChange={(e) => handleTimeChange(e, 'minute')}
+                    disabled={isPending || !limitDate}
+                  />
+                </div>
               </div>
             </div>
           </div>

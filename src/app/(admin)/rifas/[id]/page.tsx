@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { RaffleDetailView } from '@/components/rifas/raffle-detail-view'; // Asegúrate que esta ruta sea correcta
 
+export const revalidate = 0;
+
 export default async function RaffleDetailPage({ params }: { params: { id: string } }) {
   // Obtenemos todos los datos necesarios en el servidor
   const raffle = await db.query.raffles.findFirst({

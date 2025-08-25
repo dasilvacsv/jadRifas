@@ -1,6 +1,6 @@
 {
-  "id": "a9218f93-6bfe-4d24-84e0-8a250f0b79ee",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "158bbb9f-041b-489f-9ed6-e640a8479558",
+  "prevId": "97aa74f8-b747-4ba5-83c3-20f031fb0411",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -32,6 +32,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "triggers_api_verification": {
+          "name": "triggers_api_verification",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},
@@ -259,6 +266,24 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "limit_date": {
+          "name": "limit_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "winner_lottery_number": {
+          "name": "winner_lottery_number",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winner_proof_url": {
+          "name": "winner_proof_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -460,7 +485,8 @@
         "active",
         "finished",
         "cancelled",
-        "draft"
+        "draft",
+        "postponed"
       ]
     },
     "public.ticket_status": {
