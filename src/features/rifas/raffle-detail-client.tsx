@@ -208,15 +208,23 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                 <CardContent className="space-y-4 text-sm text-gray-600">
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">1</div>
-                    <p>Completa el formulario con tus datos y la cantidad de tickets que deseas.</p>
+                    <p>Elige la cantidad de tickets que quieres (2, 5, 10, 50, 100 o cantidad personalizada).</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">2</div>
-                    <p>Realiza el pago usando tu método preferido y anota la referencia.</p>
+                    <p>Apartamos tus números por 10 minutos mientras completas tu información.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">3</div>
-                    <p>Una vez verifiquemos tu pago, tus números de la suerte serán enviados a tu email.</p>
+                    <p>Selecciona tu método de pago preferido y realiza la transferencia.</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">4</div>
+                    <p>Completa el formulario con tus datos, referencia de pago y captura de pantalla.</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">5</div>
+                    <p>Una vez verifiquemos tu pago, recibirás tus números de la suerte por email.</p>
                   </div>
                 </CardContent>
               </Card>
