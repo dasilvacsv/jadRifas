@@ -2,7 +2,7 @@
 import axios from "axios"
 
 // API endpoint for Venezuelan exchange rates
-const EXCHANGE_RATE_API = "https://pydolarve.org/api/v1/dollar?page=alcambio&format_date=default&rounded_price=false"
+const EXCHANGE_RATE_API = "https://ve.dolarapi.com/v1/dolares/oficial"
 
 interface RateInfo {
   rate: number

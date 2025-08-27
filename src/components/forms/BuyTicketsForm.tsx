@@ -11,12 +11,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 // Se importa el componente Badge para mostrar los números
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ShoppingCart, X, Ticket, CreditCard, AlertCircle } from 'lucide-react';
-// Import exchange rate utilities
-import { getBCVRate, formatSaleCurrency } from '@/lib/exchangeRates';
+// CAMBIO: Se elimina la importación de getBCVRate
+import { formatSaleCurrency } from '@/lib/exchangeRates';
 // NUEVA importación del componente para mostrar detalles de pago
 import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 
-// CAMBIO: Se actualiza la interfaz para los métodos de pago
+// Se actualiza la interfaz para los métodos de pago
 interface PaymentMethod {
   id: string;
   title: string;
@@ -32,17 +32,20 @@ interface BuyTicketsFormProps {
     id: string;
     name: string;
     price: string;
-    // NUEVO: Se añade la moneda a la rifa
+    // Se añade la moneda a la rifa
     currency: 'USD' | 'VES';
     status: string;
   };
   // Se recibe la lista de métodos de pago actualizada
   paymentMethods: PaymentMethod[];
+  // NUEVO: La tasa de cambio ahora se recibe como una prop
+  bcvRate: number;
 }
 
 const initialState = { success: false, message: '' };
 
-export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) {
+// CAMBIO: El componente ahora recibe bcvRate en sus props
+export function BuyTicketsForm({ raffle, paymentMethods, bcvRate }: BuyTicketsFormProps) {
   const [state, setState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
   const [ticketCount, setTicketCount] = useState(2);
@@ -55,12 +58,12 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   const [isReserving, setIsReserving] = useState(false);
   const [reservationError, setReservationError] = useState('');
 
-  // Estados para la tasa de cambio
-  const [bcvRate, setBcvRate] = useState<number>(0);
-  const [bcvRateError, setBcvRateError] = useState<string | null>(null);
-  const [isLoadingRate, setIsLoadingRate] = useState(false);
+  // ELIMINADO: Ya no se necesitan estados para la tasa de cambio
+  // const [bcvRate, setBcvRate] = useState<number>(0);
+  // const [bcvRateError, setBcvRateError] = useState<string | null>(null);
+  // const [isLoadingRate, setIsLoadingRate] = useState(false);
 
-  // --- NUEVA LÓGICA DE MONEDA ---
+  // --- LÓGICA DE MONEDA (AHORA USA LA PROP bcvRate) ---
   const isRaffleInUsd = raffle.currency === 'USD';
   const ticketPrice = parseFloat(raffle.price);
   const numberOfTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
@@ -78,8 +81,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     : totalAmountInOriginalCurrency;
     
   // Función para formatear el monto en VES
-  const formattedTotalVes = formatSaleCurrency(totalAmountVes, "Bs.", 1); // Tasa es 1 porque ya está en Bs.
-
+  const formattedTotalVes = formatSaleCurrency(totalAmountVes, "BS", 1); // Tasa es 1 porque ya está en Bs.
 
   useEffect(() => {
     if (state.success) {
@@ -103,30 +105,8 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     }
   };
 
-  // CAMBIO: El useEffect ahora carga la tasa BCV al iniciar el componente
-  useEffect(() => {
-    const loadBcvRate = async () => {
-      setIsLoadingRate(true);
-      setBcvRateError(null);
-      try {
-        const rateInfo = await getBCVRate();
-        if (typeof rateInfo.rate === 'number' && rateInfo.rate > 0) {
-          setBcvRate(rateInfo.rate);
-        } else {
-          setBcvRate(36.0); // Tasa de respaldo
-          setBcvRateError("Tasa BCV no válida, usando respaldo.");
-        }
-      } catch (error) {
-        setBcvRate(36.0); // Tasa de respaldo en caso de error
-        setBcvRateError("Error al cargar tasa BCV, usando respaldo.");
-      } finally {
-        setIsLoadingRate(false);
-      }
-    };
-
-    loadBcvRate();
-  }, []); // Dependencia vacía para que se ejecute solo una vez
-
+  // ELIMINADO: El useEffect que cargaba la tasa BCV ya no es necesario
+  
   const handlePaymentMethodChange = (value: string) => {
     setPaymentMethod(value);
   };
@@ -238,12 +218,13 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               </Button>
             </div>
           </div>
-
+          
           <div className="bg-slate-50 p-4 rounded-lg border">
             <div className="text-center space-y-1">
               <div className="text-sm text-gray-600">
-                {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} × {isRaffleInUsd ? `$${ticketPrice.toFixed(2)}` : `${formatSaleCurrency(ticketPrice, "Bs.", 1)}`} c/u
+                {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {isRaffleInUsd ? `$${ticketPrice.toFixed(2)}` : `${formatSaleCurrency(ticketPrice, "BS", 1)}`} c/u
               </div>
+              
               <div className="text-3xl font-bold text-blue-600">
                 Total: {isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}
               </div>
@@ -294,7 +275,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               <div className="border-t pt-2 flex justify-between text-lg font-bold">
                 <span>Total a pagar:</span>
                 <div className="text-right">
-                  {/* CAMBIO: Mostrar el total en la moneda principal y el equivalente */}
                   {isRaffleInUsd ? (
                     <>
                       <span className="text-blue-600">${totalAmountUsd.toFixed(2)}</span>
@@ -334,7 +314,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                   >
                     <div className="font-medium">{method.title}</div>
                   </label>
-                  {/* CAMBIO: Mostrar el nuevo componente en lugar del texto simple */}
                   {paymentMethod === method.title && (
                     <PaymentDetailsDisplay
                       method={method}
@@ -403,7 +382,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
             {isPending ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
             ) : (
-               // CAMBIO: El texto del botón ahora refleja la moneda original
               `Confirmar Compra por ${isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}`
             )}
           </Button>
