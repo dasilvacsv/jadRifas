@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 // Se importa el componente Badge para mostrar los números
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShoppingCart, X, Info, Ticket, CreditCard } from 'lucide-react';
+import { Loader2, ShoppingCart, X, Info, Ticket, CreditCard, AlertCircle } from 'lucide-react';
+// Import exchange rate utilities
+import { getBCVRate, formatSaleCurrency } from '@/lib/exchangeRates';
 
 // Se añade el tipo para los métodos de pago
 interface PaymentMethod {
@@ -48,6 +50,11 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   
   // NUEVO: Estado para mostrar los detalles del método de pago seleccionado
   const [selectedMethodDetails, setSelectedMethodDetails] = useState('');
+  
+  // BCV rate states for Venezuelan payments
+  const [bcvRate, setBcvRate] = useState<number>(0);
+  const [bcvRateError, setBcvRateError] = useState<string | null>(null);
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
 
   // El total se calcula basado en los tickets apartados si existen, si no, en la cantidad seleccionada.
   const totalAmount = (reservedTickets.length > 0 ? reservedTickets.length : ticketCount) * parseFloat(raffle.price);
@@ -74,11 +81,81 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     }
   };
   
+  // Check if payment method is Venezuelan (contains keywords that indicate VE payment)
+  const isVenezuelanPayment = (methodTitle: string) => {
+    const venezuelanKeywords = ['transferencia', 'banesco', 'provincial', 'mercantil', 'venezuela', 'pago movil', 'zelle'];
+    return venezuelanKeywords.some(keyword => 
+      methodTitle.toLowerCase().includes(keyword.toLowerCase())
+    );
+  };
+
+  // Load BCV rate when Venezuelan payment method is selected
+  useEffect(() => {
+    const loadBcvRate = async () => {
+      if (paymentMethod && isVenezuelanPayment(paymentMethod)) {
+        setIsLoadingRate(true);
+        setBcvRateError(null);
+        
+        try {
+          const rateInfo = await getBCVRate();
+          if (typeof rateInfo.rate === 'number' && rateInfo.rate > 0) {
+            setBcvRate(rateInfo.rate);
+            setBcvRateError(null);
+          } else {
+            console.warn("Invalid BCV rate received:", rateInfo);
+            setBcvRate(36.0);
+            setBcvRateError("Tasa BCV no válida, usando tasa de respaldo.");
+          }
+        } catch (error) {
+          console.error("Error loading BCV rate:", error);
+          setBcvRate(36.0);
+          setBcvRateError("Error al cargar tasa BCV, usando tasa de respaldo.");
+        } finally {
+          setIsLoadingRate(false);
+        }
+      } else {
+        setBcvRate(0);
+        setBcvRateError(null);
+      }
+    };
+
+    loadBcvRate();
+  }, [paymentMethod]);
+
   const handlePaymentMethodChange = (value: string) => {
     setPaymentMethod(value);
     const selected = paymentMethods.find(pm => pm.title === value);
     setSelectedMethodDetails(selected ? selected.details : '');
   };
+
+  // Helper function to format Bs amount
+  const formatBs = (amount: number) => {
+    if (bcvRate <= 0) return "...";
+    return formatSaleCurrency(amount, "BS", bcvRate);
+  };
+
+  // Helper component for dual currency display
+  const CurrencyDisplay = ({ amount, showBs = false, className = "" }: { 
+    amount: number; 
+    showBs?: boolean; 
+    className?: string; 
+  }) => (
+    <div className={className}>
+      <div>${amount.toFixed(2)}</div>
+      {showBs && paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
+        <div className="text-xs text-gray-500">
+          {isLoadingRate ? (
+            <span className="flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              ...
+            </span>
+          ) : (
+            formatBs(amount)
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   // NUEVA FUNCIÓN para apartar los tickets
   const handleReserveTickets = async () => {
@@ -263,7 +340,14 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Precio por ticket:</span>
-                <span className="font-medium">${raffle.price}</span>
+                <div className="text-right">
+                  <span className="font-medium">${raffle.price}</span>
+                  {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
+                    <div className="text-xs text-gray-500">
+                      {formatBs(parseFloat(raffle.price))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between">
                 <span>Cantidad:</span>
@@ -271,9 +355,34 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               </div>
               <div className="border-t pt-2 flex justify-between text-lg font-bold">
                 <span>Total:</span>
-                <span className="text-blue-600">${totalAmount.toFixed(2)}</span>
+                <div className="text-right">
+                  <span className="text-blue-600">${totalAmount.toFixed(2)}</span>
+                  {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
+                    <div className="text-sm font-semibold text-green-700">
+                      {isLoadingRate ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Cargando tasa...
+                        </span>
+                      ) : (
+                        <>
+                          {formatBs(totalAmount)}
+                          <div className="text-xs font-normal text-gray-500">
+                            Tasa: {bcvRate.toFixed(2)} Bs/$
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+            {bcvRateError && (
+              <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {bcvRateError}
+              </div>
+            )}
           </div>
 
           {/* Payment Method Selection */}
@@ -313,7 +422,12 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                         <span className="text-xs text-gray-500">Logo</span>
                       </div>
                       <div className="flex-1">
-                        <div className="font-medium">{method.title}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{method.title}</span>
+                          {isVenezuelanPayment(method.title) && (
+                            <Badge variant="secondary" className="text-xs">VE</Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600 mt-1">{method.details}</div>
                       </div>
                     </div>
@@ -392,7 +506,18 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
             size="lg"
           >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Confirmar Compra - ${totalAmount.toFixed(2)}
+            {isPending ? (
+              'Procesando compra...'
+            ) : (
+              <div className="text-center">
+                <div>Confirmar Compra - ${totalAmount.toFixed(2)}</div>
+                {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
+                  <div className="text-xs opacity-90">
+                    {formatBs(totalAmount)}
+                  </div>
+                )}
+              </div>
+            )}
           </Button>
         </form>
       </CardContent>

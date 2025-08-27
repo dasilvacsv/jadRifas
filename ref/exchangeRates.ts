@@ -1,4 +1,3 @@
-
 import axios from "axios"
 
 // API endpoint for Venezuelan exchange rates
@@ -172,4 +171,3 @@ export function convertCurrency(
 
   return amount
 }
-
