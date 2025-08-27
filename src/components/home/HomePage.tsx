@@ -44,6 +44,7 @@ export interface ActiveRaffle {
   name: string;
   description: string | null;
   price: string;
+  currency: 'USD' | 'VES'; // <-- Campo añadido
   minimumTickets: number;
   status: "active" | "finished" | "cancelled" | "draft" | "postponed";
   createdAt: Date;
@@ -61,6 +62,7 @@ export interface FinishedRaffle {
   name: string;
   description: string | null;
   price: string;
+  currency: 'USD' | 'VES'; // <-- Campo añadido
   minimumTickets: number;
   status: "active" | "finished" | "cancelled" | "draft" | "postponed";
   createdAt: Date;
@@ -77,6 +79,12 @@ interface HomePageProps {
   activeRaffles: ActiveRaffle[];
   finishedRaffles: FinishedRaffle[];
 }
+
+// --- Función de ayuda para la moneda ---
+const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
+    const value = parseFloat(amount).toFixed(2);
+    return currency === 'USD' ? `$${value}` : `Bs. ${value}`;
+};
 
 export default function HomePage({ activeRaffles, finishedRaffles }: HomePageProps) {
   return (
@@ -185,7 +193,10 @@ export default function HomePage({ activeRaffles, finishedRaffles }: HomePagePro
                         <div className="w-full flex justify-between items-center">
                           <div>
                             <p className="text-sm text-gray-500">Precio</p>
-                            <p className="text-2xl font-bold text-blue-600">${raffle.price}</p>
+                            {/* --- VISUALIZACIÓN DE PRECIO ACTUALIZADA --- */}
+                            <p className="text-2xl font-bold text-blue-600">
+                              {formatCurrency(raffle.price, raffle.currency)}
+                            </p>
                           </div>
                           <Link href={`/rifa/${raffle.id}`}>
                             <Button size="lg">

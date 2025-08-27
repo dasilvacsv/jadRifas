@@ -12,6 +12,7 @@ import {
   raffleStatusEnum,
   raffleImages,
   paymentMethods,
+  currencyEnum,
 } from "./db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
@@ -280,32 +281,56 @@ const CreateRaffleSchema = z.object({
   price: z.coerce.number().positive("El precio debe ser un número positivo."),
   minimumTickets: z.coerce.number().int().positive("El mínimo de tickets debe ser un número positivo."),
   limitDate: z.string().min(1, "La fecha límite es requerida."),
+  currency: z.enum(currencyEnum.enumValues, { // Usamos el enum del schema para validación
+    required_error: "La moneda es requerida.",
+  }),
 });
 
 export async function createRaffleAction(formData: FormData): Promise<ActionState> {
   const data = Object.fromEntries(formData.entries());
   const images = formData.getAll("images") as File[];
   const validatedFields = CreateRaffleSchema.safeParse(data);
-  if (!validatedFields.success) return { success: false, message: "Error de validación en los campos." };
-  const { name, description, price, minimumTickets, limitDate } = validatedFields.data;
+
+  if (!validatedFields.success) {
+      // Devolvemos el primer error para una mejor retroalimentación al usuario
+      const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+      return { success: false, message: firstError || "Error de validación en los campos." };
+  }
+  
+  // --- MODIFICADO: Extraemos 'currency' de los datos validados ---
+  const { name, description, price, minimumTickets, limitDate, currency } = validatedFields.data;
+  // --- FIN MODIFICADO ---
+
   for (const file of images) {
     if (file.size > 5 * 1024 * 1024) return { success: false, message: `El archivo ${file.name} es demasiado grande.` };
     if (!file.type.startsWith("image/")) return { success: false, message: `El archivo ${file.name} no es una imagen.` };
   }
+
   try {
     const newRaffle = await db.transaction(async (tx) => {
+      // --- MODIFICADO: Pasamos 'currency' al insertar en la base de datos ---
       const [createdRaffle] = await tx.insert(raffles).values({
-        name, description, price: price.toString(), minimumTickets, status: "draft", limitDate: new Date(limitDate)
+        name, 
+        description, 
+        price: price.toString(), 
+        minimumTickets, 
+        status: "draft", 
+        limitDate: new Date(limitDate),
+        currency, // <-- Campo añadido
       }).returning({ id: raffles.id });
+      // --- FIN MODIFICADO ---
+
       const imageUrls = await Promise.all(images.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer());
         const key = `raffles/${createdRaffle.id}/${crypto.randomUUID()}-${file.name}`;
         const url = await uploadToS3(buffer, key, file.type);
         return { url, raffleId: createdRaffle.id };
       }));
+
       if (imageUrls.length > 0) await tx.insert(raffleImages).values(imageUrls);
       return createdRaffle;
     });
+
     revalidatePath("/rifas");
     return { success: true, message: "Rifa creada con éxito.", data: newRaffle };
   } catch (error) {
@@ -371,6 +396,9 @@ const UpdateRaffleSchema = z.object({
   price: z.coerce.number().positive("El precio debe ser un número positivo."),
   minimumTickets: z.coerce.number().int().positive("El mínimo de tickets debe ser positivo."),
   limitDate: z.string().min(1, "La fecha límite es requerida."),
+  currency: z.enum(["USD", "VES"], { // Campo añadido para la validación
+    required_error: "La moneda es requerida.",
+  }),
 });
 
 export async function updateRaffleAction(formData: FormData): Promise<ActionState> {
@@ -378,12 +406,28 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
   const newImages = formData.getAll("images") as File[];
   const imagesToDeleteString = formData.get('imagesToDelete') as string | null;
   const validatedFields = UpdateRaffleSchema.safeParse(data);
-  if (!validatedFields.success) return { success: false, message: "Error de validación en los campos." };
-  const { raffleId, name, description, price, minimumTickets, limitDate } = validatedFields.data;
+  
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación en los campos." };
+  }
+  
+  // --- MODIFICADO: Extraemos 'currency' de los datos validados ---
+  const { raffleId, name, description, price, minimumTickets, limitDate, currency } = validatedFields.data;
   const imageIdsToDelete = imagesToDeleteString?.split(',').filter(id => id.trim() !== '') || [];
+
   try {
     await db.transaction(async (tx) => {
-      await tx.update(raffles).set({ name, description, price: price.toString(), minimumTickets, limitDate: new Date(limitDate), updatedAt: new Date() }).where(eq(raffles.id, raffleId));
+      // --- MODIFICADO: Pasamos 'currency' al actualizar la base de datos ---
+      await tx.update(raffles).set({ 
+        name, 
+        description, 
+        price: price.toString(), 
+        minimumTickets, 
+        limitDate: new Date(limitDate), 
+        updatedAt: new Date(),
+        currency, // <-- Campo añadido
+      }).where(eq(raffles.id, raffleId));
+
       if (imageIdsToDelete.length > 0) {
         const images = await tx.query.raffleImages.findMany({ where: inArray(raffleImages.id, imageIdsToDelete) });
         for (const image of images) {
@@ -392,6 +436,7 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
         }
         await tx.delete(raffleImages).where(inArray(raffleImages.id, imageIdsToDelete));
       }
+
       if (newImages.length > 0) {
         const imageUrls = await Promise.all(newImages.map(async (file) => {
           const buffer = Buffer.from(await file.arrayBuffer());
@@ -402,6 +447,7 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
         if (imageUrls.length > 0) await tx.insert(raffleImages).values(imageUrls);
       }
     });
+
     revalidatePath("/rifas");
     revalidatePath(`/rifas/${raffleId}`);
     return { success: true, message: "Rifa actualizada con éxito." };
@@ -570,35 +616,55 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
 
 const PaymentMethodSchema = z.object({
   title: z.string().min(3, "El título es requerido."),
-  details: z.string().min(10, "Los detalles son requeridos."),
-  isActive: z.preprocess((val) => val === 'on' || val === true, z.boolean()),
-  triggersApiVerification: z.preprocess((val) => val === 'on' || val === true, z.boolean()),
+  
+  // ✅ SOLUCIÓN: Haz que el campo 'details' sea opcional.
+  // Ahora Zod no se quejará si no lo envías.
+  details: z.string().optional(), 
+
+  // Los demás campos ya están correctos.
+  accountHolderName: z.string().optional(),
+  rif: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  bankName: z.string().optional(),
+  accountNumber: z.string().optional(),
+
+  isActive: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
+  triggersApiVerification: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
 });
 
 export async function createPaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
-  try {
-    await db.insert(paymentMethods).values(validatedFields.data);
-    revalidatePath("/admin/metodos-pago");
-    return { success: true, message: "Método de pago creado con éxito." };
-  } catch (error) {
-    return { success: false, message: "Error al crear el método de pago." };
+  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!validatedFields.success) {
+    // Devuelve el primer error encontrado para mejor feedback
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+    return { success: false, message: firstError || "Datos inválidos." };
   }
+  try {
+    await db.insert(paymentMethods).values(validatedFields.data);
+    revalidatePath("/admin/metodos-pago");
+    return { success: true, message: "Método de pago creado con éxito." };
+  } catch (error) {
+    return { success: false, message: "Error al crear el método de pago. El título podría estar duplicado." };
+  }
 }
 
 export async function updatePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const id = formData.get('id') as string;
-  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
-  try {
-    await db.update(paymentMethods).set(validatedFields.data).where(eq(paymentMethods.id, id));
-    revalidatePath("/admin/metodos-pago");
-    revalidatePath("/rifa");
-    return { success: true, message: "Método de pago actualizado." };
-  } catch (error) {
-    return { success: false, message: "Error al actualizar." };
+  const id = formData.get('id') as string;
+  if (!id) return { success: false, message: "ID del método no encontrado." };
+  
+  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+    return { success: false, message: firstError || "Datos inválidos." };
   }
+  try {
+    await db.update(paymentMethods).set(validatedFields.data).where(eq(paymentMethods.id, id));
+    revalidatePath("/admin/metodos-pago");
+    revalidatePath("/rifa"); // Revalida las páginas de rifas por si usan los datos
+    return { success: true, message: "Método de pago actualizado." };
+  } catch (error) {
+    return { success: false, message: "Error al actualizar." };
+  }
 }
 
 export async function deletePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {

@@ -7,19 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 // Se importa el componente Badge para mostrar los números
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShoppingCart, X, Info, Ticket, CreditCard, AlertCircle } from 'lucide-react';
+import { Loader2, ShoppingCart, X, Ticket, CreditCard, AlertCircle } from 'lucide-react';
 // Import exchange rate utilities
 import { getBCVRate, formatSaleCurrency } from '@/lib/exchangeRates';
+// NUEVA importación del componente para mostrar detalles de pago
+import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 
-// Se añade el tipo para los métodos de pago
+// CAMBIO: Se actualiza la interfaz para los métodos de pago
 interface PaymentMethod {
   id: string;
   title: string;
-  details: string;
+  bankName?: string | null;
+  rif?: string | null;
+  phoneNumber?: string | null;
+  accountHolderName?: string | null;
+  accountNumber?: string | null;
 }
 
 interface BuyTicketsFormProps {
@@ -27,9 +32,11 @@ interface BuyTicketsFormProps {
     id: string;
     name: string;
     price: string;
+    // NUEVO: Se añade la moneda a la rifa
+    currency: 'USD' | 'VES';
     status: string;
   };
-  // Se recibe la lista de métodos de pago como prop
+  // Se recibe la lista de métodos de pago actualizada
   paymentMethods: PaymentMethod[];
 }
 
@@ -38,34 +45,49 @@ const initialState = { success: false, message: '' };
 export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) {
   const [state, setState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
-  const [ticketCount, setTicketCount] = useState(1);
+  const [ticketCount, setTicketCount] = useState(2);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
-  // NUEVOS ESTADOS para manejar el apartado de tickets
+  // ESTADOS CLAVE PARA EL FLUJO DE PAGO EN PASOS
   const [reservedTickets, setReservedTickets] = useState<string[]>([]);
   const [isReserving, setIsReserving] = useState(false);
   const [reservationError, setReservationError] = useState('');
-  
-  // NUEVO: Estado para mostrar los detalles del método de pago seleccionado
-  const [selectedMethodDetails, setSelectedMethodDetails] = useState('');
-  
-  // BCV rate states for Venezuelan payments
+
+  // Estados para la tasa de cambio
   const [bcvRate, setBcvRate] = useState<number>(0);
   const [bcvRateError, setBcvRateError] = useState<string | null>(null);
   const [isLoadingRate, setIsLoadingRate] = useState(false);
 
-  // El total se calcula basado en los tickets apartados si existen, si no, en la cantidad seleccionada.
-  const totalAmount = (reservedTickets.length > 0 ? reservedTickets.length : ticketCount) * parseFloat(raffle.price);
+  // --- NUEVA LÓGICA DE MONEDA ---
+  const isRaffleInUsd = raffle.currency === 'USD';
+  const ticketPrice = parseFloat(raffle.price);
+  const numberOfTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
+
+  // Calcula el total en la moneda original de la rifa
+  const totalAmountInOriginalCurrency = numberOfTickets * ticketPrice;
+
+  // Calcula los totales en ambas monedas para mostrarlos siempre
+  const totalAmountUsd = isRaffleInUsd
+    ? totalAmountInOriginalCurrency
+    : (bcvRate > 0 ? totalAmountInOriginalCurrency / bcvRate : 0);
+
+  const totalAmountVes = isRaffleInUsd
+    ? (bcvRate > 0 ? totalAmountInOriginalCurrency * bcvRate : 0)
+    : totalAmountInOriginalCurrency;
+    
+  // Función para formatear el monto en VES
+  const formattedTotalVes = formatSaleCurrency(totalAmountVes, "Bs.", 1); // Tasa es 1 porque ya está en Bs.
+
 
   useEffect(() => {
     if (state.success) {
-      setTicketCount(1);
+      // Limpiar todo el formulario tras una compra exitosa
+      setTicketCount(2);
       setPaymentMethod('');
       setPaymentScreenshot(null);
       setPreview(null);
-      // Al completar la compra, también se resetean los tickets apartados.
       setReservedTickets([]);
     }
   }, [state.success]);
@@ -80,129 +102,75 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
       setPreview(null);
     }
   };
-  
-  // Check if payment method is Venezuelan (contains keywords that indicate VE payment)
-  const isVenezuelanPayment = (methodTitle: string) => {
-    const venezuelanKeywords = ['transferencia', 'banesco', 'provincial', 'mercantil', 'venezuela', 'pago movil', 'zelle'];
-    return venezuelanKeywords.some(keyword => 
-      methodTitle.toLowerCase().includes(keyword.toLowerCase())
-    );
-  };
 
-  // Load BCV rate when Venezuelan payment method is selected
+  // CAMBIO: El useEffect ahora carga la tasa BCV al iniciar el componente
   useEffect(() => {
     const loadBcvRate = async () => {
-      if (paymentMethod && isVenezuelanPayment(paymentMethod)) {
-        setIsLoadingRate(true);
-        setBcvRateError(null);
-        
-        try {
-          const rateInfo = await getBCVRate();
-          if (typeof rateInfo.rate === 'number' && rateInfo.rate > 0) {
-            setBcvRate(rateInfo.rate);
-            setBcvRateError(null);
-          } else {
-            console.warn("Invalid BCV rate received:", rateInfo);
-            setBcvRate(36.0);
-            setBcvRateError("Tasa BCV no válida, usando tasa de respaldo.");
-          }
-        } catch (error) {
-          console.error("Error loading BCV rate:", error);
-          setBcvRate(36.0);
-          setBcvRateError("Error al cargar tasa BCV, usando tasa de respaldo.");
-        } finally {
-          setIsLoadingRate(false);
+      setIsLoadingRate(true);
+      setBcvRateError(null);
+      try {
+        const rateInfo = await getBCVRate();
+        if (typeof rateInfo.rate === 'number' && rateInfo.rate > 0) {
+          setBcvRate(rateInfo.rate);
+        } else {
+          setBcvRate(36.0); // Tasa de respaldo
+          setBcvRateError("Tasa BCV no válida, usando respaldo.");
         }
-      } else {
-        setBcvRate(0);
-        setBcvRateError(null);
+      } catch (error) {
+        setBcvRate(36.0); // Tasa de respaldo en caso de error
+        setBcvRateError("Error al cargar tasa BCV, usando respaldo.");
+      } finally {
+        setIsLoadingRate(false);
       }
     };
 
     loadBcvRate();
-  }, [paymentMethod]);
+  }, []); // Dependencia vacía para que se ejecute solo una vez
 
   const handlePaymentMethodChange = (value: string) => {
     setPaymentMethod(value);
-    const selected = paymentMethods.find(pm => pm.title === value);
-    setSelectedMethodDetails(selected ? selected.details : '');
   };
 
-  // Helper function to format Bs amount
-  const formatBs = (amount: number) => {
-    if (bcvRate <= 0) return "...";
-    return formatSaleCurrency(amount, "BS", bcvRate);
-  };
-
-  // Helper component for dual currency display
-  const CurrencyDisplay = ({ amount, showBs = false, className = "" }: { 
-    amount: number; 
-    showBs?: boolean; 
-    className?: string; 
-  }) => (
-    <div className={className}>
-      <div>${amount.toFixed(2)}</div>
-      {showBs && paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
-        <div className="text-xs text-gray-500">
-          {isLoadingRate ? (
-            <span className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              ...
-            </span>
-          ) : (
-            formatBs(amount)
-          )}
-        </div>
-      )}
-    </div>
-  );
-
-  // NUEVA FUNCIÓN para apartar los tickets
+  // PASO 1: Acción para apartar los tickets
   const handleReserveTickets = async () => {
     setIsReserving(true);
     setReservationError('');
-    
+
     const formData = new FormData();
     formData.append('raffleId', raffle.id);
     formData.append('ticketCount', ticketCount.toString());
 
-    // Se asume que reserveTicketsAction devuelve un objeto con { success: boolean, message: string, data?: { reservedTickets: string[] } }
     const result = await reserveTicketsAction(formData);
 
     if (result.success && result.data?.reservedTickets) {
       setReservedTickets(result.data.reservedTickets);
     } else {
-      setReservationError(result.message);
+      setReservationError(result.message || 'No se pudieron apartar los tickets. Intenta de nuevo.');
     }
     setIsReserving(false);
   };
-  
+
+  // PASO 2: Acción para enviar el formulario de compra
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // No se envía el formulario si no hay tickets apartados
     if (reservedTickets.length === 0) return;
 
     setIsPending(true);
-
     const formData = new FormData(event.currentTarget);
-    
+
     if (paymentScreenshot) {
       formData.append('paymentScreenshot', paymentScreenshot);
     }
-    // Se agregan los tickets apartados al FormData para enviarlos a la acción
     formData.append('reservedTickets', reservedTickets.join(','));
-    
-    const result = await buyTicketsAction(formData);
 
+    const result = await buyTicketsAction(formData);
     setState(result);
     setIsPending(false);
-
-    // El reseteo del formulario se maneja en el useEffect
   };
 
   if (raffle.status !== 'active') {
     return (
-      <Card className="max-w-2xl mx-auto">
+      <Card>
         <CardContent className="pt-6">
           <Alert>
             <AlertDescription>
@@ -214,12 +182,10 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     );
   }
 
-  // --- RENDERIZADO CONDICIONAL ---
-
-  // 1. Si no hay tickets apartados, muestra la selección de cantidad y el botón para apartar.
+  // VISTA INICIAL: Selección de cantidad de tickets
   if (reservedTickets.length === 0) {
     return (
-      <Card className="max-w-2xl mx-auto">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Ticket className="h-5 w-5" />
@@ -232,61 +198,54 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               <AlertDescription>{reservationError}</AlertDescription>
             </Alert>
           )}
-          
-          {/* Predefined quantity buttons */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {[2, 5, 10, 50, 100].map((quantity) => (
-                <Button
-                  key={quantity}
-                  variant={ticketCount === quantity ? "default" : "outline"}
-                  onClick={() => setTicketCount(quantity)}
-                  disabled={isReserving}
-                  className="h-16 flex flex-col"
-                >
-                  <span className="text-lg font-bold">{quantity}</span>
-                  <span className="text-xs opacity-75">tickets</span>
-                </Button>
-              ))}
-              
-              {/* Custom quantity button */}
-              <div className="relative">
-                <Button
-                  variant={![2, 5, 10, 50, 100].includes(ticketCount) ? "default" : "outline"}
-                  onClick={() => {
-                    const customInput = document.getElementById('customTicketCount') as HTMLInputElement;
-                    customInput?.focus();
+
+          <div className="grid grid-cols-3 gap-3">
+            {[2, 5, 10, 50, 100].map((quantity) => (
+              <Button
+                key={quantity}
+                variant={ticketCount === quantity ? "default" : "outline"}
+                onClick={() => setTicketCount(quantity)}
+                disabled={isReserving}
+                className="h-16 flex flex-col"
+              >
+                <span className="text-lg font-bold">{quantity}</span>
+                <span className="text-xs opacity-75">tickets</span>
+              </Button>
+            ))}
+
+            <div className="relative">
+              <Button
+                variant={![2, 5, 10, 50, 100].includes(ticketCount) ? "default" : "outline"}
+                onClick={() => document.getElementById('customTicketCount')?.focus()}
+                disabled={isReserving}
+                className="w-full h-16 flex flex-col items-center justify-center"
+              >
+                <span id="custom-label" className="text-lg font-bold">
+                  {![2, 5, 10, 50, 100].includes(ticketCount) ? ticketCount : 'Otro'}
+                </span>
+                <span className="text-xs opacity-75">cantidad</span>
+                <Input
+                  id="customTicketCount"
+                  type="number"
+                  min="1"
+                  value={ticketCount}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 1;
+                    setTicketCount(value);
                   }}
-                  disabled={isReserving}
-                  className="w-full h-16 flex flex-col"
-                >
-                  <span className="text-lg font-bold">Otro</span>
-                  <span className="text-xs opacity-75">cantidad</span>
-                </Button>
-                {![2, 5, 10, 50, 100].includes(ticketCount) && (
-                  <Input
-                    id="customTicketCount"
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={ticketCount}
-                    onChange={(e) => setTicketCount(parseInt(e.target.value) || 1)}
-                    disabled={isReserving}
-                    className="absolute top-1 left-1 right-1 h-8 text-center text-sm"
-                  />
-                )}
-              </div>
+                  className="absolute inset-0 w-full h-full bg-transparent text-transparent border-none focus:ring-0"
+                />
+              </Button>
             </div>
           </div>
 
-          {/* Total amount display */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-            <div className="text-center space-y-2">
+          <div className="bg-slate-50 p-4 rounded-lg border">
+            <div className="text-center space-y-1">
               <div className="text-sm text-gray-600">
-                {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} × ${raffle.price} c/u
+                {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} × {isRaffleInUsd ? `$${ticketPrice.toFixed(2)}` : `${formatSaleCurrency(ticketPrice, "Bs.", 1)}`} c/u
               </div>
-              <div className="text-2xl font-bold text-blue-600">
-                Total: ${totalAmount.toFixed(2)}
+              <div className="text-3xl font-bold text-blue-600">
+                Total: {isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}
               </div>
             </div>
           </div>
@@ -300,9 +259,9 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     );
   }
 
-  // 2. Si ya hay tickets apartados, muestra el formulario de compra completo.
+  // VISTA 2: Formulario de pago después de apartar los tickets
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShoppingCart className="h-5 w-5" />
@@ -310,92 +269,55 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Confirmation of reservation without showing numbers */}
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="text-center">
-            <h4 className="font-semibold text-green-800 mb-2">¡Números reservados exitosamente!</h4>
-            <div className="flex items-center justify-center gap-4 text-sm text-green-700">
-              <span className="flex items-center gap-1">
-                <Ticket className="h-4 w-4" />
-                {reservedTickets.length} tickets apartados
-              </span>
-              <span>⏰ 10 minutos para completar</span>
-            </div>
-            <p className="text-xs text-green-600 mt-2">Tus números se revelarán una vez confirmemos el pago</p>
-          </div>
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+          <h4 className="font-semibold text-green-800">¡Números reservados exitosamente!</h4>
+          <p className="text-sm text-green-700 mt-1">Tienes 10 minutos para completar el pago.</p>
+          <p className="text-xs text-green-600 mt-2">Tus números se revelarán una vez confirmemos el pago.</p>
         </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-6">
           <input type="hidden" name="raffleId" value={raffle.id} />
-          
+
           {state.message && (
-            <Alert variant={state.success ? "default" : "destructive"} className={state.success ? "bg-green-100 border-green-300 text-green-800" : ""}>
+            <Alert variant={state.success ? "default" : "destructive"}>
               <AlertDescription>{state.message}</AlertDescription>
             </Alert>
           )}
 
-          {/* Purchase Summary */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-            <h3 className="font-semibold text-lg mb-3 text-center">Resumen de compra</h3>
+          <div className="bg-slate-50 p-4 rounded-lg border">
+            <h3 className="font-semibold mb-3 text-center">Resumen de compra</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Precio por ticket:</span>
-                <div className="text-right">
-                  <span className="font-medium">${raffle.price}</span>
-                  {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
-                    <div className="text-xs text-gray-500">
-                      {formatBs(parseFloat(raffle.price))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-between">
                 <span>Cantidad:</span>
-                <span className="font-medium">{reservedTickets.length}</span>
+                <span className="font-medium">{reservedTickets.length} tickets</span>
               </div>
               <div className="border-t pt-2 flex justify-between text-lg font-bold">
-                <span>Total:</span>
+                <span>Total a pagar:</span>
                 <div className="text-right">
-                  <span className="text-blue-600">${totalAmount.toFixed(2)}</span>
-                  {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
-                    <div className="text-sm font-semibold text-green-700">
-                      {isLoadingRate ? (
-                        <span className="flex items-center gap-1">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Cargando tasa...
-                        </span>
-                      ) : (
-                        <>
-                          {formatBs(totalAmount)}
-                          <div className="text-xs font-normal text-gray-500">
-                            Tasa: {bcvRate.toFixed(2)} Bs/$
-                          </div>
-                        </>
-                      )}
-                    </div>
+                  {/* CAMBIO: Mostrar el total en la moneda principal y el equivalente */}
+                  {isRaffleInUsd ? (
+                    <>
+                      <span className="text-blue-600">${totalAmountUsd.toFixed(2)}</span>
+                      {bcvRate > 0 && <div className="text-sm font-semibold text-green-700">~ {formattedTotalVes}</div>}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-green-700">{formattedTotalVes}</span>
+                      {bcvRate > 0 && <div className="text-sm font-semibold text-blue-600">~ ${totalAmountUsd.toFixed(2)}</div>}
+                    </>
                   )}
                 </div>
               </div>
             </div>
-            {bcvRateError && (
-              <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                {bcvRateError}
-              </div>
-            )}
           </div>
 
-          {/* Payment Method Selection */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              ¿A dónde quieres transferir?
-            </Label>
-            <p className="text-sm text-gray-600">Selecciona una cuenta:</p>
-            
+          {/* Selección de Método de Pago */}
+          <div className="space-y-2">
+            <Label className="text-base font-semibold">1. Realiza la transferencia</Label>
+            <p className="text-sm text-gray-600">Selecciona una cuenta para ver los datos y realizar el pago.</p>
             <div className="grid gap-3">
               {paymentMethods.map(method => (
-                <div key={method.id} className="relative">
+                <div key={method.id}>
                   <input
                     type="radio"
                     id={`payment-${method.id}`}
@@ -404,42 +326,29 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                     checked={paymentMethod === method.title}
                     onChange={(e) => handlePaymentMethodChange(e.target.value)}
                     disabled={isPending}
-                    className="sr-only"
+                    className="sr-only peer"
                   />
                   <label
                     htmlFor={`payment-${method.id}`}
-                    className={`
-                      block p-4 rounded-lg border-2 cursor-pointer transition-all
-                      ${paymentMethod === method.title 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                      }
-                    `}
+                    className="block p-4 rounded-lg border-2 cursor-pointer transition-all peer-checked:border-blue-500 peer-checked:bg-blue-50"
                   >
-                    <div className="flex items-center gap-3">
-                      {/* Placeholder for payment method logo */}
-                      <div className="w-12 h-8 bg-gray-100 rounded flex items-center justify-center border">
-                        <span className="text-xs text-gray-500">Logo</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{method.title}</span>
-                          {isVenezuelanPayment(method.title) && (
-                            <Badge variant="secondary" className="text-xs">VE</Badge>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">{method.details}</div>
-                      </div>
-                    </div>
+                    <div className="font-medium">{method.title}</div>
                   </label>
+                  {/* CAMBIO: Mostrar el nuevo componente en lugar del texto simple */}
+                  {paymentMethod === method.title && (
+                    <PaymentDetailsDisplay
+                      method={method}
+                      amountInVes={formattedTotalVes}
+                    />
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* User Information */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Datos del comprador</Label>
+          {/* Datos del Comprador y Pago */}
+          <div className="space-y-2">
+            <Label className="text-base font-semibold">2. Completa tus datos</Label>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Nombre completo</Label>
@@ -453,45 +362,31 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                 <Label htmlFor="phone">Teléfono</Label>
                 <Input id="phone" name="phone" required disabled={isPending} className="mt-1" />
               </div>
+              <div>
+                <Label htmlFor="paymentReference">Referencia de pago</Label>
+                <Input id="paymentReference" name="paymentReference" required disabled={isPending} className="mt-1" />
+              </div>
             </div>
           </div>
 
-          {/* Payment Details */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Detalles del pago</Label>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="paymentReference">Referencia de pago</Label>
-                <Input 
-                  id="paymentReference" 
-                  name="paymentReference" 
-                  placeholder="Número de referencia del pago" 
-                  required 
-                  disabled={isPending} 
-                  className="mt-1" 
-                />
-              </div>
-              <div>
-                <Label htmlFor="paymentScreenshot">Captura del pago</Label>
-                <Input
-                  id="paymentScreenshot"
-                  name="paymentScreenshot"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  required
-                  disabled={isPending}
-                  className="mt-1"
-                />
-              </div>
-            </div>
+          <div className="space-y-2">
+            <Label className="text-base font-semibold" htmlFor="paymentScreenshot">3. Sube el comprobante de pago</Label>
+            <Input
+              id="paymentScreenshot"
+              name="paymentScreenshot"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              required
+              disabled={isPending}
+            />
             {preview && (
-              <div className="relative mt-3 max-w-xs">
-                <img src={preview} alt="Vista previa de la captura de pago" className="rounded-lg border object-cover h-32 w-auto" />
-                <button 
-                  type="button" 
-                  onClick={() => { setPreview(null); setPaymentScreenshot(null); }} 
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 leading-none hover:bg-red-700"
+              <div className="relative mt-2 w-32 h-32">
+                <img src={preview} alt="Vista previa" className="rounded-lg border object-cover w-full h-full" />
+                <button
+                  type="button"
+                  onClick={() => { setPreview(null); setPaymentScreenshot(null); }}
+                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -499,24 +394,17 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
             )}
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full" 
+          <Button
+            type="submit"
+            className="w-full"
             disabled={isPending || !paymentMethod || !paymentScreenshot}
             size="lg"
           >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isPending ? (
-              'Procesando compra...'
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
             ) : (
-              <div className="text-center">
-                <div>Confirmar Compra - ${totalAmount.toFixed(2)}</div>
-                {paymentMethod && isVenezuelanPayment(paymentMethod) && bcvRate > 0 && (
-                  <div className="text-xs opacity-90">
-                    {formatBs(totalAmount)}
-                  </div>
-                )}
-              </div>
+               // CAMBIO: El texto del botón ahora refleja la moneda original
+              `Confirmar Compra por ${isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}`
             )}
           </Button>
         </form>

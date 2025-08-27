@@ -19,12 +19,12 @@ import { useFormState } from 'react-dom';
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils'; // Asegúrate de que la ruta a tu archivo utils sea correcta
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 
-// --- Tipos (Sin cambios) ---
+// --- Tipos Actualizados ---
 type WinnerTicket = {
   id: string;
   ticketNumber: string;
@@ -33,11 +33,13 @@ type WinnerTicket = {
     buyerEmail: string;
   } | null;
 };
+
 type RaffleWithRelations = {
   id: string;
   name: string;
   description: string | null;
   price: string;
+  currency: 'USD' | 'VES'; // <-- CAMPO AÑADIDO
   minimumTickets: number;
   status: "active" | "finished" | "cancelled" | "draft" | "postponed";
   createdAt: Date;
@@ -77,12 +79,12 @@ function DrawWinnerForm({ raffleId }: { raffleId: string }) {
     <Card className="shadow-lg border-blue-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-blue-600">
-          <Crown className="h-5 w-5" /> 
+          <Crown className="h-5 w-5" />
           {showPostpone ? 'Posponer Rifa' : 'Registrar Ganador'}
         </CardTitle>
         <CardDescription>
-          {showPostpone 
-            ? 'El número ganador no fue vendido. Debes elegir una nueva fecha y hora para el sorteo.' 
+          {showPostpone
+            ? 'El número ganador no fue vendido. Debes elegir una nueva fecha y hora para el sorteo.'
             : 'Ingresa el número ganador de la lotería y la imagen de prueba.'}
         </CardDescription>
       </CardHeader>
@@ -120,21 +122,17 @@ function DrawWinnerForm({ raffleId }: { raffleId: string }) {
 }
 
 
-// --- Formulario para Posponer (CON SELECTOR DE FECHA Y HORA) ---
+// --- Formulario para Posponer (Sin cambios) ---
 function PostponeRaffleForm({ raffleId }: { raffleId: string }) {
   const [state, formAction] = useFormState(postponeRaffleAction, { success: false, message: "" });
   const [date, setDate] = useState<Date | undefined>();
-  
-  // --- NUEVO: Estados para la hora y minutos ---
-  const [hour, setHour] = useState('19'); // Default: 7 PM
-  const [minute, setMinute] = useState('00'); // Default: 00
+  const [hour, setHour] = useState('19');
+  const [minute, setMinute] = useState('00');
   const [combinedDateTime, setCombinedDateTime] = useState<Date | null>(null);
 
-  // --- NUEVO: useEffect para combinar fecha y hora ---
   useEffect(() => {
     if (date) {
       const newDateTime = new Date(date);
-      // Validar y parsear hora y minutos para evitar errores
       const validHour = Math.max(0, Math.min(23, parseInt(hour, 10) || 0));
       const validMinute = Math.max(0, Math.min(59, parseInt(minute, 10) || 0));
       newDateTime.setHours(validHour, validMinute, 0, 0);
@@ -151,10 +149,8 @@ function PostponeRaffleForm({ raffleId }: { raffleId: string }) {
       )}
       <form action={formAction} className="space-y-4">
         <input type="hidden" name="raffleId" value={raffleId} />
-        {/* El input oculto ahora usa la fecha y hora combinada */}
         <input type="hidden" name="newLimitDate" value={combinedDateTime?.toISOString() || ''} />
-        
-        {/* Selector de Fecha */}
+
         <div>
           <Label className='mb-2 block'>Nueva Fecha</Label>
           <Popover>
@@ -179,30 +175,29 @@ function PostponeRaffleForm({ raffleId }: { raffleId: string }) {
           </Popover>
         </div>
 
-        {/* --- NUEVO: Selectores de Hora y Minutos --- */}
         <div className="grid grid-cols-2 gap-2">
-            <div>
-                <Label htmlFor="hour">Hora (24h)</Label>
-                <Input 
-                    id="hour" 
-                    type="number" 
-                    value={hour}
-                    onChange={(e) => setHour(e.target.value)}
-                    min="0"
-                    max="23"
-                />
-            </div>
-            <div>
-                <Label htmlFor="minute">Minutos</Label>
-                <Input 
-                    id="minute" 
-                    type="number" 
-                    value={minute}
-                    onChange={(e) => setMinute(e.target.value)}
-                    min="0"
-                    max="59"
-                />
-            </div>
+          <div>
+            <Label htmlFor="hour">Hora (24h)</Label>
+            <Input
+              id="hour"
+              type="number"
+              value={hour}
+              onChange={(e) => setHour(e.target.value)}
+              min="0"
+              max="23"
+            />
+          </div>
+          <div>
+            <Label htmlFor="minute">Minutos</Label>
+            <Input
+              id="minute"
+              type="number"
+              value={minute}
+              onChange={(e) => setMinute(e.target.value)}
+              min="0"
+              max="59"
+            />
+          </div>
         </div>
 
         <Button type="submit" variant="outline" className="w-full" disabled={!combinedDateTime}>
@@ -214,14 +209,24 @@ function PostponeRaffleForm({ raffleId }: { raffleId: string }) {
 }
 
 
-// --- Componente Principal (Sin cambios en su estructura) ---
+// --- Componente Principal (Con cambios para moneda) ---
 export function RaffleDetailView({ initialRaffle }: { initialRaffle: RaffleWithRelations }) {
   const [isEditing, setIsEditing] = useState(false);
   const raffle = initialRaffle;
 
   const isDrawDay = new Date(raffle.limitDate) <= new Date() && raffle.status === 'active';
   const ticketsSoldCount = raffle.tickets.length;
-  const confirmedRevenue = raffle.purchases.filter(p => p.status === 'confirmed').reduce((sum, purchase) => sum + parseFloat(purchase.amount), 0);
+  
+  // Lógica de ingresos ahora considera la moneda
+  const confirmedRevenue = raffle.purchases
+    .filter(p => p.status === 'confirmed')
+    .reduce((sum, purchase) => sum + parseFloat(purchase.amount), 0);
+
+  // --- FUNCIÓN AUXILIAR PARA FORMATEAR MONEDA ---
+  const formatCurrency = (amount: number | string, currency: 'USD' | 'VES') => {
+    const value = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return currency === 'USD' ? `$${value.toFixed(2)}` : `Bs. ${value.toFixed(2)}`;
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -243,14 +248,16 @@ export function RaffleDetailView({ initialRaffle }: { initialRaffle: RaffleWithR
     }
   };
 
+  // --- CAMBIO: Se actualiza el valor de los ingresos confirmados ---
   const stats = [
     { title: "Total Compras", value: raffle.purchases.length, icon: Users },
     { title: "Tickets Vendidos", value: ticketsSoldCount.toLocaleString(), icon: Ticket },
-    { title: "Ingresos Confirmados", value: `$${confirmedRevenue.toFixed(2)}`, icon: DollarSign, color: "text-blue-600" },
+    { title: "Ingresos Confirmados", value: formatCurrency(confirmedRevenue, raffle.currency), icon: DollarSign, color: "text-blue-600" },
     { title: "Fecha del Sorteo", value: new Date(raffle.limitDate).toLocaleString('es-VE'), icon: CalendarIcon },
   ];
 
   if (isEditing) {
+    // El formulario de edición debe ser actualizado para manejar la moneda también
     return <EditRaffleForm raffle={raffle} onCancel={() => setIsEditing(false)} />;
   }
 
@@ -325,7 +332,8 @@ export function RaffleDetailView({ initialRaffle }: { initialRaffle: RaffleWithR
                               <div className="text-sm text-muted-foreground">{purchase.buyerEmail}</div>
                             </TableCell>
                             <TableCell>{purchase.ticketCount}</TableCell>
-                            <TableCell>${purchase.amount}</TableCell>
+                            {/* --- CAMBIO: Mostrar monto con la moneda correcta --- */}
+                            <TableCell>{formatCurrency(purchase.amount, raffle.currency)}</TableCell>
                             <TableCell>{getStatusBadge(purchase.status)}</TableCell>
                             <TableCell className="text-right">
                               <PurchaseDetailsModal purchase={purchase} />
@@ -410,7 +418,8 @@ export function RaffleDetailView({ initialRaffle }: { initialRaffle: RaffleWithR
               <CardContent className="space-y-4 text-sm">
                 <div>
                   <p className="font-semibold text-gray-800">Precio por Ticket</p>
-                  <p className="text-blue-600 font-bold text-lg">${raffle.price}</p>
+                  {/* --- CAMBIO: Mostrar precio con la moneda correcta --- */}
+                  <p className="text-blue-600 font-bold text-lg">{formatCurrency(raffle.price, raffle.currency)}</p>
                 </div>
                 <div>
                   <p className="font-semibold text-gray-800">Tickets Mínimos</p>

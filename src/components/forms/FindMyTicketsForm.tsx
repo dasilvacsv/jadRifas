@@ -35,24 +35,22 @@ const WinnerInfo = ({ purchase }: { purchase: any }) => {
         <div>
           <h4 className="font-semibold">{didIWin ? '¡Felicidades, ganaste esta rifa!' : 'Resultado del Sorteo'}</h4>
           <p className="text-xs text-gray-600">
-            Número ganador: 
+            Número ganador:
             <span className="font-bold text-lg"> {purchase.raffle.winnerLotteryNumber}</span>
           </p>
         </div>
       </div>
-      
-      {/* CORRECCIÓN PRINCIPAL AQUÍ */}
+
       {/* Si no gané, muestro el nombre del ganador, pero de forma segura */}
       {!didIWin && (
         <p className="text-sm text-gray-800">
-          El ganador fue: 
+          El ganador fue:
           <span className="font-semibold">
             {/* Se usa '?.' para acceder de forma segura y se añade un texto por defecto */}
             {purchase.raffle.winnerTicket?.purchase?.buyerName ?? " (Ticket no vendido)"}
           </span>
         </p>
       )}
-      {/* FIN DE LA CORRECCIÓN */}
 
       {purchase.raffle.winnerProofUrl && (
         <a href={purchase.raffle.winnerProofUrl} target="_blank" rel="noopener noreferrer">
@@ -87,6 +85,12 @@ export function FindMyTicketsForm() {
       case 'rejected': return <Badge className="bg-red-100 text-red-800 border-red-300">Rechazado</Badge>;
       default: return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  // --- FUNCIÓN AUXILIAR PARA FORMATEAR MONEDA ---
+  const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
+    const value = parseFloat(amount).toFixed(2);
+    return currency === 'USD' ? `$${value}` : `Bs. ${value}`;
   };
 
   return (
@@ -141,13 +145,17 @@ export function FindMyTicketsForm() {
                       <TableCell>
                         <div className="font-medium">{purchase.raffle.name}</div>
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Calendar className="h-3 w-3" /> 
+                          <Calendar className="h-3 w-3" />
                           Sorteo: {new Date(purchase.raffle.limitDate).toLocaleDateString('es-VE')}
                         </div>
                         <WinnerInfo purchase={purchase} />
                       </TableCell>
                       <TableCell>{getStatusBadge(purchase.status)}</TableCell>
-                      <TableCell className="text-right font-medium">${purchase.amount}</TableCell>
+                      {/* --- CAMBIO: Mostrar el monto con la moneda correcta --- */}
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(purchase.amount, purchase.raffle.currency)}
+                      </TableCell>
+                      {/* --- FIN DEL CAMBIO --- */}
                       <TableCell className="text-center">
                         {purchase.status === 'confirmed' && purchase.tickets.length > 0 ? (
                           <Accordion type="single" collapsible>
@@ -187,10 +195,14 @@ export function FindMyTicketsForm() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center text-sm border-t pt-4">
-                    <span className="font-bold">Monto: ${purchase.amount}</span>
+                    {/* --- CAMBIO: Mostrar el monto con la moneda correcta --- */}
+                    <span className="font-bold">
+                      Monto: {formatCurrency(purchase.amount, purchase.raffle.currency)}
+                    </span>
+                    {/* --- FIN DEL CAMBIO --- */}
                     <span className="font-bold">Tickets: {purchase.ticketCount}</span>
                   </div>
-                  
+
                   <WinnerInfo purchase={purchase} />
 
                   {purchase.status === 'confirmed' && purchase.tickets.length > 0 && (

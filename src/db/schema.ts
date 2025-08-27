@@ -21,7 +21,7 @@ import { relations } from 'drizzle-orm';
 export const raffleStatusEnum = pgEnum("raffle_status", ["active", "finished", "cancelled", "draft", "postponed"]);
 export const purchaseStatusEnum = pgEnum("purchase_status", ["pending", "confirmed", "rejected"]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["available", "reserved", "sold"]);
-
+export const currencyEnum = pgEnum("currency", ["USD", "VES"]);
 // ----------------------------------------------------------------
 // TABLAS PRINCIPALES
 // ----------------------------------------------------------------
@@ -45,6 +45,7 @@ export const raffles = pgTable("raffles", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   winnerTicketId: text("winner_ticket_id").references(() => tickets.id),
+currency: currencyEnum("currency").default("USD").notNull(),
   // NUEVO: Fecha límite de la rifa
   limitDate: timestamp("limit_date").notNull(),
   // NUEVO: Datos del sorteo manual
@@ -93,10 +94,17 @@ export const raffleImages = pgTable("raffle_images", {
 export const paymentMethods = pgTable("payment_methods", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
   title: varchar("title", { length: 256 }).notNull().unique(),
-  details: text("details").notNull(),
+ 
+  details: text("details"),
+  // NUEVO: Campos estructurados para los datos de pago
+  accountHolderName: varchar("account_holder_name", { length: 256 }), // Nombre del titular
+  rif: varchar("rif", { length: 20 }), // Cédula o RIF
+  phoneNumber: varchar("phone_number", { length: 20 }), // Para Pago Móvil
+  bankName: varchar("bank_name", { length: 100 }), // Nombre del banco
+  accountNumber: varchar("account_number", { length: 20 }), // Para transferencias
+
   isActive: boolean("is_active").default(true).notNull(),
- // Este campo controlará si se debe usar la API de Pabilo para este método.
-  triggersApiVerification: boolean("triggers_api_verification").default(false).notNull(),
+  triggersApiVerification: boolean("triggers_api_verification").default(false).notNull(),
 });
 
 // ----------------------------------------------------------------

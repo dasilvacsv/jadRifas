@@ -1,5 +1,8 @@
+// app/admin/metodos-pago/DeleteMethodDialog.tsx
+
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash } from "lucide-react";
+import { toast } from "sonner"; // MEJORA: Importar toast para notificaciones
 
 interface DeleteMethodDialogProps {
   methodId: string;
@@ -21,41 +25,63 @@ interface DeleteMethodDialogProps {
 }
 
 function DeleteButton() {
-    const { pending } = useFormStatus();
-    return (
-        <Button type="submit" variant="destructive" disabled={pending}>
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sí, eliminar
-        </Button>
-    )
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant="destructive" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Eliminando...
+        </>
+      ) : (
+        "Sí, eliminar"
+      )}
+    </Button>
+  );
 }
 
 export function DeleteMethodDialog({ methodId, action }: DeleteMethodDialogProps) {
+  // MEJORA: Controlar la apertura y cierre del diálogo para cerrarlo tras una acción exitosa.
+  const [open, setOpen] = useState(false);
   const [state, formAction] = useFormState(action, { success: false, message: "" });
-  
+
+  // MEJORA: Usar useEffect para mostrar notificaciones (toasts) como feedback.
+  useEffect(() => {
+    if (state.message) {
+      if (state.success) {
+        toast.success(state.message);
+        setOpen(false); // Cierra el diálogo si la acción fue exitosa
+      } else {
+        toast.error(state.message);
+      }
+    }
+  }, [state]);
+
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+        {/* MEJORA: Se cambia a size="icon" y variant="ghost" para consistencia */}
+        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
           <Trash className="h-4 w-4" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Estás seguro de eliminar este método?</AlertDialogTitle>
+          <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acción no se puede deshacer. El método de pago se eliminará permanentemente.
+            Esta acción es irreversible. El método de pago se eliminará permanentemente de tu base de datos.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <form action={formAction}>
-            <input type="hidden" name="id" value={methodId} />
+        {/* MEJORA: El form ahora envuelve el footer para una estructura más semántica */}
+        <form action={formAction}>
+          <input type="hidden" name="id" value={methodId} />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction asChild>
-                <DeleteButton />
+              <DeleteButton />
             </AlertDialogAction>
-          </form>
-        </AlertDialogFooter>
+          </AlertDialogFooter>
+        </form>
       </AlertDialogContent>
     </AlertDialog>
   );

@@ -60,6 +60,7 @@ function InfoDetail({ icon, label, value }: { icon: React.ElementType, label: st
   );
 }
 
+// --- CAMBIO: Se añade la moneda de la rifa a las props ---
 interface PurchaseDetailsModalProps {
   purchase: {
     id: string;
@@ -73,9 +74,10 @@ interface PurchaseDetailsModalProps {
     paymentScreenshotUrl: string | null;
     status: string;
   };
+  raffleCurrency: 'USD' | 'VES'; // <-- NUEVA PROP
 }
 
-export function PurchaseDetailsModal({ purchase }: PurchaseDetailsModalProps) {
+export function PurchaseDetailsModal({ purchase, raffleCurrency }: PurchaseDetailsModalProps) {
   const [open, setOpen] = useState(false);
   const [state, formAction] = useFormState(updatePurchaseStatusAction, { success: false, message: "" });
   const { toast } = useToast();
@@ -93,6 +95,12 @@ export function PurchaseDetailsModal({ purchase }: PurchaseDetailsModalProps) {
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
+  };
+
+  // --- FUNCIÓN AUXILIAR PARA FORMATEAR MONEDA ---
+  const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
+    const value = parseFloat(amount).toFixed(2);
+    return currency === 'USD' ? `$${value}` : `Bs. ${value}`;
   };
 
   return (
@@ -124,17 +132,23 @@ export function PurchaseDetailsModal({ purchase }: PurchaseDetailsModalProps) {
             <Separator className="my-4" />
 
             <InfoDetail icon={Ticket} label="Cantidad de Tickets" value={purchase.ticketCount} />
-            <InfoDetail icon={DollarSign} label="Monto Total" value={`$${purchase.amount}`} />
+            {/* --- CAMBIO: Se muestra el monto con la moneda correcta --- */}
+            <InfoDetail 
+              icon={DollarSign} 
+              label="Monto Total" 
+              value={formatCurrency(purchase.amount, raffleCurrency)} 
+            />
+            {/* --- FIN DEL CAMBIO --- */}
             <InfoDetail icon={CreditCard} label="Método de Pago" value={purchase.paymentMethod} />
             <InfoDetail icon={Hash} label="Referencia de Pago" value={purchase.paymentReference} />
           </div>
 
           {/* Columna de Captura de Pago */}
           <div className="space-y-4">
-             <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                 <ImageIcon className="h-5 w-5 text-gray-500" />
                 Comprobante de Pago
-            </h3>
+              </h3>
             <div className="relative aspect-video w-full rounded-lg overflow-hidden border-2 border-dashed bg-slate-50 flex items-center justify-center">
               {purchase.paymentScreenshotUrl ? (
                 <Image src={purchase.paymentScreenshotUrl} alt="Captura de pago" fill className="object-contain" />
@@ -146,12 +160,12 @@ export function PurchaseDetailsModal({ purchase }: PurchaseDetailsModalProps) {
               )}
             </div>
             {purchase.paymentScreenshotUrl && (
-                 <a href={purchase.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" className="w-full">
+                  <a href={purchase.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" className="w-full">
                     <Button variant="outline" className="w-full flex items-center gap-2">
                         <ExternalLink className="h-4 w-4" />
                         Ver imagen en tamaño completo
                     </Button>
-                </a>
+                  </a>
             )}
           </div>
         </div>
@@ -213,7 +227,7 @@ export function PurchaseDetailsModal({ purchase }: PurchaseDetailsModalProps) {
             </>
           ) : (
             <Button variant="outline" disabled>
-                Esta compra ya fue {purchase.status === 'confirmed' ? 'confirmada' : 'rechazada'}.
+              Esta compra ya fue {purchase.status === 'confirmed' ? 'confirmada' : 'rechazada'}.
             </Button>
           )}
         </DialogFooter>

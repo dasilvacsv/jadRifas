@@ -6,7 +6,7 @@ import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Loader2, Plus, UploadCloud, X } from 'lucide-react';
 
 import { createRaffleAction } from '@/lib/actions';
-import { cn } from "@/lib/utils"; // Utilidad para clases condicionales
+import { cn } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+// --- NUEVO: Imports para el selector de moneda ---
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+// --- FIN NUEVO ---
 
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -33,6 +42,10 @@ export function CreateRaffleForm() {
   const [time, setTime] = useState('');
   const hiddenDateInputRef = useRef<HTMLInputElement>(null);
 
+  // --- NUEVO: Estado para la moneda seleccionada ---
+  const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
+  // --- FIN NUEVO ---
+
   useEffect(() => {
     if (state.success) {
       router.push('/rifas');
@@ -41,7 +54,6 @@ export function CreateRaffleForm() {
   
   useEffect(() => {
     if (date && time && hiddenDateInputRef.current) {
-        // Combina la fecha y la hora en un formato ISO compatible (YYYY-MM-DDTHH:mm)
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
@@ -131,16 +143,49 @@ export function CreateRaffleForm() {
                 ))}
               </div>
             )}
+            
+            {/* --- SECCIÓN MODIFICADA: Moneda y Precio --- */}
             <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="price">Precio por ticket ($)</Label>
-                <Input id="price" name="price" type="number" step="0.01" min="0.01" required disabled={isPending} className="mt-1" placeholder="5.00" />
+              <div className="flex items-start gap-2">
+                <div className="w-1/3">
+                  <Label htmlFor="currency">Moneda</Label>
+                  <Select 
+                    name="currency" 
+                    required 
+                    defaultValue={currency} 
+                    onValueChange={(value: 'USD' | 'VES') => setCurrency(value)}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger id="currency" className="mt-1">
+                      <SelectValue placeholder="Moneda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD ($)</SelectItem>
+                      <SelectItem value="VES">VES (Bs.)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-2/3">
+                  <Label htmlFor="price">Precio por ticket ({currency === 'USD' ? '$' : 'Bs.'})</Label>
+                  <Input 
+                    id="price" 
+                    name="price" 
+                    type="number" 
+                    step="0.01" 
+                    min="0.01" 
+                    required 
+                    disabled={isPending} 
+                    className="mt-1" 
+                    placeholder="5.00" 
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="minimumTickets">Tickets mínimos (Máx. 9999)</Label>
                 <Input id="minimumTickets" name="minimumTickets" type="number" min="1" max="9999" required disabled={isPending} className="mt-1" placeholder="9999" />
               </div>
             </div>
+            {/* --- FIN SECCIÓN MODIFICADA --- */}
             
             <div>
               <Label>Fecha y Hora Límite del Sorteo</Label>

@@ -1,3 +1,5 @@
+// src/components/RaffleDetailClient.tsx
+
 'use client'
 
 import { BuyTicketsForm } from '@/components/forms/BuyTicketsForm';
@@ -10,11 +12,16 @@ import { ImageCarousel } from '@/components/rifas/image-carousel';
 import Image from 'next/image';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+// Interfaces
 interface PaymentMethod {
   id: string;
   title: string;
-  details: string;
   isActive: boolean;
+  accountHolderName?: string | null;
+  rif?: string | null;
+  phoneNumber?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
 }
 
 interface RaffleImage {
@@ -39,6 +46,7 @@ interface Raffle {
   name: string;
   description: string | null;
   price: string;
+  currency: 'USD' | 'VES'; // Campo de moneda añadido
   minimumTickets: number;
   status: string;
   limitDate: Date;
@@ -55,7 +63,7 @@ interface RaffleDetailClientProps {
   ticketsTakenCount: number;
 }
 
-// Winner Display Component
+// Componente para mostrar al ganador
 function WinnerDisplayCard({ raffle }: { raffle: Raffle }) {
   if (!raffle.winnerTicket) return null;
 
@@ -92,7 +100,7 @@ function WinnerDisplayCard({ raffle }: { raffle: Raffle }) {
   );
 }
 
-// Status Badge Component
+// Componente para la insignia de estado
 function getStatusBadge(status: string) {
   switch (status) {
     case 'active':
@@ -114,8 +122,8 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-8 transition-colors text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -123,7 +131,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
         </Link>
 
         <div className="grid lg:grid-cols-5 gap-8 lg:gap-12">
-          {/* Left Column: Raffle Details */}
+          {/* Columna Izquierda: Detalles de la Rifa */}
           <div className="lg:col-span-3 space-y-8">
             <ImageCarousel images={raffle.images} />
 
@@ -134,15 +142,15 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                   {getStatusBadge(raffle.status)}
                 </div>
               </CardHeader>
-              
+
               <CardContent className="px-0 space-y-6">
                 {raffle.description && (
                   <div className="text-gray-600 leading-relaxed prose">
-                      <p>{raffle.description}</p>
+                    <p>{raffle.description}</p>
                   </div>
                 )}
 
-                {/* Progress Bar */}
+                {/* Barra de Progreso */}
                 <div className="pt-4">
                   <div className="flex justify-between items-center mb-2 text-sm">
                     <span className="text-gray-600">
@@ -152,13 +160,15 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                   </div>
                   <Progress value={progress} className="h-3" />
                 </div>
-                
-                {/* Key Statistics */}
+
+                {/* Estadísticas Clave */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 border-t pt-6">
                   <div className="p-4 bg-white rounded-lg border">
                     <DollarSign className="h-6 w-6 text-blue-500 mb-2" />
                     <p className="text-xs text-gray-500">Precio</p>
-                    <p className="text-xl font-bold text-gray-900">${raffle.price}</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {raffle.currency === 'USD' ? '$' : 'Bs.'}{parseFloat(raffle.price).toFixed(2)}
+                    </p>
                   </div>
                   <div className="p-4 bg-white rounded-lg border">
                     <Ticket className="h-6 w-6 text-green-500 mb-2" />
@@ -175,10 +185,10 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
             </Card>
           </div>
 
-          {/* Right Column: Purchase Form or Winner */}
+          {/* Columna Derecha: Formulario de Compra o Ganador */}
           <div className="lg:col-span-2">
             <div className="lg:sticky lg:top-8">
-              {/* Conditional Logic: Show winner or purchase form */}
+              {/* Lógica Condicional: Muestra ganador, formulario o alerta */}
               {raffle.status === 'finished' && raffle.winnerTicketId ? (
                 <WinnerDisplayCard raffle={raffle} />
               ) : raffle.status === 'active' ? (
@@ -208,7 +218,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                 <CardContent className="space-y-4 text-sm text-gray-600">
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">1</div>
-                    <p>Elige la cantidad de tickets que quieres (2, 5, 10, 50, 100 o cantidad personalizada).</p>
+                    <p>Elige la cantidad de tickets que quieres.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">2</div>
@@ -220,7 +230,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">4</div>
-                    <p>Completa el formulario con tus datos, referencia de pago y captura de pantalla.</p>
+                    <p>Completa el formulario con tus datos y la prueba del pago.</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-100 text-blue-600 rounded-full w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold">5</div>

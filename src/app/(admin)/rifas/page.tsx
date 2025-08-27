@@ -2,16 +2,14 @@
 
 import { db } from '@/lib/db';
 import { raffles, tickets } from '@/lib/db/schema';
-// MODIFICADO: Se añaden 'or', 'and', 'gt' para la nueva consulta
 import { desc, eq, or, and, gt } from 'drizzle-orm';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// --- ICONOS ---
-// MODIFICADO: Se actualiza la lista de íconos según el nuevo diseño
+// --- ICONS ---
 import { Plus, Eye, ImageIcon, Ticket, DollarSign, Calendar, Crown, AlertTriangle } from 'lucide-react';
 
-// --- COMPONENTES DE SHADCN/UI ---
+// --- SHADCN/UI COMPONENTS ---
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -23,17 +21,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-// NUEVO: Se importa Alert para las notificaciones del día del sorteo
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// --- COMPONENTES PERSONALIZADOS ---
-// Se mantiene tu componente de métodos de pago
+// --- CUSTOM COMPONENTS ---
 import { PaymentMethodsManager } from '@/components/admin/PaymentMethodsManager';
 
 
-// --- FUNCIONES HELPERS ---
+// --- HELPER FUNCTIONS ---
 
-// Función de estado, sin cambios, movida fuera del componente para mejor práctica.
 const getStatusBadge = (status: string) => {
   switch (status) {
     case 'active':
@@ -51,6 +46,15 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+const formatCurrency = (amount: string, currency: 'USD' | 'VES' | null) => {
+    const value = parseFloat(amount).toFixed(2);
+    if (currency === 'VES') {
+        return `Bs. ${value}`;
+    }
+    // Default to USD if currency is null or 'USD'
+    return `$${value}`;
+};
+
 
 export default async function RafflesPage() {
   const allRaffles = await db.query.raffles.findMany({
@@ -59,7 +63,6 @@ export default async function RafflesPage() {
       images: {
         limit: 1,
       },
-      // MODIFICADO: Se cuentan los tickets 'sold' y los 'reserved' que no han expirado.
       tickets: {
         where: or(
           eq(tickets.status, 'sold'),
@@ -84,14 +87,13 @@ export default async function RafflesPage() {
 
   return (
     <div className="space-y-8">
-      {/* --- CABECERA --- */}
+      {/* --- HEADER --- */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Gestión de Rifas</h1>
           <p className="text-gray-600 mt-1">Crea, visualiza y administra todas tus rifas desde un solo lugar.</p>
         </div>
         <Link href="/rifas/nuevo">
-           {/* MODIFICADO: Texto del botón simplificado */}
           <Button className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Nueva Rifa
@@ -101,13 +103,14 @@ export default async function RafflesPage() {
 
       {allRaffles.length > 0 ? (
         <Card>
-          {/* --- VISTA DE TABLA REESTRUCTURADA (DESKTOP) --- */}
+          {/* --- DESKTOP TABLE VIEW --- */}
           <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Rifa</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Precio</TableHead> {/* <-- NEW COLUMN */}
                   <TableHead>Fecha Sorteo</TableHead>
                   <TableHead>Tickets Ocupados</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -115,46 +118,51 @@ export default async function RafflesPage() {
               </TableHeader>
               <TableBody>
                 {allRaffles.map((raffle) => {
-                  // NUEVO: Lógica para detectar si es el día del sorteo
                   const isDrawDay = new Date(raffle.limitDate) <= new Date() && raffle.status === 'active';
                   return (
                     <TableRow key={raffle.id} className={isDrawDay ? 'bg-yellow-50' : ''}>
                       <TableCell>
                         <div className="flex items-center gap-4">
                            <div className="relative w-20 h-12 rounded-md overflow-hidden border bg-gray-50 flex-shrink-0">
-                             {raffle.images.length > 0 ? (
-                               <Image src={raffle.images[0].url} alt={raffle.name} fill className="object-cover" />
-                             ) : (
-                               <div className="flex h-full w-full items-center justify-center">
-                                 <ImageIcon className="h-6 w-6 text-gray-400" />
-                               </div>
-                             )}
+                            {raffle.images.length > 0 ? (
+                              <Image src={raffle.images[0].url} alt={raffle.name} fill className="object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <ImageIcon className="h-6 w-6 text-gray-400" />
+                              </div>
+                            )}
                            </div>
                            <div>
-                             <div className="font-medium text-gray-900">{raffle.name}</div>
-                             {raffle.winnerTicket?.purchase ? (
-                               <div className="flex items-center gap-1.5 text-xs text-green-700 mt-1 font-semibold">
-                                 <Crown className="h-4 w-4" />
-                                 <span>Ganador: {raffle.winnerTicket.purchase.buyerName}</span>
-                               </div>
-                             ) : isDrawDay ? (
-                               <Alert variant="default" className="mt-2 p-2 border-yellow-300 bg-yellow-100 text-yellow-800">
-                                  <div className="flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4" />
-                                    <AlertDescription className="text-xs font-medium">¡Es día del sorteo!</AlertDescription>
-                                  </div>
-                               </Alert>
-                             ) : null}
+                            <div className="font-medium text-gray-900">{raffle.name}</div>
+                            {raffle.winnerTicket?.purchase ? (
+                              <div className="flex items-center gap-1.5 text-xs text-green-700 mt-1 font-semibold">
+                                <Crown className="h-4 w-4" />
+                                <span>Ganador: {raffle.winnerTicket.purchase.buyerName}</span>
+                              </div>
+                            ) : isDrawDay ? (
+                              <Alert variant="default" className="mt-2 p-2 border-yellow-300 bg-yellow-100 text-yellow-800">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <AlertDescription className="text-xs font-medium">¡Es día del sorteo!</AlertDescription>
+                                </div>
+                              </Alert>
+                            ) : null}
                            </div>
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(raffle.status)}</TableCell>
+                       {/* --- PRICE CELL --- */}
+                      <TableCell>
+                        <div className="font-semibold text-blue-600">
+                          {formatCurrency(raffle.price, raffle.currency)}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                           <Calendar className="h-4 w-4" />
-                           {new Date(raffle.limitDate).toLocaleDateString('es-VE', {
+                            <Calendar className="h-4 w-4" />
+                            {new Date(raffle.limitDate).toLocaleDateString('es-VE', {
                               year: 'numeric', month: 'short', day: 'numeric'
-                           })}
+                            })}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -162,7 +170,6 @@ export default async function RafflesPage() {
                         <span className="text-muted-foreground"> / {raffle.minimumTickets.toLocaleString()}</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {/* MODIFICADO: Se reemplaza el Dropdown por un botón simple */}
                         <Link href={`/rifas/${raffle.id}`}>
                           <Button variant="outline" size="sm">
                             <Eye className="h-4 w-4 mr-1.5" /> Gestionar
@@ -176,10 +183,9 @@ export default async function RafflesPage() {
             </Table>
           </div>
 
-          {/* --- VISTA DE TARJETAS REESTRUCTURADA (MOBILE) --- */}
+          {/* --- MOBILE CARD VIEW --- */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:hidden gap-4 p-4">
             {allRaffles.map((raffle) => {
-              // NUEVO: Lógica para detectar si es el día del sorteo
               const isDrawDay = new Date(raffle.limitDate) <= new Date() && raffle.status === 'active';
               return (
                 <Card key={raffle.id} className={`flex flex-col justify-between overflow-hidden ${isDrawDay ? 'border-yellow-400 border-2' : ''}`}>
@@ -198,24 +204,24 @@ export default async function RafflesPage() {
                       <div className="p-4 pb-2">
                         <CardTitle className="text-lg">{raffle.name}</CardTitle>
                         {raffle.winnerTicket?.purchase && (
-                           <div className="flex items-center gap-1.5 text-xs text-green-700 mt-2 font-semibold bg-green-50 px-2 py-1 rounded-md border border-green-200">
-                             <Crown className="h-4 w-4 flex-shrink-0" />
-                             <span>
-                               Ganador: {raffle.winnerTicket.purchase.buyerName}
-                             </span>
-                           </div>
+                            <div className="flex items-center gap-1.5 text-xs text-green-700 mt-2 font-semibold bg-green-50 px-2 py-1 rounded-md border border-green-200">
+                              <Crown className="h-4 w-4 flex-shrink-0" />
+                              <span>
+                                Ganador: {raffle.winnerTicket.purchase.buyerName}
+                              </span>
+                            </div>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4 px-4 pb-4">
-                       {isDrawDay && !raffle.winnerTicket?.purchase && (
-                         <Alert variant="default" className="p-2 border-yellow-300 bg-yellow-100 text-yellow-800">
-                           <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription className="text-xs">¡Hoy es el sorteo! Finaliza la rifa para registrar al ganador.</AlertDescription>
-                           </div>
-                         </Alert>
-                       )}
+                        {isDrawDay && !raffle.winnerTicket?.purchase && (
+                          <Alert variant="default" className="p-2 border-yellow-300 bg-yellow-100 text-yellow-800">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4" />
+                              <AlertDescription className="text-xs">¡Hoy es el sorteo! Finaliza la rifa para registrar al ganador.</AlertDescription>
+                            </div>
+                          </Alert>
+                        )}
                       <div className="text-sm border-t pt-4 space-y-2.5">
                         <div className="flex justify-between items-center">
                           <span className="flex items-center gap-2 text-gray-600"><Calendar className="h-4 w-4" />Fecha Sorteo:</span>
@@ -227,13 +233,13 @@ export default async function RafflesPage() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="flex items-center gap-2 text-gray-600"><DollarSign className="h-4 w-4" />Precio:</span>
-                          <span className="font-bold text-lg text-gray-900">${raffle.price.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                          {/* --- PRICE ON MOBILE CARD --- */}
+                          <span className="font-bold text-lg text-blue-600">{formatCurrency(raffle.price, raffle.currency)}</span>
                         </div>
                       </div>
                     </CardContent>
                   </div>
                   <CardFooter className="bg-gray-50 p-2 border-t">
-                     {/* MODIFICADO: Botón simplificado */}
                     <Link href={`/rifas/${raffle.id}`} className="flex-1">
                       <Button variant="outline" className="w-full">
                         <Eye className="h-4 w-4 mr-2" /> Gestionar
@@ -246,7 +252,7 @@ export default async function RafflesPage() {
           </div>
         </Card>
       ) : (
-        // --- ESTADO VACÍO (SIN CAMBIOS) ---
+        // --- EMPTY STATE ---
         <Card className="border-2 border-dashed">
           <CardContent className="flex flex-col items-center justify-center text-center p-16">
             <div className="bg-gray-100 p-4 rounded-full mb-4">
@@ -264,7 +270,7 @@ export default async function RafflesPage() {
         </Card>
       )}
 
-      {/* --- MÉTODOS DE PAGO (SIN CAMBIOS) --- */}
+      {/* --- PAYMENT METHODS --- */}
       <div>
         <PaymentMethodsManager />
       </div>
