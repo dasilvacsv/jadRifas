@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
-import { purchases } from '@/lib/db/schema';
-import { eq, count, desc, sql } from 'drizzle-orm'; // ¡Importante: añadir sql!
+import { purchases, raffles } from '@/lib/db/schema';
+import { eq, count, desc, sql } from 'drizzle-orm';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Table,
@@ -20,19 +20,32 @@ export default async function DashboardPage() {
     pendingPurchasesList,
   ] = await Promise.all([
     // 1. Una sola consulta para todas las estadísticas
+    // --- CORRECCIÓN DE SINTAXIS EN LA CONSULTA ---
     db.select({
       totalPurchases: count(),
       pendingPurchases: sql<number>`count(CASE WHEN ${purchases.status} = 'pending' THEN 1 END)`,
       confirmedPurchases: sql<number>`count(CASE WHEN ${purchases.status} = 'confirmed' THEN 1 END)`,
-      totalRevenue: sql<number>`sum(CASE WHEN ${purchases.status} = 'confirmed' THEN ${purchases.amount}::decimal ELSE 0 END)`,
-    }).from(purchases),
+      totalRevenueUsd: sql<number>`
+        sum(
+          CASE WHEN ${purchases.status} = 'confirmed' AND ${raffles.currency} = 'USD' THEN ${purchases.amount}::decimal ELSE 0 END
+        )
+      `,
+      totalRevenueVes: sql<number>`
+        sum(
+          CASE WHEN ${purchases.status} = 'confirmed' AND ${raffles.currency} = 'VES' THEN ${purchases.amount}::decimal ELSE 0 END
+        )
+      `,
+    })
+    .from(purchases)
+    .leftJoin(raffles, eq(purchases.raffleId, raffles.id)), // Se une directamente sin usar .as()
+    // --- FIN DE LA CORRECCIÓN ---
     
     // 2. Consulta para la lista de compras pendientes
     db.query.purchases.findMany({
       where: eq(purchases.status, 'pending'),
       with: {
         raffle: {
-          columns: { name: true },
+          columns: { name: true, currency: true },
         },
       },
       orderBy: desc(purchases.createdAt),
@@ -42,13 +55,13 @@ export default async function DashboardPage() {
 
   // Extraemos los datos de la consulta de estadísticas
   const stats = statsResult[0];
-  const revenue = parseFloat(stats.totalRevenue?.toString() || '0');
+  const revenueUsd = parseFloat(stats.totalRevenueUsd?.toString() || '0');
+  const revenueVes = parseFloat(stats.totalRevenueVes?.toString() || '0');
 
   const statsCards = [
     { title: "Total Compras", value: stats.totalPurchases, icon: ShoppingCart },
     { title: "Pendientes de Revisión", value: stats.pendingPurchases, icon: Clock, color: "text-yellow-600" },
     { title: "Compras Confirmadas", value: stats.confirmedPurchases, icon: CheckCircle, color: "text-green-600" },
-    { title: "Ingresos Totales", value: `$${revenue.toFixed(2)}`, icon: DollarSign, color: "text-blue-600" },
   ];
 
   return (
@@ -71,6 +84,18 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
+        <Card className="shadow-sm hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ingresos Totales</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">${revenueUsd.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground font-semibold text-green-700">
+              + Bs. {revenueVes.toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* --- Compras Pendientes de Revisión --- */}
@@ -112,9 +137,12 @@ export default async function DashboardPage() {
                       </TableCell>
                       <TableCell>{purchase.raffle.name}</TableCell>
                       <TableCell className="text-center">{purchase.ticketCount}</TableCell>
-                      <TableCell className="text-right font-semibold">${purchase.amount}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {purchase.raffle.currency === 'VES' ? 'Bs. ' : '$'}
+                        {parseFloat(purchase.amount).toFixed(2)}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <PurchaseDetailsModal purchase={purchase} />
+                        <PurchaseDetailsModal purchase={purchase} raffleCurrency={purchase.raffle.currency} />
                       </TableCell>
                     </TableRow>
                   ))}
