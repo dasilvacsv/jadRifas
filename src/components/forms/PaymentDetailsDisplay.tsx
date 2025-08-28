@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Wallet, UserCircle, Landmark, Fingerprint, Phone, CreditCard } from 'lucide-react';
+import { Copy, Check, Wallet, UserCircle, Landmark, Fingerprint, Phone, CreditCard, DollarSign, Globe, AtSign, Banknote, Mail, Info } from 'lucide-react';
 
 interface PaymentDetailsProps {
   method: {
@@ -12,15 +12,18 @@ interface PaymentDetailsProps {
     phoneNumber?: string | null;
     accountHolderName?: string | null;
     accountNumber?: string | null;
+    email?: string | null;
+    walletAddress?: string | null;
+    network?: string | null;
   };
 }
 
-// Componente para una fila de datos con el nuevo estilo "Stardust"
+// Componente para una fila de datos con el estilo "Stardust"
 function CopyableDetail({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    if(!value) return;
+    if (!value) return;
     navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -35,7 +38,13 @@ function CopyableDetail({ label, value, icon }: { label: string; value: string; 
           <p className="font-semibold text-white text-base tracking-wider break-all">{value}</p>
         </div>
       </div>
-      <Button variant="ghost" size="icon" onClick={handleCopy} className="text-zinc-400 hover:text-white hover:bg-white/10 flex-shrink-0 ml-2 rounded-full h-9 w-9">
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={handleCopy} 
+        className="text-zinc-400 hover:text-white hover:bg-white/10 flex-shrink-0 ml-2 rounded-full h-9 w-9"
+        aria-label={`Copiar ${label}`}
+      >
         {copied ? <Check className="h-5 w-5 text-green-400" /> : <Copy className="h-5 w-5" />}
       </Button>
     </div>
@@ -45,19 +54,45 @@ function CopyableDetail({ label, value, icon }: { label: string; value: string; 
 export function PaymentDetailsDisplay({ method }: PaymentDetailsProps) {
   const [allCopied, setAllCopied] = useState(false);
 
-  // Determina si los datos corresponden a un Pago Móvil para mostrar el botón de "Copiar Todo"
+  // Determina el tipo de pago para el botón de "Copiar Todo" y el orden de los datos
   const isPagoMovil = method.phoneNumber && method.rif && method.bankName;
+  const isBinance = method.title.toLowerCase().includes('binance');
+  const isZinli = method.phoneNumber && method.email;
 
   const handleCopyAll = () => {
-    if (!isPagoMovil) return;
-    const textToCopy = `
+    let textToCopy = '';
+    
+    if (isPagoMovil) {
+      textToCopy = `
 Banco: ${method.bankName}
 RIF/CI: ${method.rif}
 Teléfono: ${method.phoneNumber}
 `.trim();
-    navigator.clipboard.writeText(textToCopy);
-    setAllCopied(true);
-    setTimeout(() => setAllCopied(false), 2000);
+    } else if (isZinli) {
+      textToCopy = `
+Teléfono: ${method.phoneNumber}
+Correo Electrónico: ${method.email}
+`.trim();
+    } else if (isBinance) {
+      textToCopy = `
+Dirección de Wallet: ${method.walletAddress}
+Red: ${method.network}
+`.trim();
+    } else {
+      // Caso genérico para transferencia bancaria
+      let detailsToCopy = [];
+      if (method.accountHolderName) detailsToCopy.push(`Titular: ${method.accountHolderName}`);
+      if (method.bankName) detailsToCopy.push(`Banco: ${method.bankName}`);
+      if (method.accountNumber) detailsToCopy.push(`Nro. de Cuenta: ${method.accountNumber}`);
+      if (method.rif) detailsToCopy.push(`RIF / Cédula: ${method.rif}`);
+      textToCopy = detailsToCopy.join('\n').trim();
+    }
+
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy);
+      setAllCopied(true);
+      setTimeout(() => setAllCopied(false), 2000);
+    }
   };
 
   return (
@@ -73,18 +108,82 @@ Teléfono: ${method.phoneNumber}
       </div>
       
       <div className="bg-black/20 p-2 sm:p-4 rounded-lg border border-white/10 max-h-[50vh] overflow-y-auto">
-        {method.accountHolderName && <CopyableDetail label="Titular" value={method.accountHolderName} icon={<UserCircle size={22}/>} />}
-        {method.bankName && <CopyableDetail label="Banco" value={method.bankName} icon={<Landmark size={22}/>} />}
-        {method.rif && <CopyableDetail label="RIF / Cédula" value={method.rif} icon={<Fingerprint size={22}/>} />}
-        {method.phoneNumber && <CopyableDetail label="Teléfono" value={method.phoneNumber} icon={<Phone size={22}/>} />}
-        {method.accountNumber && <CopyableDetail label="Nro. de Cuenta" value={method.accountNumber} icon={<CreditCard size={22}/>} />}
+        {/* Muestra los datos en un orden lógico, priorizando la información clave */}
+        {method.accountHolderName && (
+          <CopyableDetail 
+            label="Titular" 
+            value={method.accountHolderName} 
+            icon={<UserCircle size={22}/>} 
+          />
+        )}
+        {method.bankName && (
+          <CopyableDetail 
+            label="Banco" 
+            value={method.bankName} 
+            icon={<Landmark size={22}/>} 
+          />
+        )}
+        {method.accountNumber && (
+          <CopyableDetail 
+            label="Nro. de Cuenta" 
+            value={method.accountNumber} 
+            icon={<CreditCard size={22}/>} 
+          />
+        )}
+        {method.rif && (
+          <CopyableDetail 
+            label="RIF / Cédula" 
+            value={method.rif} 
+            icon={<Fingerprint size={22}/>} 
+          />
+        )}
+        {method.phoneNumber && (
+          <CopyableDetail 
+            label="Teléfono" 
+            value={method.phoneNumber} 
+            icon={<Phone size={22}/>} 
+          />
+        )}
+        {method.email && (
+          <CopyableDetail 
+            label="Correo Electrónico" 
+            value={method.email} 
+            icon={<AtSign size={22}/>} 
+          />
+        )}
+        {method.walletAddress && (
+          <CopyableDetail 
+            label="Dirección de Wallet" 
+            value={method.walletAddress} 
+            icon={<DollarSign size={22}/>} 
+          />
+        )}
+        {method.network && (
+          <CopyableDetail 
+            label="Red" 
+            value={method.network} 
+            icon={<Globe size={22}/>} 
+          />
+        )}
+
+        {isBinance && (
+          <div className="flex items-start gap-4 p-4 mt-4 bg-yellow-900/30 border border-yellow-800 rounded-md">
+            <Info className="h-6 w-6 text-yellow-400 flex-shrink-0 mt-0.5"/>
+            <p className="text-sm text-yellow-200">
+              <span className="font-bold">Importante:</span> Solo se aceptan pagos enviados en USDT. Cualquier otro tipo de criptomoneda no será procesado.
+            </p>
+          </div>
+        )}
       </div>
 
-      {isPagoMovil && (
+      {(isPagoMovil || isBinance || isZinli) && (
         <div className="mt-4">
-          <Button onClick={handleCopyAll} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-base py-5">
+          <Button 
+            onClick={handleCopyAll} 
+            className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-base py-5"
+          >
             {allCopied ? <Check className="mr-2 h-5 w-5" /> : <Copy className="mr-2 h-5 w-5" />}
-            {allCopied ? '¡Datos Copiados!' : 'Copiar todo para Pago Móvil'}
+            {allCopied ? '¡Datos Copiados!' : `Copiar todo para ${method.title}`}
           </Button>
         </div>
       )}

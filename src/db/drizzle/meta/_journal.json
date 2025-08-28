@@ -43,6 +43,13 @@
       "when": 1756311928805,
       "tag": "0005_confused_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1756394574789,
+      "tag": "0006_tranquil_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

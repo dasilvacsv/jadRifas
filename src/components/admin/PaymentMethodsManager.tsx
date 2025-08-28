@@ -17,12 +17,17 @@ import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { DeleteMethodDialog } from "./DeleteMethodDialog";
 
 // Componente para visualizar detalles de forma más clara y estructurada.
+// +++ MODIFICADO: Ahora incluye los nuevos campos +++
 function MethodDetails({ method }: { method: any }) {
   const details = [
+    { label: "Titular", value: method.accountHolderName },
     { label: "Banco", value: method.bankName },
     { label: "RIF/CI", value: method.rif },
-    { label: "Teléfono", value: method.phoneNumber },
     { label: "N° Cuenta", value: method.accountNumber },
+    { label: "Teléfono", value: method.phoneNumber },
+    { label: "Correo", value: method.email },
+    { label: "Wallet", value: method.walletAddress },
+    { label: "Red", value: method.network },
   ].filter(detail => detail.value);
 
   if (details.length === 0) {
@@ -39,6 +44,7 @@ function MethodDetails({ method }: { method: any }) {
     </div>
   );
 }
+// +++ FIN MODIFICADO +++
 
 export async function PaymentMethodsManager() {
   const paymentMethods = await db.query.paymentMethods.findMany();

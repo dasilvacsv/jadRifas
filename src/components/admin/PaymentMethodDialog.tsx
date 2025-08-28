@@ -31,7 +31,7 @@ import {
 interface PaymentMethod {
   id?: string;
   title?: string;
-  iconUrl?: string | null; // +++ AÑADIDO
+  iconUrl?: string | null;
   isActive?: boolean;
   triggersApiVerification?: boolean;
   accountHolderName?: string | null;
@@ -39,12 +39,15 @@ interface PaymentMethod {
   phoneNumber?: string | null;
   bankName?: string | null;
   accountNumber?: string | null;
+  walletAddress?: string | null;
+  network?: string | null;
+  email?: string | null;
 }
 
 // VALORES INICIALES PARA UN MÉTODO NUEVO
 const initialState: Omit<PaymentMethod, "id"> = {
   title: "",
-  iconUrl: null, // +++ AÑADIDO
+  iconUrl: null,
   isActive: true,
   triggersApiVerification: false,
   accountHolderName: "",
@@ -52,6 +55,9 @@ const initialState: Omit<PaymentMethod, "id"> = {
   phoneNumber: "",
   bankName: "",
   accountNumber: "",
+  walletAddress: "",
+  network: "",
+  email: "",
 };
 
 interface PaymentMethodDialogProps {
@@ -87,20 +93,17 @@ export function PaymentMethodDialog({
   const formRef = useRef<HTMLFormElement>(null);
   const isEditing = !!method;
 
-  const [formData, setFormData] =
-    useState<Omit<PaymentMethod, "id">>(initialState);
+  const [formData, setFormData] = useState<Omit<PaymentMethod, "id">>(initialState);
   
-  // +++ AÑADIDO: Estados para manejar el archivo y su vista previa
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sincroniza el estado del formulario si estamos editando un método existente
   useEffect(() => {
     if (isEditing && method) {
       setFormData({
         title: method.title ?? "",
-        iconUrl: method.iconUrl ?? null, // +++ AÑADIDO
+        iconUrl: method.iconUrl ?? null,
         isActive: method.isActive ?? true,
         triggersApiVerification: method.triggersApiVerification ?? false,
         accountHolderName: method.accountHolderName ?? "",
@@ -108,16 +111,18 @@ export function PaymentMethodDialog({
         phoneNumber: method.phoneNumber ?? "",
         bankName: method.bankName ?? "",
         accountNumber: method.accountNumber ?? "",
+        email: method.email ?? "",
+        walletAddress: method.walletAddress ?? "",
+        network: method.network ?? "",
       });
-      setIconPreview(method.iconUrl ?? null); // Setea la vista previa inicial
+      setIconPreview(method.iconUrl ?? null);
     } else {
       setFormData(initialState);
-      setIconPreview(null); // Limpia la vista previa
-      setIconFile(null);    // Limpia el archivo
+      setIconPreview(null);
+      setIconFile(null);
     }
   }, [method, isEditing, open]);
 
-  // Se cierra el modal si la acción del servidor fue exitosa
   useEffect(() => {
     if (state.success) {
       setOpen(false);
@@ -129,18 +134,16 @@ export function PaymentMethodDialog({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
   
-  // +++ AÑADIDO: Manejador para el cambio de archivo ---
   const handleIconChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setIconFile(file);
     if (file) {
       setIconPreview(URL.createObjectURL(file));
     } else {
-      setIconPreview(method?.iconUrl ?? null); // Si se cancela, vuelve al original
+      setIconPreview(method?.iconUrl ?? null);
     }
   };
 
-  // +++ AÑADIDO: Función para limpiar el archivo seleccionado
   const clearIcon = () => {
     setIconFile(null);
     setIconPreview(method?.iconUrl ?? null);
@@ -202,7 +205,6 @@ export function PaymentMethodDialog({
               />
             </div>
 
-            {/* +++ AÑADIDO: Input para subir el ícono +++ */}
             <div className="space-y-2">
               <Label htmlFor="icon">Ícono del Método</Label>
               <div className="flex items-center gap-4">
@@ -216,7 +218,7 @@ export function PaymentMethodDialog({
                 <div className="flex-1">
                   <Input
                     id="icon"
-                    name="icon" // El 'name' debe coincidir con el que espera la server action
+                    name="icon"
                     type="file"
                     ref={fileInputRef}
                     accept="image/png, image/jpeg, image/svg+xml, image/webp"
@@ -238,7 +240,27 @@ export function PaymentMethodDialog({
 
           {/* SECCIÓN DETALLES DE LA CUENTA */}
           <div className="space-y-4">
-              <h3 className="text-sm font-medium text-foreground">Detalles de la Cuenta (Opcional)</h3>
+            <h3 className="text-sm font-medium text-foreground">Detalles de la Cuenta (Opcional)</h3>
+
+            {/* Renderizado condicional basado en el título */}
+            {formData.title?.toLowerCase().includes("zinli") ? (
+              // Campos para Zinli
+              <div className="space-y-2">
+                <Label htmlFor="email">Correo Electrónico (Zinli)</Label>
+                <Input id="email" name="email" placeholder="tu_correo@example.com" value={formData.email ?? ''} onChange={handleChange} />
+                <Label htmlFor="phoneNumber">Teléfono (Zinli)</Label>
+                <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
+              </div>
+            ) : formData.title?.toLowerCase().includes("binance") ? (
+              // Campos para Binance
+              <div className="space-y-2">
+                <Label htmlFor="walletAddress">Dirección de Wallet (Binance)</Label>
+                <Input id="walletAddress" name="walletAddress" placeholder="Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value={formData.walletAddress ?? ''} onChange={handleChange} />
+                <Label htmlFor="network">Red (Binance)</Label>
+                <Input id="network" name="network" placeholder="Ej: TRC20, BEP20, ERC20" value={formData.network ?? ''} onChange={handleChange} />
+              </div>
+            ) : (
+              // Campos por defecto (p.ej. para transferencias bancarias)
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="accountHolderName">Nombre del Titular</Label>
@@ -256,11 +278,12 @@ export function PaymentMethodDialog({
                   <Label htmlFor="phoneNumber">Teléfono (Pago Móvil)</Label>
                   <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountNumber">Número de Cuenta (Transferencia)</Label>
+                  <Input id="accountNumber" name="accountNumber" placeholder="0134..." value={formData.accountNumber ?? ''} onChange={handleChange} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="accountNumber">Número de Cuenta (Transferencia)</Label>
-                <Input id="accountNumber" name="accountNumber" placeholder="0134..." value={formData.accountNumber ?? ''} onChange={handleChange} />
-              </div>
+            )}
           </div>
           
           <Separator />
