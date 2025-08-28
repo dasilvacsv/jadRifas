@@ -110,10 +110,20 @@ const GlobalStyles = () => (
       66% { transform: translate(-20px, 20px) scale(0.9); }
       100% { transform: translate(0px, 0px) scale(1); }
     }
-    /* ✅ NUEVA ANIMACIÓN PARA LOS BORDES */
     @keyframes border-spin {
         from { transform: translate(-50%, -50%) rotate(0deg); }
         to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    /* ✅ NUEVA ANIMACIÓN PARA LOS DESTELLOS */
+    @keyframes sparkle-pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.2);
+        }
     }
 
     .fade-in-anim { animation: fade-in 0.3s ease-out forwards; }
@@ -121,7 +131,6 @@ const GlobalStyles = () => (
     .blob-anim { animation: blob 7s infinite; }
     .animation-delay-4000 { animation-delay: 4s; }
 
-    /* ✅ NUEVAS CLASES PARA EL EFECTO DE BORDE ANIMADO */
     .animated-border::before {
         content: '';
         position: absolute;
@@ -144,6 +153,16 @@ const GlobalStyles = () => (
         height: 150%;
         background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #fbbf24, transparent 100%);
         animation: border-spin 5s linear infinite;
+        z-index: -1;
+    }
+    /* ✅ NUEVA CLASE PARA LOS DESTELLOS */
+    .sparkle-effect::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.4) 0%, transparent 60%);
+        opacity: 0;
+        animation: sparkle-pulse 2s infinite ease-out;
         z-index: -1;
     }
     `}</style>
@@ -212,13 +231,11 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
 
     const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
     
-    // ✅ CAMBIO: El contenedor principal ahora tiene `min-h-[28px]` para mantener la altura.
     return (
         <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
             <Clock className="h-5 w-5 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] w-full justify-between">
                 {isFinished ? (
-                    // ✅ CAMBIO: El div del mensaje ahora tiene `w-full` y `justify-center` para que mantenga el ancho.
                     <div className="flex items-center w-full justify-center text-base font-bold text-amber-400 animate-pulse">
                         ¡El sorteo está por iniciar!
                     </div>
@@ -279,7 +296,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
     const progress = Math.min((ticketsSold / raffle.minimumTickets) * 100, 100);
 
     return (
-        // ✅ CAMBIO: Se añade la clase para el borde animado y overflow-hidden
         <div className={`group relative rounded-2xl p-px overflow-hidden animated-border ${isFeatured ? 'sm:col-span-2' : ''}`}>
             <Link href={`/rifa/${raffle.id}`} className="block h-full">
                 <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden h-full flex flex-col shadow-2xl shadow-black/40 transition-all duration-300">
@@ -287,7 +303,7 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                         <RaffleImagesCarousel images={raffle.images} raffleName={raffle.name} />
                         {isFeatured && (
                              <Badge className="absolute top-4 left-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-1.5 px-4 border border-purple-300/50 shadow-lg shadow-black/30 animate-pulse">
-                                 <Star className="h-4 w-4 mr-2" /> RIFA ESTRELLA
+                                <Star className="h-4 w-4 mr-2" /> RIFA ESTRELLA
                              </Badge>
                         )}
                         <Badge variant="secondary" className="absolute top-4 right-4 bg-black/50 text-amber-300 font-semibold py-1 px-3 border border-amber-300/20 backdrop-blur-sm">
@@ -303,7 +319,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                         )}
                         <div className="mt-auto space-y-5 pt-4">
                             <div>
-                                {/* ✅ CAMBIO: Se muestra solo el porcentaje */}
                                 <div className="flex justify-end items-center text-xs mb-1.5">
                                     <span className="font-bold text-white">{progress.toFixed(0)}%</span>
                                 </div>
@@ -329,7 +344,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
 };
 
 const WinnerCard = ({ raffle, onShowProof }: { raffle: FinishedRaffle, onShowProof: (url: string) => void }) => (
-    // ✅ CAMBIO: Se añade la clase para el borde animado (versión ganador) y overflow-hidden
     <div className="group relative rounded-2xl p-px overflow-hidden animated-border-winner">
         <div className="relative bg-zinc-900/80 backdrop-blur-md rounded-[15px] overflow-hidden flex flex-col h-full border-t border-white/5 shadow-2xl shadow-black/40">
             <div className="relative aspect-video">
@@ -405,42 +419,48 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 <div className="absolute -bottom-40 -right-40 w-[30rem] h-[30rem] bg-gradient-to-br from-purple-600/30 to-indigo-600/20 rounded-full blur-3xl blob-anim animation-delay-4000 -z-10"></div>
 
                 <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-                    
-                    <section id="rifas-activas" className="mb-20 sm:mb-28">
-                        {activeRaffles.length === 0 ? (
-                            <div className="text-center py-20 px-6 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">
-                                <Clock className="h-16 w-16 text-amber-500 mx-auto mb-6 drop-shadow-[0_2px_8px_rgba(217,119,6,0.5)]" />
-                                <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-400">Próximamente Nuevas Rifas</h2>
-                                <p className="text-zinc-400 max-w-md mx-auto">Estamos preparando premios increíbles. ¡Vuelve pronto para no perderte la oportunidad de ser el próximo ganador!</p>
-                            </div>
-                        ) : (
-                            <div className={`grid grid-cols-1 ${isSingleFeatured ? 'lg:grid-cols-1' : 'lg:grid-cols-2'} items-center gap-12 xl:gap-16`}>
-                                <div className="flex flex-col justify-center text-center lg:text-left">
-                                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tighter text-white !leading-tight">
-                                        La Suerte Está <span className="block">de Tu Lado.</span>
-                                        <span className="block bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500 mt-2 lg:mt-3">
-                                            Gana Premios Asombrosos
-                                        </span>
-                                    </h1>
-                                    <p className="mt-6 text-lg text-zinc-300 max-w-lg mx-auto lg:mx-0">
-                                        Explora nuestras rifas activas, elige tu favorita y compra tu ticket. ¡Hoy puede ser tu día de suerte!
-                                    </p>
-                                    <div className="mx-auto lg:mx-0">
-                                        <PaymentMethodsBar methods={paymentMethods} />
-                                    </div>
-                                </div>
+                    {/* Sección de inicio con Jorvi2 y la nueva card a la izquierda, rifas activas a la derecha */}
+                    <section className="mb-20 sm:mb-28">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                            {/* Columna Izquierda: Imagen de Jorvi2 y la nueva Card */}
+                            <div className="relative flex flex-col items-center lg:items-end pb-36">
+                                {/* ✅ CAMBIO: Imagen con menos ancho (`width={500}`) y con el efecto de destellos (`sparkle-effect`) */}
+                                <Image
+                                    src="/Jorvi3.png"
+                                    alt="Dueña de la página"
+                                    width={500}
+                                    height={500}
+                                    className="relative z-0 object-contain max-w-full h-auto mb-8 sparkle-effect"
+                                />
 
-                                <div className={`grid grid-cols-1 ${isSingleFeatured ? '' : 'sm:grid-cols-2'} gap-6 items-start lg:!mt-0 ${isSingleFeatured ? 'mt-10 max-w-2xl mx-auto' : 'mt-0'}`}>
-                                    {activeRaffles.map((raffle) => (
-                                        <ActiveRaffleCard
-                                            key={raffle.id}
-                                            raffle={raffle}
-                                            isFeatured={isSingleFeatured} 
-                                        />
-                                    ))}
-                                </div>
+                                
                             </div>
-                        )}
+
+                            {/* Columna Derecha: Rifas Activas */}
+                            <div className="flex flex-col items-center lg:items-start">
+                                <div className="text-center lg:text-left mb-8 w-full">
+                                    <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tighter">Rifas Activas</h2>
+                                    <p className="mt-4 text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0">¡No esperes más! Participa en nuestras rifas actuales y gana premios asombrosos. Cada ticket te acerca a la victoria.</p>
+                                </div>
+                                {activeRaffles.length === 0 ? (
+                                    <div className="text-center py-20 px-6 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl w-full">
+                                        <Clock className="h-16 w-16 text-amber-500 mx-auto mb-6 drop-shadow-[0_2px_8px_rgba(217,119,6,0.5)]" />
+                                        <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-400">Próximamente Nuevas Rifas</h2>
+                                        <p className="text-zinc-400 max-w-md mx-auto">Estamos preparando premios increíbles. ¡Vuelve pronto para no perderte la oportunidad de ser el próximo ganador!</p>
+                                    </div>
+                                ) : (
+                                    <div className={`grid grid-cols-1 ${isSingleFeatured ? '' : 'sm:grid-cols-2'} gap-6 items-start w-full`}>
+                                        {activeRaffles.map((raffle) => (
+                                            <ActiveRaffleCard
+                                                key={raffle.id}
+                                                raffle={raffle}
+                                                isFeatured={isSingleFeatured} 
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </section>
                     
                     {finishedRaffles.length > 0 && (

@@ -19,31 +19,42 @@ type SendMessageResponse = {
   data?: any
 }
 
+// --- NUEVA FUNCIÓN DE AYUDA PARA FORMATEAR EL NÚMERO ---
+const formatPhoneNumber = (phone: string): string => {
+  // Limpia el número de cualquier carácter no numérico
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Si el número comienza con '0', lo reemplaza con '58'
+  if (cleanPhone.startsWith('0')) {
+    return `58${cleanPhone.substring(1)}`;
+  }
+  // Si no, devuelve el número tal cual (asumiendo que ya tiene el formato correcto)
+  return cleanPhone;
+};
+
 export async function sendWhatsappMessage(
   phoneNumber: string,
   text: string
 ): Promise<SendMessageResponse> {
   try {
-    // Check if messaging is enabled in environment variables
     const messagesEnabled = process.env.MESSAGES_ENABLED === 'true';
     if (!messagesEnabled) {
       console.log('WhatsApp messages are disabled by environment setting');
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
-    const validated = sendMessageSchema.parse({ phoneNumber, text })
-    const cleanPhone = validated.phoneNumber.replace(/\D/g, '')
+    // --- CAMBIO: Formatea el número antes de validarlo y usarlo ---
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    const validated = sendMessageSchema.parse({ phoneNumber: formattedPhone, text });
     
     const API_BASE_URL = process.env.NEXT_PUBLIC_EVOLUTION_API_URL
     const API_KEY = process.env.EVO_API_KEY
-    const INSTANCE_NAME = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'pobox'
-    // Get boss phone from environment variable
-    const bossPhone = process.env.BOSS_PHONE || '+584248683073'
-
+    const INSTANCE_NAME = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'jadRifas'
+    
     if (!API_BASE_URL || !API_KEY) {
       throw new Error('Missing Evolution API configuration')
     }
 
+    console.log(`Sending WhatsApp message to ${formattedPhone} using instance ${INSTANCE_NAME}...`);
     const response = await fetch(`${API_BASE_URL}/message/sendText/${INSTANCE_NAME}`, {
       method: 'POST',
       headers: {
@@ -51,7 +62,7 @@ export async function sendWhatsappMessage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        number: cleanPhone,
+        number: validated.phoneNumber, // Usa el número ya formateado y validado
         text: validated.text,
         delay: 450,
         linkPreview: true,
@@ -60,10 +71,12 @@ export async function sendWhatsappMessage(
 
     if (!response.ok) {
       const error = await response.json()
+      console.error('Evolution API response error:', error);
       throw new Error(error.message || 'Failed to send message')
     }
 
     const data = await response.json()
+    console.log('WhatsApp message sent successfully:', data);
     return { success: true, data }
 
   } catch (error) {

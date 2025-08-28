@@ -19,6 +19,10 @@ import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { uploadToS3, deleteFromS3 } from "./s3";
 import crypto from "crypto";
+import { Resend } from "resend";
+import { sendWhatsappMessage } from "@/features/whatsapp/actions";
+
+const resend = new Resend(process.env.RESEND_API_KEY); 
 
 // --- Credenciales de Pabilo
 const PABILO_API_KEY = "af757c4f-507e-48ef-8309-4a1eae692f59";
@@ -56,6 +60,107 @@ export async function registerAction(formData: FormData): Promise<ActionState> {
     console.error("Error al registrar usuario:", error);
     return { success: false, message: "Error del servidor" };
   }
+}
+
+// ----------------------------------------------------------------
+// ACTIONS PARA ENVÍO DE CORREO
+// ----------------------------------------------------------------
+
+interface EmailData {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+/**
+ * Función auxiliar para enviar correos con Resend.
+ * @param data EmailData
+ */
+async function sendEmail({ to, subject, body }: EmailData): Promise<void> {
+  try {
+    // CAMBIO CRUCIAL: Se usa la instancia 'resend'
+    const { data, error } = await resend.emails.send({ 
+      from: "Ventas JadRifas <noreply@jadrifas.com>",
+      to: [to],
+      subject: subject,
+      html: body,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    console.log("Correo enviado con éxito:", data);
+  } catch (error) {
+    console.error("Error al enviar el correo:", error);
+    // No lanzamos el error para no detener el flujo principal.
+  }
+}
+
+/**
+ * Envía un correo de confirmación de compra pendiente.
+ * @param purchaseId ID de la compra
+ */
+async function sendConfirmationEmail(purchaseId: string): Promise<void> {
+  const purchase = await db.query.purchases.findFirst({
+    where: eq(purchases.id, purchaseId),
+    with: { raffle: true },
+  });
+
+  if (!purchase) return;
+
+  const subject = `Confirmación de compra en JadRifas - #${purchase.id}`;
+  const body = `
+    <h1>¡Hola, ${purchase.buyerName}!</h1>
+    <p>Gracias por tu compra en JadRifas. Hemos recibido tu solicitud para la rifa: <strong>${purchase.raffle.name}</strong>.</p>
+    <p>Tu compra está en estado <strong>pendiente</strong>. Una vez que nuestro equipo revise y confirme tu pago, recibirás un nuevo correo con tus tickets asignados.</p>
+    <p><strong>Detalles de la compra:</strong></p>
+    <ul>
+      <li>Monto: ${purchase.amount} ${purchase.raffle.currency}</li>
+      <li>Cantidad de Tickets: ${purchase.ticketCount}</li>
+      <li>Referencia de pago: ${purchase.paymentReference}</li>
+    </ul>
+    <p>¡Te notificaremos pronto!</p>
+    <p>El equipo de JadRifas.</p>
+  `;
+  await sendEmail({ to: purchase.buyerEmail, subject, body });
+}
+
+/**
+ * Envía un correo y un mensaje de WhatsApp con los tickets asignados.
+ * @param purchaseId ID de la compra
+ */
+async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
+  const purchase = await db.query.purchases.findFirst({
+    where: eq(purchases.id, purchaseId),
+    with: {
+      raffle: true,
+      tickets: { columns: { ticketNumber: true } },
+    },
+  });
+
+  if (!purchase) return;
+
+  const ticketNumbers = purchase.tickets
+    .map((t) => t.ticketNumber)
+    .sort()
+    .join(", ");
+  const subject = `¡Tus tickets para la rifa ${purchase.raffle.name} han sido aprobados! 🎉`;
+  const emailBody = `
+    <h1>¡Felicidades, ${purchase.buyerName}!</h1>
+    <p>Tu compra para la rifa <strong>${purchase.raffle.name}</strong> ha sido <strong>confirmada</strong>.</p>
+    <p>Estos son tus tickets de la suerte:</p>
+    <p style="font-size: 1.5rem; font-weight: bold; color: #f97316;">${ticketNumbers}</p>
+    <p>¡Mucha suerte en el sorteo! El ganador será anunciado en nuestra página web y redes sociales.</p>
+    <p>El equipo de JadRifas.</p>
+  `;
+  // Envío del correo
+  await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
+
+  // Envío del mensaje de WhatsApp
+  const whatsappText = `¡Hola, ${purchase.buyerName}! 🎉\n\nTu compra para la rifa *${
+    purchase.raffle.name
+  }* ha sido confirmada.\n\nAquí están tus tickets de la suerte:\n\n*${ticketNumbers}*\n\n¡Mucha suerte! Revisa tu email para más detalles. 😉`;
+  await sendWhatsappMessage(purchase.buyerPhone!, whatsappText);
 }
 
 // ----------------------------------------------------------------
@@ -145,10 +250,13 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
   const paymentScreenshotFile = formData.get('paymentScreenshot') as File | null;
   const validatedFields = BuyTicketsSchema.safeParse({ ...data, paymentScreenshot: paymentScreenshotFile });
 
-  if (!validatedFields.success) { return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) }; }
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+  }
   const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets } = validatedFields.data;
   const ticketNumbers = reservedTickets.split(',');
   let paymentScreenshotUrl = '';
+
   try {
     const buffer = Buffer.from(await validatedFields.data.paymentScreenshot.arrayBuffer());
     const key = `purchases/${crypto.randomUUID()}-${validatedFields.data.paymentScreenshot.name}`;
@@ -157,7 +265,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     console.error("Error al subir captura:", error);
     return { success: false, message: "Error al subir la imagen del pago." };
   }
-  
+
   try {
     const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
     if (!raffle) return { success: false, message: "La rifa no existe." };
@@ -176,7 +284,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
       try {
         const pabiloResponse = await fetch(PABILO_API_URL, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'appKey': PABILO_API_KEY,
           },
@@ -199,24 +307,35 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         console.error("⛔ Error de conexión con la API de Pabilo. No se pudo verificar el pago.", apiError);
       }
     }
-    
+
     const newPurchase = await db.transaction(async (tx) => {
       const ticketsToUpdate = await tx.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.raffleId, raffleId), inArray(tickets.ticketNumber, ticketNumbers), eq(tickets.status, 'reserved')));
       if (ticketsToUpdate.length !== ticketNumbers.length) throw new Error("Tu reservación expiró o los tickets ya no son válidos. Intenta de nuevo.");
+
       const [createdPurchase] = await tx.insert(purchases).values({
         raffleId, buyerName: name, buyerEmail: email, buyerPhone: phone, ticketCount: ticketNumbers.length,
         amount: amount.toString(), paymentMethod, paymentReference, paymentScreenshotUrl, status: purchaseStatus,
       }).returning({ id: purchases.id });
+
       await tx.update(tickets).set({
         status: purchaseStatus === 'confirmed' ? 'sold' : 'reserved',
         purchaseId: createdPurchase.id,
         reservedUntil: null,
       }).where(inArray(tickets.id, ticketsToUpdate.map(t => t.id)));
+
       return createdPurchase;
     });
 
     revalidatePath(`/rifas/${raffleId}`);
     revalidatePath("/dashboard");
+
+    // --- NUEVO: Lógica de notificación ---
+    if (purchaseStatus === 'confirmed') {
+      await sendTicketsEmailAndWhatsapp(newPurchase.id);
+    } else {
+      await sendConfirmationEmail(newPurchase.id);
+    }
+
     return { success: true, message: responseMessage, data: newPurchase };
   } catch (error: any) {
     console.error("Error al comprar tickets:", error);
@@ -229,28 +348,60 @@ const UpdatePurchaseStatusSchema = z.object({
   newStatus: z.enum(purchaseStatusEnum.enumValues),
 });
 
-export async function updatePurchaseStatusAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const validatedFields = UpdatePurchaseStatusSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
+export async function updatePurchaseStatusAction(
+  prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const validatedFields = UpdatePurchaseStatusSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
+  if (!validatedFields.success)
+    return { success: false, message: "Datos inválidos." };
   const { purchaseId, newStatus } = validatedFields.data;
+
   try {
     await db.transaction(async (tx) => {
-      const purchase = await tx.query.purchases.findFirst({ where: eq(purchases.id, purchaseId) });
-      if (!purchase || purchase.status !== "pending") throw new Error("Esta compra no se puede modificar.");
+      const purchase = await tx.query.purchases.findFirst({
+        where: eq(purchases.id, purchaseId),
+      });
+      if (!purchase || purchase.status !== "pending")
+        throw new Error("Esta compra no se puede modificar.");
       if (newStatus === "confirmed") {
-        await tx.update(tickets).set({ status: 'sold' }).where(eq(tickets.purchaseId, purchaseId));
+        await tx
+          .update(tickets)
+          .set({ status: "sold" })
+          .where(eq(tickets.purchaseId, purchaseId));
+        // --- NUEVO: Enviar notificaciones al confirmar ---
+        await sendTicketsEmailAndWhatsapp(purchaseId);
       } else if (newStatus === "rejected") {
-        await tx.update(tickets).set({ status: 'available', purchaseId: null }).where(eq(tickets.purchaseId, purchaseId));
+        await tx
+          .update(tickets)
+          .set({ status: "available", purchaseId: null })
+          .where(eq(tickets.purchaseId, purchaseId));
+        // Opcional: Notificar rechazo (no implementado en este código para ser conciso)
       }
-      await tx.update(purchases).set({ status: newStatus }).where(eq(purchases.id, purchaseId));
+      await tx
+        .update(purchases)
+        .set({ status: newStatus })
+        .where(eq(purchases.id, purchaseId));
     });
+
     revalidatePath("/dashboard");
     revalidatePath("/mis-tickets");
     revalidatePath(`/rifas`);
-    return { success: true, message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada"}.` };
+
+    return {
+      success: true,
+      message: `La compra ha sido ${
+        newStatus === "confirmed" ? "confirmada" : "rechazada"
+      }.`,
+    };
   } catch (error: any) {
     console.error("Error al actualizar compra:", error);
-    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+    return {
+      success: false,
+      message: error.message || "Ocurrió un error en el servidor.",
+    };
   }
 }
 
