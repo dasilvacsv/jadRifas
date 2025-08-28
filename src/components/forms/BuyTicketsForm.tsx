@@ -1,6 +1,7 @@
+// BuyTicketsForm.tsx
 "use client";
 
-import { useState, useMemo, ChangeEvent } from 'react';
+import { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,9 @@ import { Loader2, X, Ticket, CheckCircle, UploadCloud, User, AtSign, Phone, File
 import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 import Image from 'next/image';
 
+// --- Importa las nuevas funciones de exchangeRates.ts ---
+import { getBCVRates } from '@/lib/exchangeRates';
+
 // --- INTERFACES (Sin cambios) ---
 interface PaymentMethod {
   id: string;
@@ -22,6 +26,10 @@ interface PaymentMethod {
   phoneNumber?: string | null;
   accountHolderName?: string | null;
   accountNumber?: string | null;
+  email?: string | null;
+  walletAddress?: string | null;
+  network?: string | null;
+  binancePayId?: string | null;
 }
 
 interface BuyTicketsFormProps {
@@ -39,11 +47,16 @@ interface BuyTicketsFormProps {
 const initialState = { success: false, message: '' };
 
 const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string = 'es-VE') => {
-  return new Intl.NumberFormat(locale, { 
-    style: 'currency', 
+  // Manejar el formato para USD y VES
+  const symbol = currency === 'USD' ? '$' : 'Bs';
+  const formattedAmount = new Intl.NumberFormat(locale, {
+    style: 'currency',
     currency: currency,
-    minimumFractionDigits: 2 
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+
+  return formattedAmount.replace(currency, '').trim() + (currency === 'USD' ? '' : ' Bs');
 };
 
 const TICKET_AMOUNTS = [2, 5, 10, 15, 20, 25];
@@ -61,23 +74,68 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [reservationError, setReservationError] = useState('');
-  
+    
+  // --- Nuevo estado para la tasa de cambio y la carga ---
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [isLoadingRates, setIsLoadingRates] = useState(true);
+
   const selectedPaymentMethod = useMemo(() => 
     paymentMethods.find(method => method.id === paymentMethodId)
   , [paymentMethodId, paymentMethods]);
 
+  // --- useEffect para obtener la tasa de cambio al cargar el componente ---
+  useEffect(() => {
+    const fetchRates = async () => {
+      setIsLoadingRates(true);
+      try {
+        const rates = await getBCVRates();
+        if (raffle.currency === 'USD') {
+          setExchangeRate(rates.usd.rate);
+        } else if (raffle.currency === 'VES') {
+          setExchangeRate(1 / rates.usd.rate); // Tasa inversa para la conversión a USD
+        }
+      } catch (error) {
+        console.error("Error al obtener las tasas de cambio:", error);
+        setExchangeRate(null);
+      } finally {
+        setIsLoadingRates(false);
+      }
+    };
+    fetchRates();
+  }, [raffle.currency]);
+
+  const totalAmount = useMemo(() => {
+    const price = parseFloat(raffle.price);
+    return ticketCount * price;
+  }, [ticketCount, raffle.price]);
+    
+  // --- useMemo modificado para calcular las conversiones ---
   const currencyData = useMemo(() => {
     const price = parseFloat(raffle.price); 
     const numTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
     const total = numTickets * price;
+    
+    let pricePrimary = formatCurrency(price, raffle.currency);
+    let totalPrimary = formatCurrency(total, raffle.currency);
+    let totalSecondary = '';
+    let secondaryCurrencySymbol = ''; // Nuevo: Símbolo de la moneda secundaria
+
+    if (exchangeRate !== null) {
+      const convertedTotal = raffle.currency === 'USD' ? total * exchangeRate : total * exchangeRate;
+      const convertedCurrency = raffle.currency === 'USD' ? 'VES' : 'USD';
+      totalSecondary = formatCurrency(convertedTotal, convertedCurrency);
+      secondaryCurrencySymbol = convertedCurrency === 'USD' ? '$' : 'Bs'; // Asigna el símbolo
+    }
 
     return {
-      pricePerTicket: formatCurrency(price, raffle.currency),
-      totalPrimary: formatCurrency(total, raffle.currency),
+      pricePerTicket: pricePrimary,
+      totalPrimary: totalPrimary,
+      totalSecondary: totalSecondary,
+      secondaryCurrencySymbol: secondaryCurrencySymbol, // Devuelve el símbolo
     };
-  }, [ticketCount, reservedTickets, raffle.price, raffle.currency]);
+  }, [ticketCount, reservedTickets, raffle.price, raffle.currency, exchangeRate]);
 
-  // --- MANEJADORES DE EVENTOS ---
+  // --- MANEJADORES DE EVENTOS (Sin cambios) ---
   const resetForm = () => {
     setApiState(initialState); setTicketCount(2); setReservedTickets([]);
     setPaymentMethodId(''); setBuyerName(''); setBuyerEmail(''); setBuyerPhone('');
@@ -90,7 +148,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     if (file) { setPreview(URL.createObjectURL(file)); } 
     else { setPreview(null); }
   };
-  
+    
   const handleTicketCountChange = (value: number) => {
     const newCount = Math.max(1, value); 
     setTicketCount(newCount);
@@ -162,11 +220,11 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
       </CardContent>
     );
   }
-  
+    
   return (
     <CardContent className="p-0">
       <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
-        
+          
         {/* --- Sección 1: Cantidad de Tickets --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Cantidad de Tickets</h3>
@@ -184,27 +242,40 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
           </div>
 
           {/* --- Sumador y Restador --- */}
-        <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
-  <div className="flex items-center justify-center space-x-3 mb-4">
-    <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
-    {/* ¡Aquí está la corrección para el tamaño de la fuente del número! */}
-    <Input
-      type="number"
-      value={ticketCount}
-      onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 0)}
-      min="1"
-      className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-    />
-    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
-  </div>
-  <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
-  <p className="text-3xl font-bold text-amber-400">{currencyData.totalPrimary}</p>
-</div>
+          <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
+            <div className="flex items-center justify-center space-x-3 mb-4">
+              <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
+              <Input
+                type="number"
+                value={ticketCount}
+                onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 0)}
+                min="1"
+                className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
+            </div>
+            {/* --- Presentación de los montos más notoria --- */}
+            <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
+            <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
+            
+            {isLoadingRates ? (
+              <p className="text-zinc-500 text-sm mt-1 flex items-center justify-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa de cambio...
+              </p>
+            ) : (
+              currencyData.totalSecondary && (
+                <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center">
+                  <span className="text-zinc-400 mr-2">equivalente a</span> 
+                  <span className="text-green-400">{currencyData.totalSecondary}</span>
+                </p>
+              )
+            )}
+          </div>
         </div>
 
         <hr className="border-t border-zinc-700" />
-        
-        {/* --- Sección 2: Método de Pago --- */}
+          
+        {/* --- Sección 2: Método de Pago (Sin cambios, pero pasa el monto convertido) --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Selecciona tu método de pago</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -219,12 +290,12 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               </div>
             ))}
           </div>
-          {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} />}
+          {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency}/>}
         </div>
-        
+          
         <hr className="border-t border-zinc-700" />
 
-        {/* --- Sección 3: Datos de Contacto y Referencia --- */}
+        {/* --- Sección 3: Datos de Contacto y Referencia (Sin cambios) --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Completa tus datos de compra</h3>
           <div className="space-y-4">
@@ -237,7 +308,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
 
         <hr className="border-t border-zinc-700" />
 
-        {/* --- Sección 4: Subir Comprobante --- */}
+        {/* --- Sección 4: Subir Comprobante (Sin cambios) --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Sube el comprobante de pago</h3>
           <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-black/20 hover:bg-black/40 p-4 transition-colors">
@@ -257,7 +328,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         </div>
 
         <hr className="border-t border-zinc-700" />
-        
+          
         {/* --- Botón de Submit Final --- */}
         <Button type="submit" disabled={isPending || !paymentScreenshot || !paymentMethodId} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
           {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}

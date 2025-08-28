@@ -11,13 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-// +++ AÑADIDO: ImageIcon para usar como placeholder
 import { CreditCard, Edit, Plus, AlertTriangle, ImageIcon } from "lucide-react";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { DeleteMethodDialog } from "./DeleteMethodDialog";
 
 // Componente para visualizar detalles de forma más clara y estructurada.
-// +++ MODIFICADO: Ahora incluye los nuevos campos +++
 function MethodDetails({ method }: { method: any }) {
   const details = [
     { label: "Titular", value: method.accountHolderName },
@@ -28,6 +26,7 @@ function MethodDetails({ method }: { method: any }) {
     { label: "Correo", value: method.email },
     { label: "Wallet", value: method.walletAddress },
     { label: "Red", value: method.network },
+    { label: "Binance Pay ID", value: method.binancePayId },
   ].filter(detail => detail.value);
 
   if (details.length === 0) {
@@ -44,7 +43,6 @@ function MethodDetails({ method }: { method: any }) {
     </div>
   );
 }
-// +++ FIN MODIFICADO +++
 
 export async function PaymentMethodsManager() {
   const paymentMethods = await db.query.paymentMethods.findMany();
@@ -84,7 +82,6 @@ export async function PaymentMethodsManager() {
           <Table>
             <TableHeader>
               <TableRow>
-                {/* +++ AÑADIDO: Cabecera para la columna del ícono +++ */}
                 <TableHead className="w-[80px]">Icono</TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead className="hidden lg:table-cell">Detalles</TableHead>
@@ -95,7 +92,6 @@ export async function PaymentMethodsManager() {
             <TableBody>
               {paymentMethods.map((method) => (
                 <TableRow key={method.id}>
-                  {/* +++ AÑADIDO: Celda para mostrar el ícono +++ */}
                   <TableCell>
                     {method.iconUrl ? (
                       <img

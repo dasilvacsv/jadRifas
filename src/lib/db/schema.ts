@@ -92,22 +92,21 @@ export const raffleImages = pgTable("raffle_images", {
 });
 
 export const paymentMethods = pgTable("payment_methods", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  title: varchar("title", { length: 256 }).notNull().unique(),
-  iconUrl: text("icon_url"),
-  // NUEVO: Campos estructurados para los datos de pago
-  accountHolderName: varchar("account_holder_name", { length: 256 }), // Nombre del titular
-  rif: varchar("rif", { length: 20 }), // Cédula o RIF
-  phoneNumber: varchar("phone_number", { length: 20 }), // Para Pago Móvil
-  bankName: varchar("bank_name", { length: 100 }), // Nombre del banco
-  accountNumber: varchar("account_number", { length: 20 }), // Para transferencias
-  // +++ CAMPOS NUEVOS PARA CRIPTOMONEDAS/ZINLI +++
-  walletAddress: text("wallet_address"), // Dirección de la billetera de cripto
-  network: varchar("network", { length: 50 }), // Red de la cripto (ej. TRC20, ERC20)
-  email: varchar("email", { length: 256 }), // Para Zinli u otros servicios de pago digital
-  
-  isActive: boolean("is_active").default(true).notNull(),
-  triggersApiVerification: boolean("triggers_api_verification").default(false).notNull(),
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  title: varchar("title", { length: 256 }).notNull().unique(),
+  iconUrl: text("icon_url"),
+  accountHolderName: varchar("account_holder_name", { length: 256 }),
+  rif: varchar("rif", { length: 20 }),
+  phoneNumber: varchar("phone_number", { length: 20 }),
+  bankName: varchar("bank_name", { length: 100 }),
+  accountNumber: varchar("account_number", { length: 20 }),
+  walletAddress: text("wallet_address"),
+  network: varchar("network", { length: 50 }),
+  email: varchar("email", { length: 256 }),
+  // +++ NEW: Binance Pay ID field +++
+  binancePayId: varchar("binance_pay_id", { length: 50 }), 
+  isActive: boolean("is_active").default(true).notNull(),
+  triggersApiVerification: boolean("triggers_api_verification").default(false).notNull(),
 });
 
 // ----------------------------------------------------------------

@@ -615,37 +615,33 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
 }
 
 const PaymentMethodSchema = z.object({
-  title: z.string().min(3, "El título es requerido."),
-  icon: z.instanceof(File).optional(),
-  // Eliminamos 'details' ya que ahora es estructurado
-  accountHolderName: z.string().optional().nullable(),
-  rif: z.string().optional().nullable(),
-  phoneNumber: z.string().optional().nullable(),
-  bankName: z.string().optional().nullable(),
-  accountNumber: z.string().optional().nullable(),
-  // +++ CAMPOS NUEVOS: AÑADIDOS para Zinli y Binance +++
-  email: z.string().email("Debe ser un correo válido.").optional().nullable().or(z.literal("")),
-  walletAddress: z.string().optional().nullable(),
-  network: z.string().optional().nullable(),
-  // --- FIN CAMPOS NUEVOS ---
-  isActive: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
-  triggersApiVerification: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
+  title: z.string().min(3, "El título es requerido."),
+  icon: z.instanceof(File).optional(),
+  accountHolderName: z.string().optional().nullable(),
+  rif: z.string().optional().nullable(),
+  phoneNumber: z.string().optional().nullable(),
+  bankName: z.string().optional().nullable(),
+  accountNumber: z.string().optional().nullable(),
+  email: z.string().email("Debe ser un correo válido.").optional().nullable().or(z.literal("")),
+  walletAddress: z.string().optional().nullable(),
+  network: z.string().optional().nullable(),
+  // +++ NEW: binancePayId field +++
+  binancePayId: z.string().optional().nullable(),
+  isActive: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
+  triggersApiVerification: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
 });
 
-
 export async function createPaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const data = Object.fromEntries(formData.entries());
-  const iconFile = formData.get('icon') as File | null;
-  
-  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
-  
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
-    return { success: false, message: firstError || "Datos inválidos." };
-  }
-  
-  // +++ MODIFICADO: Extraemos todos los campos del schema validado +++
-  const { 
+  const data = Object.fromEntries(formData.entries());
+  const iconFile = formData.get('icon') as File | null;
+  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
+  
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+    return { success: false, message: firstError || "Datos inválidos." };
+  }
+  
+  const { 
     icon, 
     title, 
     accountHolderName, 
@@ -656,21 +652,21 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
     email, 
     walletAddress, 
     network, 
+    binancePayId, // +++ NEW: Extract binancePayId +++
     isActive, 
     triggersApiVerification 
   } = validatedFields.data;
 
-  let iconUrl: string | undefined = undefined;
+  let iconUrl: string | undefined = undefined;
 
-  try {
-    if (icon && icon.size > 0) {
-      const buffer = Buffer.from(await icon.arrayBuffer());
-      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
-      iconUrl = await uploadToS3(buffer, key, icon.type);
-    }
+  try {
+    if (icon && icon.size > 0) {
+      const buffer = Buffer.from(await icon.arrayBuffer());
+      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
+      iconUrl = await uploadToS3(buffer, key, icon.type);
+    }
 
-    // +++ MODIFICADO: Insertamos todos los campos en la base de datos +++
-    await db.insert(paymentMethods).values({ 
+    await db.insert(paymentMethods).values({ 
       title, 
       iconUrl, 
       accountHolderName, 
@@ -681,33 +677,33 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
       email, 
       walletAddress, 
       network, 
+      binancePayId, // +++ NEW: Add to values +++
       isActive, 
       triggersApiVerification 
     });
-    
-    revalidatePath("/admin/metodos-pago");
-    return { success: true, message: "Método de pago creado con éxito." };
-  } catch (error) {
-    console.error("Error al crear el método de pago:", error);
-    return { success: false, message: "Error al crear el método de pago. El título podría estar duplicado." };
-  }
+    
+    revalidatePath("/admin/metodos-pago");
+    return { success: true, message: "Método de pago creado con éxito." };
+  } catch (error) {
+    console.error("Error al crear el método de pago:", error);
+    return { success: false, message: "Error al crear el método de pago. El título podría estar duplicado." };
+  }
 }
 
 export async function updatePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const id = formData.get('id') as string;
-  if (!id) return { success: false, message: "ID del método no encontrado." };
-  
-  const data = Object.fromEntries(formData.entries());
-  const iconFile = formData.get('icon') as File | null;
-  
-  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
-  if (!validatedFields.success) {
-    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
-    return { success: false, message: firstError || "Datos inválidos." };
-  }
+  const id = formData.get('id') as string;
+  if (!id) return { success: false, message: "ID del método no encontrado." };
+  
+  const data = Object.fromEntries(formData.entries());
+  const iconFile = formData.get('icon') as File | null;
+  
+  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
+  if (!validatedFields.success) {
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+    return { success: false, message: firstError || "Datos inválidos." };
+  }
 
-  // +++ MODIFICADO: Extraemos todos los campos del schema validado +++
-  const { 
+  const { 
     icon, 
     title, 
     accountHolderName, 
@@ -718,27 +714,27 @@ export async function updatePaymentMethodAction(prevState: any, formData: FormDa
     email, 
     walletAddress, 
     network, 
+    binancePayId, // +++ NEW: Extract binancePayId +++
     isActive, 
     triggersApiVerification 
   } = validatedFields.data;
 
-  let iconUrl: string | undefined = undefined;
+  let iconUrl: string | undefined = undefined;
 
-  try {
-    if (icon && icon.size > 0) {
-      const oldMethod = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, id) });
-      if (oldMethod?.iconUrl) {
-        const oldKey = oldMethod.iconUrl.substring(oldMethod.iconUrl.indexOf('payment-methods/'));
-        await deleteFromS3(oldKey);
-      }
-      
-      const buffer = Buffer.from(await icon.arrayBuffer());
-      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
-      iconUrl = await uploadToS3(buffer, key, icon.type);
-    }
-    
-    // +++ MODIFICADO: Actualizamos todos los campos en la base de datos +++
-    await db.update(paymentMethods).set({ 
+  try {
+    if (icon && icon.size > 0) {
+      const oldMethod = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, id) });
+      if (oldMethod?.iconUrl) {
+        const oldKey = oldMethod.iconUrl.substring(oldMethod.iconUrl.indexOf('payment-methods/'));
+        await deleteFromS3(oldKey);
+      }
+      
+      const buffer = Buffer.from(await icon.arrayBuffer());
+      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
+      iconUrl = await uploadToS3(buffer, key, icon.type);
+    }
+    
+    await db.update(paymentMethods).set({ 
       title, 
       accountHolderName, 
       rif, 
@@ -748,18 +744,19 @@ export async function updatePaymentMethodAction(prevState: any, formData: FormDa
       email, 
       walletAddress, 
       network, 
+      binancePayId, // +++ NEW: Add to set object +++
       isActive, 
       triggersApiVerification,
       ...(iconUrl && { iconUrl })
     }).where(eq(paymentMethods.id, id));
-    
-    revalidatePath("/admin/metodos-pago");
-    revalidatePath("/rifa"); 
-    return { success: true, message: "Método de pago actualizado." };
-  } catch (error) {
-    console.error("Error al actualizar método de pago:", error);
-    return { success: false, message: "Error al actualizar." };
-  }
+    
+    revalidatePath("/admin/metodos-pago");
+    revalidatePath("/rifa"); 
+    return { success: true, message: "Método de pago actualizado." };
+  } catch (error) {
+    console.error("Error al actualizar método de pago:", error);
+    return { success: false, message: "Error al actualizar." };
+  }
 }
 
 export async function deletePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {

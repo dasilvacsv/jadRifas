@@ -39,9 +39,10 @@ interface PaymentMethod {
   phoneNumber?: string | null;
   bankName?: string | null;
   accountNumber?: string | null;
+  email?: string | null;
   walletAddress?: string | null;
   network?: string | null;
-  email?: string | null;
+  binancePayId?: string | null;
 }
 
 // VALORES INICIALES PARA UN MÉTODO NUEVO
@@ -55,9 +56,10 @@ const initialState: Omit<PaymentMethod, "id"> = {
   phoneNumber: "",
   bankName: "",
   accountNumber: "",
+  email: "",
   walletAddress: "",
   network: "",
-  email: "",
+  binancePayId: "",
 };
 
 interface PaymentMethodDialogProps {
@@ -93,8 +95,9 @@ export function PaymentMethodDialog({
   const formRef = useRef<HTMLFormElement>(null);
   const isEditing = !!method;
 
-  const [formData, setFormData] = useState<Omit<PaymentMethod, "id">>(initialState);
-  
+  const [formData, setFormData] =
+    useState<Omit<PaymentMethod, "id">>(initialState);
+
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +117,7 @@ export function PaymentMethodDialog({
         email: method.email ?? "",
         walletAddress: method.walletAddress ?? "",
         network: method.network ?? "",
+        binancePayId: method.binancePayId ?? "",
       });
       setIconPreview(method.iconUrl ?? null);
     } else {
@@ -133,7 +137,7 @@ export function PaymentMethodDialog({
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   const handleIconChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setIconFile(file);
@@ -147,10 +151,10 @@ export function PaymentMethodDialog({
   const clearIcon = () => {
     setIconFile(null);
     setIconPreview(method?.iconUrl ?? null);
-    if(fileInputRef.current) {
-        fileInputRef.current.value = "";
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   const handleSwitchChange = (name: keyof PaymentMethod, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }));
@@ -210,7 +214,11 @@ export function PaymentMethodDialog({
               <div className="flex items-center gap-4">
                 <div className="relative w-20 h-20 rounded-md border flex items-center justify-center bg-muted/40">
                   {iconPreview ? (
-                    <img src={iconPreview} alt="Vista previa" className="rounded-md object-contain h-full w-full" />
+                    <img
+                      src={iconPreview}
+                      alt="Vista previa"
+                      className="rounded-md object-contain h-full w-full"
+                    />
                   ) : (
                     <Upload className="h-6 w-6 text-muted-foreground" />
                   )}
@@ -226,11 +234,18 @@ export function PaymentMethodDialog({
                     className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                   />
                   {iconFile && (
-                    <Button variant="ghost" size="sm" onClick={clearIcon} className="mt-2 text-red-500">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearIcon}
+                      className="mt-2 text-red-500"
+                    >
                       <X className="mr-2 h-4 w-4" /> Quitar imagen
                     </Button>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1">Sube una imagen (PNG, JPG, SVG). Recomendado: 128x128px.</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sube una imagen (PNG, JPG, SVG). Recomendado: 128x128px.
+                  </p>
                 </div>
               </div>
             </div>
@@ -240,57 +255,119 @@ export function PaymentMethodDialog({
 
           {/* SECCIÓN DETALLES DE LA CUENTA */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-foreground">Detalles de la Cuenta (Opcional)</h3>
-
-            {/* Renderizado condicional basado en el título */}
+            <h3 className="text-sm font-medium text-foreground">
+              Detalles de la Cuenta (Opcional)
+            </h3>
             {formData.title?.toLowerCase().includes("zinli") ? (
-              // Campos para Zinli
               <div className="space-y-2">
                 <Label htmlFor="email">Correo Electrónico (Zinli)</Label>
-                <Input id="email" name="email" placeholder="tu_correo@example.com" value={formData.email ?? ''} onChange={handleChange} />
+                <Input
+                  id="email"
+                  name="email"
+                  placeholder="tu_correo@example.com"
+                  value={formData.email ?? ""}
+                  onChange={handleChange}
+                />
                 <Label htmlFor="phoneNumber">Teléfono (Zinli)</Label>
-                <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
+                <Input
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  placeholder="0412-1234567"
+                  value={formData.phoneNumber ?? ""}
+                  onChange={handleChange}
+                />
               </div>
             ) : formData.title?.toLowerCase().includes("binance") ? (
-              // Campos para Binance
               <div className="space-y-2">
                 <Label htmlFor="walletAddress">Dirección de Wallet (Binance)</Label>
-                <Input id="walletAddress" name="walletAddress" placeholder="Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value={formData.walletAddress ?? ''} onChange={handleChange} />
+                <Input
+                  id="walletAddress"
+                  name="walletAddress"
+                  placeholder="Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  value={formData.walletAddress ?? ""}
+                  onChange={handleChange}
+                />
                 <Label htmlFor="network">Red (Binance)</Label>
-                <Input id="network" name="network" placeholder="Ej: TRC20, BEP20, ERC20" value={formData.network ?? ''} onChange={handleChange} />
+                <Input
+                  id="network"
+                  name="network"
+                  placeholder="Ej: TRC20, BEP20, ERC20"
+                  value={formData.network ?? ""}
+                  onChange={handleChange}
+                />
+                <Label htmlFor="binancePayId">Binance Pay ID</Label>
+                <Input
+                  id="binancePayId"
+                  name="binancePayId"
+                  placeholder="Ej: 123456789"
+                  value={formData.binancePayId ?? ""}
+                  onChange={handleChange}
+                />
               </div>
             ) : (
-              // Campos por defecto (p.ej. para transferencias bancarias)
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="accountHolderName">Nombre del Titular</Label>
-                  <Input id="accountHolderName" name="accountHolderName" value={formData.accountHolderName ?? ''} onChange={handleChange} />
+                  <Input
+                    id="accountHolderName"
+                    name="accountHolderName"
+                    value={formData.accountHolderName ?? ""}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="rif">Cédula / RIF</Label>
-                  <Input id="rif" name="rif" placeholder="V-12345678" value={formData.rif ?? ''} onChange={handleChange} />
+                  <Input
+                    id="rif"
+                    name="rif"
+                    placeholder="V-12345678"
+                    value={formData.rif ?? ""}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bankName">Nombre del Banco</Label>
-                  <Input id="bankName" name="bankName" placeholder="Banesco" value={formData.bankName ?? ''} onChange={handleChange} />
+                  <Input
+                    id="bankName"
+                    name="bankName"
+                    placeholder="Banesco"
+                    value={formData.bankName ?? ""}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Teléfono (Pago Móvil)</Label>
-                  <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
+                  <Input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    placeholder="0412-1234567"
+                    value={formData.phoneNumber ?? ""}
+                    onChange={handleChange}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="accountNumber">Número de Cuenta (Transferencia)</Label>
-                  <Input id="accountNumber" name="accountNumber" placeholder="0134..." value={formData.accountNumber ?? ''} onChange={handleChange} />
+                  <Label htmlFor="accountNumber">
+                    Número de Cuenta (Transferencia)
+                  </Label>
+                  <Input
+                    id="accountNumber"
+                    name="accountNumber"
+                    placeholder="0134..."
+                    value={formData.accountNumber ?? ""}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
             )}
           </div>
-          
+
           <Separator />
 
           {/* SECCIÓN DE CONFIGURACIÓN */}
           <div className="space-y-4">
-            <h3 className="text-sm font-medium text-foreground">Configuración</h3>
+            <h3 className="text-sm font-medium text-foreground">
+              Configuración
+            </h3>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="isActive-switch">Activo para clientes</Label>
