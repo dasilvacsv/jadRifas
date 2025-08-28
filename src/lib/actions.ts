@@ -616,60 +616,102 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
 
 const PaymentMethodSchema = z.object({
   title: z.string().min(3, "El título es requerido."),
-  
-  // ✅ SOLUCIÓN: Haz que el campo 'details' sea opcional.
-  // Ahora Zod no se quejará si no lo envías.
-  details: z.string().optional(), 
-
-  // Los demás campos ya están correctos.
+  icon: z.instanceof(File).optional(), // +++ AÑADIDO: Para validar el archivo si se sube
+  details: z.string().optional(),
   accountHolderName: z.string().optional(),
   rif: z.string().optional(),
   phoneNumber: z.string().optional(),
   bankName: z.string().optional(),
   accountNumber: z.string().optional(),
-
   isActive: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
   triggersApiVerification: z.preprocess((val) => val === 'on' || val === true || val === 'true', z.boolean()),
 });
 
+
 export async function createPaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) {
-    // Devuelve el primer error encontrado para mejor feedback
+  // --- MODIFICADO: Se separa la validación de datos y el archivo ---
+  const data = Object.fromEntries(formData.entries());
+  const iconFile = formData.get('icon') as File | null;
+  
+  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
+  
+  if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { success: false, message: firstError || "Datos inválidos." };
   }
-  try {
-    await db.insert(paymentMethods).values(validatedFields.data);
-    revalidatePath("/admin/metodos-pago");
-    return { success: true, message: "Método de pago creado con éxito." };
-  } catch (error) {
-    return { success: false, message: "Error al crear el método de pago. El título podría estar duplicado." };
-  }
+  
+  const { icon, ...methodData } = validatedFields.data; // Extraemos el ícono de los datos
+  let iconUrl: string | undefined = undefined;
+
+  try {
+    // --- LÓGICA DE SUBIDA A S3 ---
+    if (icon && icon.size > 0) {
+      const buffer = Buffer.from(await icon.arrayBuffer());
+      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
+      iconUrl = await uploadToS3(buffer, key, icon.type);
+    }
+
+    await db.insert(paymentMethods).values({ ...methodData, iconUrl }); // Guardamos la URL
+    
+    revalidatePath("/admin/metodos-pago");
+    return { success: true, message: "Método de pago creado con éxito." };
+  } catch (error) {
+    return { success: false, message: "Error al crear el método de pago. El título podría estar duplicado." };
+  }
 }
 
 export async function updatePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
-  const id = formData.get('id') as string;
-  if (!id) return { success: false, message: "ID del método no encontrado." };
+  const id = formData.get('id') as string;
+  if (!id) return { success: false, message: "ID del método no encontrado." };
   
-  const validatedFields = PaymentMethodSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) {
+  const data = Object.fromEntries(formData.entries());
+  const iconFile = formData.get('icon') as File | null;
+  
+  const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
+  if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { success: false, message: firstError || "Datos inválidos." };
   }
-  try {
-    await db.update(paymentMethods).set(validatedFields.data).where(eq(paymentMethods.id, id));
-    revalidatePath("/admin/metodos-pago");
-    revalidatePath("/rifa"); // Revalida las páginas de rifas por si usan los datos
-    return { success: true, message: "Método de pago actualizado." };
-  } catch (error) {
-    return { success: false, message: "Error al actualizar." };
-  }
+
+  const { icon, ...methodData } = validatedFields.data;
+  let iconUrl: string | undefined = undefined;
+
+  try {
+    // --- LÓGICA DE ACTUALIZACIÓN DE IMAGEN EN S3 ---
+    if (icon && icon.size > 0) {
+      // 1. Opcional: Borrar el ícono antiguo si existe
+      const oldMethod = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, id) });
+      if (oldMethod?.iconUrl) {
+        const oldKey = oldMethod.iconUrl.substring(oldMethod.iconUrl.indexOf('payment-methods/'));
+        await deleteFromS3(oldKey); // Asume que tienes una función para borrar
+      }
+      
+      // 2. Subir el nuevo ícono
+      const buffer = Buffer.from(await icon.arrayBuffer());
+      const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
+      iconUrl = await uploadToS3(buffer, key, icon.type);
+    }
+    
+    await db.update(paymentMethods).set({ ...methodData, ...(iconUrl && { iconUrl }) }).where(eq(paymentMethods.id, id));
+    
+    revalidatePath("/admin/metodos-pago");
+    revalidatePath("/rifa"); 
+    return { success: true, message: "Método de pago actualizado." };
+  } catch (error) {
+    return { success: false, message: "Error al actualizar." };
+  }
 }
 
 export async function deletePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
   const id = formData.get('id') as string;
   try {
+    // --- LÓGICA PARA BORRAR IMAGEN DE S3 AL ELIMINAR ---
+    const methodToDelete = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, id) });
+    if (methodToDelete?.iconUrl) {
+        const key = methodToDelete.iconUrl.substring(methodToDelete.iconUrl.indexOf('payment-methods/'));
+        await deleteFromS3(key);
+    }
+    
     await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
     revalidatePath("/admin/metodos-pago");
     return { success: true, message: "Método de pago eliminado." };

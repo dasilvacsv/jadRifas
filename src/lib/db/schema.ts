@@ -94,7 +94,7 @@ export const raffleImages = pgTable("raffle_images", {
 export const paymentMethods = pgTable("payment_methods", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
   title: varchar("title", { length: 256 }).notNull().unique(),
- 
+  iconUrl: text("icon_url"),
   details: text("details"),
   // NUEVO: Campos estructurados para los datos de pago
   accountHolderName: varchar("account_holder_name", { length: 256 }), // Nombre del titular

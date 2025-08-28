@@ -3,308 +3,460 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Ticket, Gift, Clock, Award, Calendar, Crown } from 'lucide-react';
+import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, CreditCard, Star } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
 
+// --- INTERFACES DE DATOS ---
 export interface RaffleImage {
-  id: string;
-  url: string;
-  raffleId: string;
+    id: string;
+    url: string;
+    raffleId: string;
 }
-
 export interface Purchase {
-  id: string;
-  buyerName: string | null;
-  buyerEmail: string;
-  buyerPhone: string | null;
-  amount: string;
-  status: "pending" | "confirmed" | "rejected";
-  paymentReference: string | null;
-  paymentScreenshotUrl: string | null;
-  paymentMethod: string | null;
-  ticketCount: number;
-  createdAt: Date;
-  raffleId: string;
+    id: string;
+    buyerName: string | null;
+    buyerEmail: string;
+    buyerPhone: string | null;
+    amount: string;
+    status: "pending" | "confirmed" | "rejected";
+    paymentReference: string | null;
+    paymentScreenshotUrl: string | null;
+    paymentMethod: string | null;
+    ticketCount: number;
+    createdAt: Date;
+    raffleId: string;
 }
-
 export interface WinnerTicket {
-  id: string;
-  ticketNumber: string;
-  raffleId: string;
-  purchaseId: string | null;
-  status: "available" | "reserved" | "sold";
-  reservedUntil: Date | null;
-  purchase: Purchase | null;
+    id:string;
+    ticketNumber: string;
+    raffleId: string;
+    purchaseId: string | null;
+    status: "available" | "reserved" | "sold";
+    reservedUntil: Date | null;
+    purchase: Purchase | null;
 }
-
 export interface ActiveRaffle {
-  id: string;
-  name: string;
-  description: string | null;
-  price: string;
-  currency: 'USD' | 'VES'; // <-- Campo añadido
-  minimumTickets: number;
-  status: "active" | "finished" | "cancelled" | "draft" | "postponed";
-  createdAt: Date;
-  updatedAt: Date;
-  limitDate: Date;
-  winnerTicketId: string | null;
-  winnerLotteryNumber: string | null;
-  winnerProofUrl: string | null;
-  images: RaffleImage[];
-  tickets: Array<{ id: string }>;
+    id: string;
+    name: string;
+    description: string | null;
+    price: string;
+    currency: 'USD' | 'VES';
+    minimumTickets: number;
+    status: "active" | "finished" | "cancelled" | "draft" | "postponed";
+    createdAt: Date;
+    updatedAt: Date;
+    limitDate: Date;
+    winnerTicketId: string | null;
+    winnerLotteryNumber: string | null;
+    images: RaffleImage[];
+    tickets: Array<{ id: string }>;
 }
-
 export interface FinishedRaffle {
-  id: string;
-  name: string;
-  description: string | null;
-  price: string;
-  currency: 'USD' | 'VES'; // <-- Campo añadido
-  minimumTickets: number;
-  status: "active" | "finished" | "cancelled" | "draft" | "postponed";
-  createdAt: Date;
-  updatedAt: Date;
-  limitDate: Date;
-  winnerTicketId: string | null;
-  winnerLotteryNumber: string | null;
-  winnerProofUrl: string | null;
-  images: RaffleImage[];
-  winnerTicket: WinnerTicket | null;
+    id: string;
+    name: string;
+    description: string | null;
+    price: string;
+    currency: 'USD' | 'VES';
+    minimumTickets: number;
+    status: "active" | "finished" | "cancelled" | "draft" | "postponed";
+    createdAt: Date;
+    updatedAt: Date;
+    limitDate: Date;
+    winnerTicketId: string | null;
+    winnerLotteryNumber: string | null;
+    winnerProofUrl: string | null;
+    images: RaffleImage[];
+    winnerTicket: WinnerTicket | null;
 }
-
+export interface PaymentMethod {
+    id: string;
+    title: string;
+    iconUrl: string | null;
+}
 interface HomePageProps {
-  activeRaffles: ActiveRaffle[];
-  finishedRaffles: FinishedRaffle[];
+    activeRaffles: ActiveRaffle[];
+    finishedRaffles: FinishedRaffle[];
+    paymentMethods: PaymentMethod[];
 }
 
-// --- Función de ayuda para la moneda ---
+// --- UTILITIES ---
 const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
-    const value = parseFloat(amount).toFixed(2);
-    return currency === 'USD' ? `$${value}` : `Bs. ${value}`;
+    const value = parseFloat(amount);
+    if (isNaN(value)) return currency === 'USD' ? '$0.00' : 'Bs. 0,00';
+    return currency === 'USD' 
+        ? `$${value.toFixed(2)}` 
+        : `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
 };
 
-export default function HomePage({ activeRaffles, finishedRaffles }: HomePageProps) {
-  return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-24 px-4 text-center">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-repeat opacity-40"></div>
-        <div className="relative max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Award className="h-4 w-4" />
-            Tu oportunidad de ganar
-          </div>
-          
-          <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 mb-6 leading-tight tracking-tight">
-            Participa en Rifas Exclusivas y Gana <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Premios Increíbles</span>
-          </h1>
-          
-          <p className="text-lg md:text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-            Elige tu rifa, compra tus tickets de forma segura y prepárate para ser el próximo ganador. ¡Mucha suerte!
-          </p>
+const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('es-VE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+};
 
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link href="#rifas-activas">
-              <Button size="lg" className="px-8 py-3 text-base">
-                <Gift className="mr-2 h-5 w-5" />
-                Ver Rifas Disponibles
-              </Button>
-            </Link>
-            <Link href="/mis-tickets">
-              <Button variant="outline" size="lg" className="px-8 py-3 text-base">
-                <Ticket className="mr-2 h-5 w-5" />
-                Consultar Mis Tickets
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
+// --- ESTILOS GLOBALES PARA ANIMACIONES ---
+const GlobalStyles = () => (
+  <style jsx global>{`
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scale-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes blob {
+      0% { transform: translate(0px, 0px) scale(1); }
+      33% { transform: translate(30px, -50px) scale(1.1); }
+      66% { transform: translate(-20px, 20px) scale(0.9); }
+      100% { transform: translate(0px, 0px) scale(1); }
+    }
+    /* ✅ NUEVA ANIMACIÓN PARA LOS BORDES */
+    @keyframes border-spin {
+        from { transform: translate(-50%, -50%) rotate(0deg); }
+        to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
 
-      {/* Active Raffles Section */}
-      <section id="rifas-activas" className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Rifas Activas
-            </h2>
-            <p className="text-lg text-gray-600 mt-4 max-w-2xl mx-auto">
-              Estos son los premios que podrías llevarte a casa. ¡No dejes pasar la oportunidad!
-            </p>
-          </div>
+    .fade-in-anim { animation: fade-in 0.3s ease-out forwards; }
+    .scale-in-anim { animation: scale-in 0.3s ease-out forwards; }
+    .blob-anim { animation: blob 7s infinite; }
+    .animation-delay-4000 { animation-delay: 4s; }
 
-          {activeRaffles.length === 0 ? (
-            <Card className="max-w-2xl mx-auto shadow-none border-dashed border-2">
-              <CardContent className="pt-12 pb-12 text-center">
-                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No hay rifas activas en este momento
-                </h3>
-                <p className="text-gray-500">
-                  Vuelve pronto, estamos preparando nuevos y emocionantes premios para ti.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {activeRaffles.map((raffle) => {
-                const ticketsTakenCount = raffle.tickets.length;
-                const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
+    /* ✅ NUEVAS CLASES PARA EL EFECTO DE BORDE ANIMADO */
+    .animated-border::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 150%;
+        height: 150%;
+        background: conic-gradient(from 0deg, transparent 70%, #8b5cf6, #ec4899, transparent 100%);
+        animation: border-spin 5s linear infinite;
+        z-index: -1;
+    }
+    .animated-border-winner::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 150%;
+        height: 150%;
+        background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #fbbf24, transparent 100%);
+        animation: border-spin 5s linear infinite;
+        z-index: -1;
+    }
+  `}</style>
+);
 
-                return (
-                  <Card key={raffle.id} className="group overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col border-0">
-                    <CardHeader className="p-0">
-                      <div className="relative aspect-video w-full">
-                        <Image
-                          src={raffle.images[0]?.url || '/placeholder.png'}
-                          alt={raffle.name}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                        <div className="absolute bottom-4 left-4">
-                            <h3 className="text-2xl font-bold text-white shadow-md">{raffle.name}</h3>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    
-                    <CardContent className="p-6 flex-grow flex flex-col">
-                      <p className="text-gray-600 text-sm mb-4 flex-grow line-clamp-3">
-                        {raffle.description}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-                        <Calendar className="h-4 w-4" />
-                        <span>Sorteo: {new Date(raffle.limitDate).toLocaleDateString()}</span>
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2 text-sm">
-                          <span className="text-gray-600">
-                            <span className="font-bold text-gray-800">{ticketsTakenCount.toLocaleString()}</span> / {raffle.minimumTickets.toLocaleString()} ocupados
-                          </span>
-                          <span className="font-semibold text-blue-600">{progress.toFixed(0)}%</span>
-                        </div>
-                        <Progress value={progress} className="h-2" />
-                      </div>
-                    </CardContent>
 
-                    <CardFooter className="p-6 bg-slate-50/50">
-                        <div className="w-full flex justify-between items-center">
-                          <div>
-                            <p className="text-sm text-gray-500">Precio</p>
-                            {/* --- VISUALIZACIÓN DE PRECIO ACTUALIZADA --- */}
-                            <p className="text-2xl font-bold text-blue-600">
-                              {formatCurrency(raffle.price, raffle.currency)}
-                            </p>
-                          </div>
-                          <Link href={`/rifa/${raffle.id}`}>
-                            <Button size="lg">
-                              Participar
-                              <Ticket className="ml-2 h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                    </CardFooter>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
+// --- COMPONENTES AUXILIARES ---
 
-      {/* Recent Results Section */}
-      {finishedRaffles.length > 0 && (
-        <section id="resultados" className="py-20 px-4 bg-white border-t">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Resultados Recientes</h2>
-              <p className="text-lg text-gray-600 mt-4 max-w-2xl mx-auto">¡Felicidades a nuestros últimos ganadores!</p>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {finishedRaffles.map((raffle) => (
-                <Card key={raffle.id} className="bg-green-50 border-green-200 rounded-xl shadow-lg flex flex-col">
-                  <CardHeader className="p-0">
-                    <div className="relative aspect-video w-full">
-                      <Image src={raffle.images[0]?.url || '/placeholder.png'} alt={`Premio ganado: ${raffle.name}`} fill className="object-cover rounded-t-xl" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                        <div className="absolute bottom-4 left-4">
-                            <Badge variant="secondary" className="bg-green-600 text-white border-green-700">RIFA FINALIZADA</Badge>
-                        </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6 text-center flex-grow flex flex-col justify-start">
-                    <p className="text-sm text-gray-600">El número ganador para <span className="font-semibold">{raffle.name}</span> fue:</p>
-                    <p className="text-5xl font-bold text-green-700 tracking-widest my-2">{raffle.winnerLotteryNumber}</p>
-                    
-                    <div className="p-4 bg-white rounded-lg border mt-4">
-                      <Crown className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
-                      <p className="font-semibold text-xl text-gray-800">{raffle.winnerTicket?.purchase?.buyerName ?? "Ticket no vendido"}</p>
-                      <div className="mt-1">
-                        Con el ticket: <Badge className="text-md bg-green-100 text-green-800">{raffle.winnerTicket?.ticketNumber}</Badge>
-                      </div>
-                    </div>
+const PaymentMethodsBar = ({ methods, maxVisible = 5 }: { methods: PaymentMethod[], maxVisible?: number }) => {
+    if (!methods || methods.length === 0) return null;
+    const visibleMethods = methods.slice(0, maxVisible);
+    const hiddenCount = methods.length - maxVisible;
 
-                    {/* Show winner proof image if exists */}
-                    {raffle.winnerProofUrl && (
-                        <div className="relative aspect-video w-full mt-4 rounded-lg overflow-hidden border">
-                            <Image 
-                                src={raffle.winnerProofUrl}
-                                alt={`Prueba del sorteo para ${raffle.name}`}
-                                fill
-                                className="object-contain"
-                            />
-                        </div>
+    return (
+        <div className="flex items-center gap-2.5 mt-8">
+            <p className="text-sm text-zinc-400 mr-1 shrink-0">Aceptamos:</p>
+            {visibleMethods.map(method => (
+                <div key={method.id} className="h-8 w-8 rounded-lg bg-white/5 p-1 flex items-center justify-center ring-1 ring-white/10" title={method.title}>
+                    {method.iconUrl ? (
+                        <Image src={method.iconUrl} alt={method.title} width={28} height={28} className="object-contain rounded-sm" />
+                    ) : (
+                        <CreditCard className="h-5 w-5 text-zinc-400" />
                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* How It Works Section */}
-      <section className="py-20 px-4 bg-white border-t">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-12">
-            ¿Cómo Funciona?
-          </h2>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-4">
-              <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 border-4 border-blue-200">
-                <span className="text-blue-600 font-bold text-2xl">1</span>
-              </div>
-              <h3 className="font-semibold text-xl mb-2">Elige tu Rifa</h3>
-              <p className="text-gray-600">
-                Selecciona el premio que más te guste y decide cuántos tickets quieres para aumentar tus probabilidades.
-              </p>
-            </div>
-
-            <div className="text-center p-4">
-              <div className="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 border-4 border-green-200">
-                <span className="text-green-600 font-bold text-2xl">2</span>
-              </div>
-              <h3 className="font-semibold text-xl mb-2">Realiza el Pago</h3>
-              <p className="text-gray-600">
-                Completa tu información y realiza el pago de forma segura con tu método de preferencia.
-              </p>
-            </div>
-
-            <div className="text-center p-4">
-              <div className="bg-indigo-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 border-4 border-indigo-200">
-                <span className="text-indigo-600 font-bold text-2xl">3</span>
-              </div>
-              <h3 className="font-semibold text-xl mb-2">¡Listo para Ganar!</h3>
-              <p className="text-gray-600">
-                Una vez verificado tu pago, recibirás tus números de la suerte por email. ¡Mucha suerte!
-              </p>
-            </div>
-          </div>
+                </div>
+            ))}
+            {hiddenCount > 0 && (
+                <div className="flex items-center justify-center h-8 w-8 text-xs font-bold bg-white/5 text-zinc-300 rounded-lg ring-1 ring-white/10">
+                    +{hiddenCount}
+                </div>
+            )}
         </div>
-      </section>
+    );
+};
+
+const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
+    const [hasMounted, setHasMounted] = useState(false);
+    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+
+    useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (hasMounted) {
+            const calculateTime = () => {
+                const difference = +new Date(targetDate) - +new Date();
+                if (difference > 0) {
+                    setTimeLeft({
+                        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+                        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+                        minutes: Math.floor((difference / 1000 / 60) % 60),
+                        seconds: Math.floor((difference / 1000) % 60),
+                    });
+                } else {
+                    setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+                }
+            };
+            
+            calculateTime();
+            const timer = setInterval(calculateTime, 1000);
+            return () => clearInterval(timer);
+        }
+    }, [hasMounted, targetDate]);
+
+    const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
+
+    return (
+        <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
+            <Clock className="h-5 w-5 text-amber-400 flex-shrink-0" />
+            <div className="flex items-end gap-3 min-h-[28px]">
+                {hasMounted ? (
+                    <>
+                        {timeUnits.days > 0 && (
+                            <div className="flex items-end leading-none">
+                                <span className="text-2xl font-bold text-white">{String(timeUnits.days).padStart(2, '0')}</span>
+                                <span className="text-zinc-500 ml-1 mb-0.5">d</span>
+                            </div>
+                        )}
+                        <span className="text-2xl font-bold text-white">{String(timeUnits.hours).padStart(2, '0')}</span>
+                        <span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span>
+                        <span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
+                    </>
+                ) : (
+                    <>
+                        <span className="text-2xl font-bold text-white">--</span>
+                        <span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-white">--</span>
+                        <span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-amber-400">--</span>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const RaffleImagesCarousel = ({ images, raffleName }: { images: RaffleImage[], raffleName: string }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const handleNext = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev + 1) % images.length); };
+    const handlePrev = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); };
+    
+    if (!images || images.length === 0) {
+        return <div className="aspect-video w-full bg-black/20 flex items-center justify-center rounded-t-xl"><Gift className="h-16 w-16 text-white/10"/></div>;
+    }
+
+    return (
+        <div className="relative group/carousel aspect-video w-full overflow-hidden rounded-t-xl">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10"></div>
+            <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+                {images.map(image => (
+                    <div key={image.id} className="relative w-full flex-shrink-0 aspect-video">
+                        <Image src={image.url} alt={raffleName} fill className="object-cover transition-transform duration-500 group-hover:scale-110"/>
+                    </div>
+                ))}
+            </div>
+            {images.length > 1 && (<>
+                <Button variant="ghost" size="icon" className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-black/40 text-white hover:bg-black/70 backdrop-blur-sm transition-all duration-300 z-20 opacity-0 group-hover/carousel:opacity-100" onClick={handlePrev}><ChevronLeft className="h-6 w-6" /></Button>
+                <Button variant="ghost" size="icon" className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-black/40 text-white hover:bg-black/70 backdrop-blur-sm transition-all duration-300 z-20 opacity-0 group-hover/carousel:opacity-100" onClick={handleNext}><ChevronRight className="h-6 w-6" /></Button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+                    {images.map((_, i) => (
+                        <button key={i} onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCurrentIndex(i);}} className={`h-1.5 w-6 rounded-full transition-all duration-300 ${currentIndex === i ? 'bg-white w-8' : 'bg-white/40'}`}></button>
+                    ))}
+                </div>
+            </>)}
+        </div>
+    );
+};
+
+const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle, isFeatured?: boolean }) => {
+    const ticketsSold = raffle.tickets.length;
+    const progress = Math.min((ticketsSold / raffle.minimumTickets) * 100, 100);
+
+    return (
+        // ✅ CAMBIO: Se añade la clase para el borde animado y overflow-hidden
+        <div className={`group relative rounded-2xl p-px overflow-hidden animated-border ${isFeatured ? 'sm:col-span-2' : ''}`}>
+            <Link href={`/rifa/${raffle.id}`} className="block h-full">
+                <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden h-full flex flex-col shadow-2xl shadow-black/40 transition-all duration-300">
+                    <CardHeader className="p-0 relative">
+                        <RaffleImagesCarousel images={raffle.images} raffleName={raffle.name} />
+                        {isFeatured && (
+                             <Badge className="absolute top-4 left-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-1.5 px-4 border border-purple-300/50 shadow-lg shadow-black/30 animate-pulse">
+                                 <Star className="h-4 w-4 mr-2" /> RIFA ESTRELLA
+                             </Badge>
+                        )}
+                        <Badge variant="secondary" className="absolute top-4 right-4 bg-black/50 text-amber-300 font-semibold py-1 px-3 border border-amber-300/20 backdrop-blur-sm">
+                           <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-400" /> ¡EN VIVO!
+                        </Badge>
+                    </CardHeader>
+                    <CardContent className="p-5 flex-grow flex flex-col">
+                        <h3 className={`font-bold text-white line-clamp-2 group-hover:text-amber-300 transition-colors duration-300 leading-tight mb-3 ${isFeatured ? 'text-3xl' : 'text-xl'}`}>
+                            {raffle.name}
+                        </h3>
+                        {raffle.description && (
+                            <p className="text-zinc-400 text-sm line-clamp-2 mb-4">{raffle.description}</p>
+                        )}
+                        <div className="mt-auto space-y-5 pt-4">
+                            <div>
+                                {/* ✅ CAMBIO: Se muestra solo el porcentaje */}
+                                <div className="flex justify-end items-center text-xs mb-1.5">
+                                    <span className="font-bold text-white">{progress.toFixed(0)}%</span>
+                                </div>
+                                <Progress value={progress} className="h-2 bg-white/10 rounded-full border border-white/10 overflow-hidden [&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-500" />
+                            </div>
+                            <CountdownTimer targetDate={raffle.limitDate} />
+                        </div>
+                    </CardContent>
+                    <CardFooter className="p-5 pt-4 flex flex-wrap gap-4 justify-between items-center bg-black/20 border-t border-white/10">
+                        <div className='flex flex-col'>
+                            <p className="text-xs text-zinc-400">Precio por ticket</p>
+                            <p className="text-3xl font-extrabold text-white leading-none">{formatCurrency(raffle.price, raffle.currency)}</p>
+                        </div>
+                        <Button size="lg" className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-xl px-8 py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
+                            <Ticket className="h-5 w-5 mr-2.5"/>
+                            Participar Ahora
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </Link>
+        </div>
+    );
+};
+
+const WinnerCard = ({ raffle, onShowProof }: { raffle: FinishedRaffle, onShowProof: (url: string) => void }) => (
+    // ✅ CAMBIO: Se añade la clase para el borde animado (versión ganador) y overflow-hidden
+    <div className="group relative rounded-2xl p-px overflow-hidden animated-border-winner">
+        <div className="relative bg-zinc-900/80 backdrop-blur-md rounded-[15px] overflow-hidden flex flex-col h-full border-t border-white/5 shadow-2xl shadow-black/40">
+            <div className="relative aspect-video">
+                <Image src={raffle.images[0]?.url || '/placeholder.png'} alt={raffle.name} fill className="object-cover brightness-50 group-hover:brightness-75 transition-all duration-300"/>
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent"></div>
+                <div className="absolute bottom-4 left-4 right-4">
+                    <h3 className="font-bold text-lg text-white line-clamp-1">{raffle.name}</h3>
+                    <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1.5">
+                        <CalendarOff className="h-3.5 w-3.5" />
+                        Finalizó el {formatDate(raffle.limitDate)}
+                    </p>
+                </div>
+            </div>
+            <div className="p-5 text-center flex-grow flex flex-col justify-between">
+                <div>
+                    <Trophy className="h-14 w-14 mx-auto text-amber-400 drop-shadow-[0_2px_4px_rgba(251,191,36,0.6)]" />
+                    <p className="text-sm text-amber-400/80 mt-3 font-semibold">¡Felicidades al ganador!</p>
+                    <p className="text-2xl font-extrabold mt-1 leading-tight drop-shadow-md bg-clip-text text-transparent bg-gradient-to-br from-amber-200 to-yellow-400">
+                        {raffle.winnerTicket?.purchase?.buyerName ?? "Anónimo"}
+                    </p>
+                </div>
+                <div className="mt-6 bg-black/30 border border-amber-500/20 rounded-xl p-3">
+                    <span className="text-xs text-zinc-400 block mb-1">Ticket Ganador</span>
+                    <p className="text-4xl font-mono tracking-wider text-amber-300 font-bold">{raffle.winnerTicket?.ticketNumber ?? "N/A"}</p>
+                </div>
+                {raffle.winnerProofUrl && (
+                     <Button className="mt-5 w-full bg-white/5 hover:bg-white/10 text-white font-bold rounded-lg border border-white/10" onClick={() => onShowProof(raffle.winnerProofUrl!)}>
+                         <CheckCircle className="h-4 w-4 mr-2" /> Ver Prueba del Sorteo
+                     </Button>
+                )}
+            </div>
+        </div>
     </div>
-  );
+);
+
+const ProofOfWinModal = ({ imageUrl, onClose }: { imageUrl: string | null, onClose: () => void }) => {
+    if (!imageUrl) return null;
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in-anim" onClick={onClose}>
+            <div className="relative max-w-4xl max-h-[95vh] scale-in-anim" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 z-10 border border-white/10" onClick={onClose}>
+                    <X className="h-6 w-6" />
+                </Button>
+                <Image src={imageUrl} alt="Prueba del ganador" width={1600} height={1000} className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
+            </div>
+        </div>
+    );
+};
+
+
+// --- COMPONENTE PRINCIPAL ---
+export default function HomePage({ activeRaffles, finishedRaffles, paymentMethods }: HomePageProps) {
+    const [proofModalOpen, setProofModalOpen] = useState(false);
+    const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
+
+    const handleShowProof = (url: string) => { setProofImageUrl(url); setProofModalOpen(true); };
+    const handleCloseProof = () => { setProofModalOpen(false); setProofImageUrl(null); };
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') { handleCloseProof(); } };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => { window.removeEventListener('keydown', handleKeyDown); };
+    }, []);
+
+    const isSingleFeatured = activeRaffles.length === 1;
+
+    return (
+        <>
+            <GlobalStyles />
+            <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-hidden relative isolate">
+                <div className="absolute inset-0 -z-10 h-full w-full bg-zinc-950 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
+                <div className="absolute -top-40 -left-40 w-[30rem] h-[30rem] bg-gradient-to-br from-amber-600/40 to-orange-600/20 rounded-full blur-3xl blob-anim -z-10"></div>
+                <div className="absolute -bottom-40 -right-40 w-[30rem] h-[30rem] bg-gradient-to-br from-purple-600/30 to-indigo-600/20 rounded-full blur-3xl blob-anim animation-delay-4000 -z-10"></div>
+
+                <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+                    
+                    <section id="rifas-activas" className="mb-20 sm:mb-28">
+                        {activeRaffles.length === 0 ? (
+                            <div className="text-center py-20 px-6 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">
+                                <Clock className="h-16 w-16 text-amber-500 mx-auto mb-6 drop-shadow-[0_2px_8px_rgba(217,119,6,0.5)]" />
+                                <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-400">Próximamente Nuevas Rifas</h2>
+                                <p className="text-zinc-400 max-w-md mx-auto">Estamos preparando premios increíbles. ¡Vuelve pronto para no perderte la oportunidad de ser el próximo ganador!</p>
+                            </div>
+                        ) : (
+                            <div className={`grid grid-cols-1 ${isSingleFeatured ? 'lg:grid-cols-1' : 'lg:grid-cols-2'} items-center gap-12 xl:gap-16`}>
+                                <div className="flex flex-col justify-center text-center lg:text-left">
+                                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tighter text-white !leading-tight">
+                                        La Suerte Está <span className="block">de Tu Lado.</span>
+                                        <span className="block bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500 mt-2 lg:mt-3">
+                                            Gana Premios Asombrosos
+                                        </span>
+                                    </h1>
+                                    <p className="mt-6 text-lg text-zinc-300 max-w-lg mx-auto lg:mx-0">
+                                        Explora nuestras rifas activas, elige tu favorita y compra tu ticket. ¡Hoy puede ser tu día de suerte!
+                                    </p>
+                                    <div className="mx-auto lg:mx-0">
+                                        <PaymentMethodsBar methods={paymentMethods} />
+                                    </div>
+                                </div>
+
+                                <div className={`grid grid-cols-1 ${isSingleFeatured ? '' : 'sm:grid-cols-2'} gap-6 items-start lg:!mt-0 ${isSingleFeatured ? 'mt-10 max-w-2xl mx-auto' : 'mt-0'}`}>
+                                    {activeRaffles.map((raffle) => (
+                                        <ActiveRaffleCard
+                                            key={raffle.id}
+                                            raffle={raffle}
+                                            isFeatured={isSingleFeatured} 
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </section>
+                    
+                    {finishedRaffles.length > 0 && (
+                        <section id="resultados">
+                            <div className="text-center mb-12">
+                                <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tighter">Ganadores Recientes</h2>
+                                <p className="mt-4 text-lg text-zinc-400 max-w-2xl mx-auto">¡Felicidades a todos los afortunados! Aquí puedes ver los resultados de nuestras últimas rifas.</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+                                {finishedRaffles.map(raffle => (<WinnerCard key={raffle.id} raffle={raffle} onShowProof={handleShowProof} />))}
+                            </div>
+                        </section>
+                    )}
+                </main>
+            </div>
+            {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
+        </>
+    );
 }

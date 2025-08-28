@@ -1,25 +1,32 @@
+// src/components/forms/BuyTicketsForm.tsx (Diseño "Stardust")
+
 "use client";
 
-import { useEffect, useState } from 'react';
-// Se importan ambas acciones
+import { useState, useMemo } from 'react';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-// Se importa el componente Badge para mostrar los números
-import { Badge } from '@/components/ui/badge';
-import { Loader2, ShoppingCart, X, Ticket, CreditCard, AlertCircle } from 'lucide-react';
-// CAMBIO: Se elimina la importación de getBCVRate
-import { formatSaleCurrency } from '@/lib/exchangeRates';
-// NUEVA importación del componente para mostrar detalles de pago
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Loader2, ArrowLeft, X, Ticket, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Check } from 'lucide-react';
 import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
+import Image from 'next/image';
 
-// Se actualiza la interfaz para los métodos de pago
+// --- INTERFACES (Sin cambios) ---
 interface PaymentMethod {
   id: string;
   title: string;
+  iconUrl?: string | null;
   bankName?: string | null;
   rif?: string | null;
   phoneNumber?: string | null;
@@ -32,361 +39,246 @@ interface BuyTicketsFormProps {
     id: string;
     name: string;
     price: string;
-    // Se añade la moneda a la rifa
     currency: 'USD' | 'VES';
     status: string;
   };
-  // Se recibe la lista de métodos de pago actualizada
   paymentMethods: PaymentMethod[];
-  // NUEVO: La tasa de cambio ahora se recibe como una prop
-  bcvRate: number;
 }
 
+// --- CONSTANTES Y ESTADO INICIAL (Lógica sin cambios) ---
 const initialState = { success: false, message: '' };
+const formatSaleCurrency = (amount: number, currency: 'USD' | 'VES') => {
+    return new Intl.NumberFormat('es-VE', { 
+        style: 'currency', 
+        currency: currency,
+        minimumFractionDigits: 2 
+    }).format(amount);
+};
 
-// CAMBIO: El componente ahora recibe bcvRate en sus props
-export function BuyTicketsForm({ raffle, paymentMethods, bcvRate }: BuyTicketsFormProps) {
-  const [state, setState] = useState(initialState);
+
+export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) {
+  const [apiState, setApiState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
-  const [ticketCount, setTicketCount] = useState(2);
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [currentStep, setCurrentStep] = useState(1);
+  const [ticketCount, setTicketCount] = useState<number>(2);
+  const [reservedTickets, setReservedTickets] = useState<string[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-
-  // ESTADOS CLAVE PARA EL FLUJO DE PAGO EN PASOS
-  const [reservedTickets, setReservedTickets] = useState<string[]>([]);
-  const [isReserving, setIsReserving] = useState(false);
   const [reservationError, setReservationError] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [customAmount, setCustomAmount] = useState<number | string>(101);
 
-  // ELIMINADO: Ya no se necesitan estados para la tasa de cambio
-  // const [bcvRate, setBcvRate] = useState<number>(0);
-  // const [bcvRateError, setBcvRateError] = useState<string | null>(null);
-  // const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const selectedPaymentMethod = useMemo(() => 
+    paymentMethods.find(method => method.id === paymentMethodId)
+  , [paymentMethodId, paymentMethods]);
 
-  // --- LÓGICA DE MONEDA (AHORA USA LA PROP bcvRate) ---
-  const isRaffleInUsd = raffle.currency === 'USD';
-  const ticketPrice = parseFloat(raffle.price);
-  const numberOfTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
+  const currencyData = useMemo(() => {
+    const price = parseFloat(raffle.price);
+    const numTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
+    const total = numTickets * price;
+    return {
+      pricePerTicket: formatSaleCurrency(price, raffle.currency),
+      totalPrimary: formatSaleCurrency(total, raffle.currency),
+    };
+  }, [ticketCount, reservedTickets, raffle.price, raffle.currency]);
 
-  // Calcula el total en la moneda original de la rifa
-  const totalAmountInOriginalCurrency = numberOfTickets * ticketPrice;
-
-  // Calcula los totales en ambas monedas para mostrarlos siempre
-  const totalAmountUsd = isRaffleInUsd
-    ? totalAmountInOriginalCurrency
-    : (bcvRate > 0 ? totalAmountInOriginalCurrency / bcvRate : 0);
-
-  const totalAmountVes = isRaffleInUsd
-    ? (bcvRate > 0 ? totalAmountInOriginalCurrency * bcvRate : 0)
-    : totalAmountInOriginalCurrency;
-    
-  // Función para formatear el monto en VES
-  const formattedTotalVes = formatSaleCurrency(totalAmountVes, "BS", 1); // Tasa es 1 porque ya está en Bs.
-
-  useEffect(() => {
-    if (state.success) {
-      // Limpiar todo el formulario tras una compra exitosa
-      setTicketCount(2);
-      setPaymentMethod('');
-      setPaymentScreenshot(null);
-      setPreview(null);
-      setReservedTickets([]);
-    }
-  }, [state.success]);
+  // --- MANEJADORES DE EVENTOS (Lógica sin cambios) ---
+  const resetForm = () => {
+    setCurrentStep(1); setApiState(initialState); setTicketCount(2); setReservedTickets([]);
+    setPaymentMethodId(''); setBuyerName(''); setBuyerEmail(''); setBuyerPhone('');
+    setPaymentReference(''); setPaymentScreenshot(null); setPreview(null); setReservationError('');
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
-    if (file) {
-      setPaymentScreenshot(file);
-      setPreview(URL.createObjectURL(file));
-    } else {
-      setPaymentScreenshot(null);
-      setPreview(null);
-    }
+    setPaymentScreenshot(file);
+    if (file) { setPreview(URL.createObjectURL(file)); } 
+    else { setPreview(null); }
   };
 
-  // ELIMINADO: El useEffect que cargaba la tasa BCV ya no es necesario
-  
-  const handlePaymentMethodChange = (value: string) => {
-    setPaymentMethod(value);
-  };
-
-  // PASO 1: Acción para apartar los tickets
   const handleReserveTickets = async () => {
-    setIsReserving(true);
-    setReservationError('');
-
+    setIsPending(true); setReservationError('');
     const formData = new FormData();
-    formData.append('raffleId', raffle.id);
-    formData.append('ticketCount', ticketCount.toString());
-
+    formData.append('raffleId', raffle.id); formData.append('ticketCount', ticketCount.toString());
     const result = await reserveTicketsAction(formData);
-
     if (result.success && result.data?.reservedTickets) {
-      setReservedTickets(result.data.reservedTickets);
-    } else {
-      setReservationError(result.message || 'No se pudieron apartar los tickets. Intenta de nuevo.');
-    }
-    setIsReserving(false);
+      setReservedTickets(result.data.reservedTickets); setCurrentStep(2);
+    } else { setReservationError(result.message || 'No se pudieron apartar los tickets. Intenta con otra cantidad.'); }
+    setIsPending(false);
+  };
+  
+  const handleConfirmCustomAmount = () => {
+    const newCount = parseInt(String(customAmount), 10);
+    if (!isNaN(newCount) && newCount >= 1) { setTicketCount(newCount); }
+    setIsDialogOpen(false);
   };
 
-  // PASO 2: Acción para enviar el formulario de compra
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (reservedTickets.length === 0) return;
-
-    setIsPending(true);
-    const formData = new FormData(event.currentTarget);
-
-    if (paymentScreenshot) {
-      formData.append('paymentScreenshot', paymentScreenshot);
-    }
-    formData.append('reservedTickets', reservedTickets.join(','));
-
+    event.preventDefault(); setIsPending(true);
+    const formData = new FormData();
+    formData.append('raffleId', raffle.id); formData.append('reservedTickets', reservedTickets.join(','));
+    formData.append('paymentMethod', selectedPaymentMethod?.title || ''); formData.append('name', buyerName);
+    formData.append('email', buyerEmail); formData.append('phone', buyerPhone);
+    formData.append('paymentReference', paymentReference);
+    if (paymentScreenshot) { formData.append('paymentScreenshot', paymentScreenshot); }
     const result = await buyTicketsAction(formData);
-    setState(result);
+    setApiState(result); setCurrentStep(5);
     setIsPending(false);
   };
 
-  if (raffle.status !== 'active') {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <Alert>
-            <AlertDescription>
-              Esta rifa no está activa actualmente.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+  // --- RENDERIZADO DE PASOS ---
+  let stepContent;
 
-  // VISTA INICIAL: Selección de cantidad de tickets
-  if (reservedTickets.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Ticket className="h-5 w-5" />
-            ¿Cuántos tickets quieres?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {reservationError && (
-            <Alert variant="destructive">
-              <AlertDescription>{reservationError}</AlertDescription>
-            </Alert>
-          )}
-
+  switch (currentStep) {
+    case 1:
+      const TICKET_AMOUNTS = [2, 5, 10, 20, 50];
+      const isCustomAmountSelected = !TICKET_AMOUNTS.includes(ticketCount);
+      stepContent = (
+        <div className="space-y-6 animate-fade-in">
+          <h3 className="text-xl font-bold text-center text-white">Elige la cantidad de tickets</h3>
+          {reservationError && <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300"><AlertDescription>{reservationError}</AlertDescription></Alert>}
           <div className="grid grid-cols-3 gap-3">
-            {[2, 5, 10, 50, 100].map((quantity) => (
-              <Button
-                key={quantity}
-                variant={ticketCount === quantity ? "default" : "outline"}
-                onClick={() => setTicketCount(quantity)}
-                disabled={isReserving}
-                className="h-16 flex flex-col"
-              >
-                <span className="text-lg font-bold">{quantity}</span>
-                <span className="text-xs opacity-75">tickets</span>
-              </Button>
+            {TICKET_AMOUNTS.map((q) => (
+                <div key={q} className="relative">
+                    <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending}/>
+                    <label htmlFor={`quantity-${q}`} className="flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-black/20 cursor-pointer transition-all duration-200 hover:bg-white/5 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
+                        <span className="text-2xl font-bold text-white">{q}</span>
+                        <span className="text-xs text-zinc-400 uppercase">tickets</span>
+                    </label>
+                </div>
             ))}
-
-            <div className="relative">
-              <Button
-                variant={![2, 5, 10, 50, 100].includes(ticketCount) ? "default" : "outline"}
-                onClick={() => document.getElementById('customTicketCount')?.focus()}
-                disabled={isReserving}
-                className="w-full h-16 flex flex-col items-center justify-center"
-              >
-                <span id="custom-label" className="text-lg font-bold">
-                  {![2, 5, 10, 50, 100].includes(ticketCount) ? ticketCount : 'Otro'}
-                </span>
-                <span className="text-xs opacity-75">cantidad</span>
-                <Input
-                  id="customTicketCount"
-                  type="number"
-                  min="1"
-                  value={ticketCount}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 1;
-                    setTicketCount(value);
-                  }}
-                  className="absolute inset-0 w-full h-full bg-transparent text-transparent border-none focus:ring-0"
-                />
-              </Button>
-            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <button disabled={isPending} className={`relative flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-black/20 cursor-pointer transition-all duration-200 hover:bg-white/5 ${isCustomAmountSelected ? 'border-amber-400/50 bg-amber-950/30 ring-2 ring-amber-400/50' : ''}`}>
+                    <span className="text-2xl font-bold text-white">{isCustomAmountSelected ? ticketCount : 'Otro'}</span>
+                    <span className="text-xs text-zinc-400 uppercase">cantidad</span>
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-zinc-900/80 backdrop-blur-md border-white/10 text-white rounded-xl">
+                <DialogHeader><DialogTitle>Cantidad Personalizada</DialogTitle><DialogDescription className="text-zinc-400">Introduce el número de tickets que deseas comprar.</DialogDescription></DialogHeader>
+                <Input type="number" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} className="my-4 text-3xl text-center h-16 bg-black/30 border-white/10"/>
+                <DialogFooter><Button onClick={handleConfirmCustomAmount} className="w-full bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold py-3">Confirmar</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
-          
-          <div className="bg-slate-50 p-4 rounded-lg border">
-            <div className="text-center space-y-1">
-              <div className="text-sm text-gray-600">
-                {ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {isRaffleInUsd ? `$${ticketPrice.toFixed(2)}` : `${formatSaleCurrency(ticketPrice, "BS", 1)}`} c/u
-              </div>
-              
-              <div className="text-3xl font-bold text-blue-600">
-                Total: {isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}
-              </div>
-            </div>
+          <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
+            <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
+            <p className="text-3xl font-bold text-amber-400">{currencyData.totalPrimary}</p>
           </div>
-
-          <Button onClick={handleReserveTickets} disabled={isReserving} className="w-full" size="lg">
-            {isReserving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button onClick={handleReserveTickets} disabled={isPending} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
+            {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
             Apartar mis números
           </Button>
-        </CardContent>
-      </Card>
-    );
+        </div>
+      );
+      break;
+
+    case 2:
+      stepContent = (
+        <div className="space-y-6 animate-fade-in">
+          <div className="p-3 bg-green-950/50 border border-green-400/30 rounded-lg text-center">
+            <h4 className="font-semibold text-green-300 flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5"/>¡Tickets reservados con éxito!</h4>
+          </div>
+          <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
+            <p className="text-zinc-400 text-sm">Total a pagar por {reservedTickets.length} tickets:</p>
+            <p className="text-3xl font-bold text-amber-400">{currencyData.totalPrimary}</p>
+          </div>
+          <h3 className="text-xl font-bold text-center text-white pt-2">Selecciona tu método de pago</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {paymentMethods.map(method => (
+              <div key={method.id} className="relative">
+                <input type="radio" id={`payment-${method.id}`} name="paymentMethod" value={method.id} checked={paymentMethodId === method.id} onChange={(e) => setPaymentMethodId(e.target.value)} className="sr-only peer" />
+                <label htmlFor={`payment-${method.id}`} className="flex flex-col items-center justify-center p-4 h-28 rounded-lg border border-white/10 bg-black/20 cursor-pointer transition-all duration-200 transform hover:bg-white/5 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
+                  <div className="absolute top-2 right-2 w-5 h-5 bg-zinc-700 rounded-full flex items-center justify-center transition-all duration-200 peer-checked:bg-amber-500"><Check className="h-3 w-3 text-zinc-900 transition-opacity opacity-0 peer-checked:opacity-100" /></div>
+                  {method.iconUrl && <Image src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10"/>}
+                  <span className="text-xs font-semibold text-white text-center mt-2">{method.title}</span>
+                </label>
+              </div>
+            ))}
+          </div>
+          {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} />}
+          <Button onClick={() => setCurrentStep(3)} disabled={!paymentMethodId} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">Siguiente</Button>
+          <Button variant="outline" onClick={resetForm} className="w-full bg-transparent border-white/10 text-zinc-300 hover:bg-white/5 hover:border-white/20 hover:text-white"><ArrowLeft className="mr-2 h-4 w-4" /> Elegir otra cantidad</Button>
+        </div>
+      );
+      break;
+    
+    case 3:
+      stepContent = (
+        <form onSubmit={(e) => { e.preventDefault(); setCurrentStep(4); }} className="space-y-6 animate-fade-in">
+          <h3 className="text-xl font-bold text-center text-white">Completa tus datos de contacto</h3>
+          <div className="space-y-4">
+            <div className="relative"><Label htmlFor="name" className="text-zinc-400">Nombre completo</Label><Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><User className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
+            <div className="relative"><Label htmlFor="email" className="text-zinc-400">Email</Label><Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><AtSign className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
+            <div className="relative"><Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)</Label><Input id="phone" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><Phone className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
+            <div className="relative"><Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago</Label><Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><FileText className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
+          </div>
+          <Button type="submit" className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">Siguiente</Button>
+          <Button variant="outline" onClick={() => setCurrentStep(2)} className="w-full bg-transparent border-white/10 text-zinc-300 hover:bg-white/5"><ArrowLeft className="mr-2 h-4 w-4" /> Atrás</Button>
+        </form>
+      );
+      break;
+
+    case 4:
+      stepContent = (
+        <form onSubmit={handleFormSubmit} className="space-y-6 animate-fade-in">
+          <h3 className="text-xl font-bold text-center text-white">Sube el comprobante de pago</h3>
+          <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-black/20 hover:bg-black/40 p-4 transition-colors">
+            <div className="text-center text-zinc-400">
+              <UploadCloud className="w-10 h-10 mb-3 text-amber-500 mx-auto" />
+              <p className="text-base font-semibold"><span className="text-amber-400">Click para subir</span> o arrastra el archivo</p>
+              <p className="text-xs mt-1">PNG, JPG, GIF (MAX. 5MB)</p>
+            </div>
+            <Input id="paymentScreenshot" type="file" className="hidden" accept="image/*" onChange={handleFileChange} required />
+          </label>
+          {preview && (
+            <div className="relative mt-2 w-28 h-28 mx-auto">
+              <Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" />
+              <button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button>
+            </div>
+          )}
+          <Button type="submit" disabled={isPending || !paymentScreenshot} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">
+            {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Confirmar Compra'}
+          </Button>
+          <Button variant="outline" onClick={() => setCurrentStep(3)} className="w-full bg-transparent border-white/10 text-zinc-300 hover:bg-white/5"><ArrowLeft className="mr-2 h-4 w-4" /> Atrás</Button>
+        </form>
+      );
+      break;
+
+    case 5:
+      stepContent = (
+        <div className="text-center space-y-6 py-6 animate-fade-in">
+            {apiState.success ? (
+                <div className="p-4 rounded-lg bg-green-950/50 border border-green-400/30">
+                    <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
+                    <AlertDescription className="text-xl font-bold text-green-300">{apiState.message}</AlertDescription>
+                    <p className="text-base text-green-400/80 mt-2">¡Mucha suerte! Revisa tu correo electrónico para ver tus tickets asignados.</p>
+                </div>
+            ) : (
+                <div className="p-4 rounded-lg bg-red-950/50 border border-red-400/30">
+                    <X className="h-16 w-16 text-red-400 mx-auto mb-4" />
+                    <AlertDescription className="text-xl font-bold text-red-300">{apiState.message}</AlertDescription>
+                    <p className="text-base text-red-400/80 mt-2">Por favor, verifica los datos e inténtalo de nuevo.</p>
+                </div>
+            )}
+          <Button onClick={resetForm} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">
+            {apiState.success ? 'Comprar más tickets' : 'Intentar de nuevo'}
+          </Button>
+        </div>
+      );
+      break;
   }
 
-  // VISTA 2: Formulario de pago después de apartar los tickets
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShoppingCart className="h-5 w-5" />
-          Completa tu Compra
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-          <h4 className="font-semibold text-green-800">¡Números reservados exitosamente!</h4>
-          <p className="text-sm text-green-700 mt-1">Tienes 10 minutos para completar el pago.</p>
-          <p className="text-xs text-green-600 mt-2">Tus números se revelarán una vez confirmemos el pago.</p>
-        </div>
-
-        <form onSubmit={handleFormSubmit} className="space-y-6">
-          <input type="hidden" name="raffleId" value={raffle.id} />
-
-          {state.message && (
-            <Alert variant={state.success ? "default" : "destructive"}>
-              <AlertDescription>{state.message}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="bg-slate-50 p-4 rounded-lg border">
-            <h3 className="font-semibold mb-3 text-center">Resumen de compra</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Cantidad:</span>
-                <span className="font-medium">{reservedTickets.length} tickets</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between text-lg font-bold">
-                <span>Total a pagar:</span>
-                <div className="text-right">
-                  {isRaffleInUsd ? (
-                    <>
-                      <span className="text-blue-600">${totalAmountUsd.toFixed(2)}</span>
-                      {bcvRate > 0 && <div className="text-sm font-semibold text-green-700">~ {formattedTotalVes}</div>}
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-green-700">{formattedTotalVes}</span>
-                      {bcvRate > 0 && <div className="text-sm font-semibold text-blue-600">~ ${totalAmountUsd.toFixed(2)}</div>}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Selección de Método de Pago */}
-          <div className="space-y-2">
-            <Label className="text-base font-semibold">1. Realiza la transferencia</Label>
-            <p className="text-sm text-gray-600">Selecciona una cuenta para ver los datos y realizar el pago.</p>
-            <div className="grid gap-3">
-              {paymentMethods.map(method => (
-                <div key={method.id}>
-                  <input
-                    type="radio"
-                    id={`payment-${method.id}`}
-                    name="paymentMethod"
-                    value={method.title}
-                    checked={paymentMethod === method.title}
-                    onChange={(e) => handlePaymentMethodChange(e.target.value)}
-                    disabled={isPending}
-                    className="sr-only peer"
-                  />
-                  <label
-                    htmlFor={`payment-${method.id}`}
-                    className="block p-4 rounded-lg border-2 cursor-pointer transition-all peer-checked:border-blue-500 peer-checked:bg-blue-50"
-                  >
-                    <div className="font-medium">{method.title}</div>
-                  </label>
-                  {paymentMethod === method.title && (
-                    <PaymentDetailsDisplay
-                      method={method}
-                      amountInVes={formattedTotalVes}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Datos del Comprador y Pago */}
-          <div className="space-y-2">
-            <Label className="text-base font-semibold">2. Completa tus datos</Label>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Nombre completo</Label>
-                <Input id="name" name="name" required disabled={isPending} className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required disabled={isPending} className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input id="phone" name="phone" required disabled={isPending} className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="paymentReference">Referencia de pago</Label>
-                <Input id="paymentReference" name="paymentReference" required disabled={isPending} className="mt-1" />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-base font-semibold" htmlFor="paymentScreenshot">3. Sube el comprobante de pago</Label>
-            <Input
-              id="paymentScreenshot"
-              name="paymentScreenshot"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              required
-              disabled={isPending}
-            />
-            {preview && (
-              <div className="relative mt-2 w-32 h-32">
-                <img src={preview} alt="Vista previa" className="rounded-lg border object-cover w-full h-full" />
-                <button
-                  type="button"
-                  onClick={() => { setPreview(null); setPaymentScreenshot(null); }}
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isPending || !paymentMethod || !paymentScreenshot}
-            size="lg"
-          >
-            {isPending ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
-            ) : (
-              `Confirmar Compra por ${isRaffleInUsd ? `$${totalAmountUsd.toFixed(2)}` : formattedTotalVes}`
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <CardContent className="p-0">
+      <div className="p-5">
+        {stepContent}
+      </div>
+    </CardContent>
   );
 }

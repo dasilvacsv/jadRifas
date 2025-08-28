@@ -1,98 +1,56 @@
+/* Importa la tipografía moderna 'Inter' desde Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    /* --- TEMA CLARO (Base, sin cambios) --- */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 24 96% 53%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    --primary: 38 92% 50%; /* Amber-500 para el tema claro */
+    --primary-foreground: 240 10% 3.9%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 30 95% 53%; /* Orange-500 para el tema claro */
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 24 95% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 216 34% 17%;
-    --sidebar-ring: 24 96% 53%;
-
-    --chart-1: 175.3 100% 35.9%; /* Verde Aquamarine */ /* [cite: 3] */
-    --chart-2: 340.3 78.1% 62.2%; /* Rosa */ /* [cite: 3] */
-    --chart-3: 175.3 80% 55%;   /* Lighter Verde */
-    --chart-4: 340.3 70% 75%;   /* Lighter Rosa */
-    --chart-5: 200 60% 60%;     /* Soft Blue */
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 38 92% 50%;
+    --radius: 0.75rem; /* Bordes un poco más redondeados */
   }
 
+  /* --- NUEVO TEMA OSCURO "PREMIUM AMBER" --- */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 24 95% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 24 96% 53%;
-
-    --chart-1: 175.3 90% 55%; /* Bright Verde */
-    --chart-2: 340.3 85% 70%; /* Bright Rosa */
-    --chart-3: 175.3 70% 65%; /* Lighter Verde */
-    --chart-4: 340.3 75% 75%; /* Lighter Rosa */
-    --chart-5: 45 100% 65%;   /* Bright Yellow/Orange */
+    --background: 240 10% 3.9%;   /* zinc-950 */
+    --foreground: 0 0% 98%;       /* casi blanco */
+    --card: 240 5.9% 10%;         /* zinc-900 */
+    --card-foreground: 0 0% 98%;  
+    --popover: 240 10% 3.9%;      /* zinc-950 */
+    --popover-foreground: 0 0% 98%;
+    --primary: 38 92% 50%;        /* amber-500 */
+    --primary-foreground: 240 10% 3.9%; /* zinc-950 para texto sobre botones primarios */
+    --secondary: 240 5.2% 16.1%;  /* zinc-800 */
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5.2% 16.1%;      /* zinc-800 */
+    --muted-foreground: 240 3.8% 46.1%; /* zinc-400 */
+    --accent: 30 95% 53%;         /* orange-500 */
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%; /* red-900 */
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 26.1%;       /* zinc-700 */
+    --input: 240 5% 26.1%;        /* zinc-700 */
+    --ring: 38 92% 50%;           /* amber-500 para focus rings */
   }
 }
 
@@ -100,96 +58,45 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    @apply scroll-smooth;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* --- Scrollbar personalizado para el tema oscuro "Premium Amber" --- */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-zinc-950;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full border-2 border-zinc-950;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-700;
   }
 }
 
-h3 code {
-  @apply !text-lg md:!text-xl;
-}
-
-pre {
-  @apply !px-0 rounded-lg overflow-x-auto py-4;
-}
-
-pre [data-line] {
-  @apply px-4;
-}
-
-code {
-  @apply text-sm md:text-base !leading-loose;
-}
-
-pre > code {
-  counter-reset: line;
-}
-
-code[data-theme*=" "],
-code[data-theme*=" "] span {
-  color: var(--shiki-light);
-  background-color: var(--shiki-light-bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  code[data-theme*=" "],
-  code[data-theme*=" "] span {
-    color: var(--shiki-dark);
-    background-color: var(--shiki-dark-bg);
+/* --- Animaciones y Utilidades Adicionales --- */
+@layer utilities {
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-}
 
-code[data-line-numbers] {
-  counter-reset: line;
-}
-
-code[data-line-numbers] > [data-line]::before {
-  counter-increment: line;
-  content: counter(line);
-  @apply inline-block w-4 mr-4 text-right text-gray-500;
-}
-
-code {
-  counter-reset: line;
-}
-
-code > [data-line]::before {
-  counter-increment: line;
-  content: counter(line);
-  display: inline-block;
-  width: 1rem;
-  margin-right: 2rem;
-  text-align: right;
-  color: gray;
-}
-code[data-line-numbers-max-digits="2"] > [data-line]::before {
-  width: 2rem;
-}
-
-code[data-line-numbers-max-digits="3"] > [data-line]::before {
-  width: 3rem;
-}
-
-.search-container {
-  @apply relative;
-}
-
-.search-container input {
-  @apply pl-10 pr-4;
-}
-
-.search-container .search-icon {
-  @apply absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400;
-}
-
-.case-status-active {
-  @apply bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium;
-}
-
-.case-status-pending {
-  @apply bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium;
-}
-
-.case-status-closed {
-  @apply bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium;
+  /* Para ocultar la barra de scroll en elementos específicos si es necesario */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+  }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import { Loader2, AlertCircle, Info } from "lucide-react";
+import { Loader2, AlertCircle, Info, Upload, X } from "lucide-react";
 
 // Componentes de shadcn/ui
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import {
 interface PaymentMethod {
   id?: string;
   title?: string;
+  iconUrl?: string | null; // +++ AÑADIDO
   isActive?: boolean;
   triggersApiVerification?: boolean;
   accountHolderName?: string | null;
@@ -43,6 +44,7 @@ interface PaymentMethod {
 // VALORES INICIALES PARA UN MÉTODO NUEVO
 const initialState: Omit<PaymentMethod, "id"> = {
   title: "",
+  iconUrl: null, // +++ AÑADIDO
   isActive: true,
   triggersApiVerification: false,
   accountHolderName: "",
@@ -87,12 +89,18 @@ export function PaymentMethodDialog({
 
   const [formData, setFormData] =
     useState<Omit<PaymentMethod, "id">>(initialState);
+  
+  // +++ AÑADIDO: Estados para manejar el archivo y su vista previa
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sincroniza el estado del formulario si estamos editando un método existente
   useEffect(() => {
     if (isEditing && method) {
       setFormData({
         title: method.title ?? "",
+        iconUrl: method.iconUrl ?? null, // +++ AÑADIDO
         isActive: method.isActive ?? true,
         triggersApiVerification: method.triggersApiVerification ?? false,
         accountHolderName: method.accountHolderName ?? "",
@@ -101,8 +109,11 @@ export function PaymentMethodDialog({
         bankName: method.bankName ?? "",
         accountNumber: method.accountNumber ?? "",
       });
+      setIconPreview(method.iconUrl ?? null); // Setea la vista previa inicial
     } else {
       setFormData(initialState);
+      setIconPreview(null); // Limpia la vista previa
+      setIconFile(null);    // Limpia el archivo
     }
   }, [method, isEditing, open]);
 
@@ -117,6 +128,26 @@ export function PaymentMethodDialog({
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+  
+  // +++ AÑADIDO: Manejador para el cambio de archivo ---
+  const handleIconChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setIconFile(file);
+    if (file) {
+      setIconPreview(URL.createObjectURL(file));
+    } else {
+      setIconPreview(method?.iconUrl ?? null); // Si se cancela, vuelve al original
+    }
+  };
+
+  // +++ AÑADIDO: Función para limpiar el archivo seleccionado
+  const clearIcon = () => {
+    setIconFile(null);
+    setIconPreview(method?.iconUrl ?? null);
+    if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
+  }
 
   const handleSwitchChange = (name: keyof PaymentMethod, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }));
@@ -170,35 +201,66 @@ export function PaymentMethodDialog({
                 onChange={handleChange}
               />
             </div>
+
+            {/* +++ AÑADIDO: Input para subir el ícono +++ */}
+            <div className="space-y-2">
+              <Label htmlFor="icon">Ícono del Método</Label>
+              <div className="flex items-center gap-4">
+                <div className="relative w-20 h-20 rounded-md border flex items-center justify-center bg-muted/40">
+                  {iconPreview ? (
+                    <img src={iconPreview} alt="Vista previa" className="rounded-md object-contain h-full w-full" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Input
+                    id="icon"
+                    name="icon" // El 'name' debe coincidir con el que espera la server action
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/png, image/jpeg, image/svg+xml, image/webp"
+                    onChange={handleIconChange}
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                  {iconFile && (
+                    <Button variant="ghost" size="sm" onClick={clearIcon} className="mt-2 text-red-500">
+                      <X className="mr-2 h-4 w-4" /> Quitar imagen
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">Sube una imagen (PNG, JPG, SVG). Recomendado: 128x128px.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <Separator />
 
           {/* SECCIÓN DETALLES DE LA CUENTA */}
           <div className="space-y-4">
-             <h3 className="text-sm font-medium text-foreground">Detalles de la Cuenta (Opcional)</h3>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label htmlFor="accountHolderName">Nombre del Titular</Label>
-                 <Input id="accountHolderName" name="accountHolderName" value={formData.accountHolderName ?? ''} onChange={handleChange} />
-               </div>
-               <div className="space-y-2">
-                 <Label htmlFor="rif">Cédula / RIF</Label>
-                 <Input id="rif" name="rif" placeholder="V-12345678" value={formData.rif ?? ''} onChange={handleChange} />
-               </div>
-               <div className="space-y-2">
-                 <Label htmlFor="bankName">Nombre del Banco</Label>
-                 <Input id="bankName" name="bankName" placeholder="Banesco" value={formData.bankName ?? ''} onChange={handleChange} />
-               </div>
-               <div className="space-y-2">
-                 <Label htmlFor="phoneNumber">Teléfono (Pago Móvil)</Label>
-                 <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
-               </div>
-             </div>
-             <div className="space-y-2">
-               <Label htmlFor="accountNumber">Número de Cuenta (Transferencia)</Label>
-               <Input id="accountNumber" name="accountNumber" placeholder="0134..." value={formData.accountNumber ?? ''} onChange={handleChange} />
-             </div>
+              <h3 className="text-sm font-medium text-foreground">Detalles de la Cuenta (Opcional)</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="accountHolderName">Nombre del Titular</Label>
+                  <Input id="accountHolderName" name="accountHolderName" value={formData.accountHolderName ?? ''} onChange={handleChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rif">Cédula / RIF</Label>
+                  <Input id="rif" name="rif" placeholder="V-12345678" value={formData.rif ?? ''} onChange={handleChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bankName">Nombre del Banco</Label>
+                  <Input id="bankName" name="bankName" placeholder="Banesco" value={formData.bankName ?? ''} onChange={handleChange} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">Teléfono (Pago Móvil)</Label>
+                  <Input id="phoneNumber" name="phoneNumber" placeholder="0412-1234567" value={formData.phoneNumber ?? ''} onChange={handleChange} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber">Número de Cuenta (Transferencia)</Label>
+                <Input id="accountNumber" name="accountNumber" placeholder="0134..." value={formData.accountNumber ?? ''} onChange={handleChange} />
+              </div>
           </div>
           
           <Separator />

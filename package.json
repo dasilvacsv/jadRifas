@@ -55,6 +55,7 @@
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.38.4",
+    "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^11.15.0",
