@@ -101,7 +101,7 @@ const formatDate = (date: Date) => {
 
 // --- ESTILOS GLOBALES PARA ANIMACIONES ---
 const GlobalStyles = () => (
-  <style jsx global>{`
+    <style jsx global>{`
     @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
     @keyframes scale-in { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     @keyframes blob {
@@ -146,7 +146,7 @@ const GlobalStyles = () => (
         animation: border-spin 5s linear infinite;
         z-index: -1;
     }
-  `}</style>
+    `}</style>
 );
 
 
@@ -181,6 +181,7 @@ const PaymentMethodsBar = ({ methods, maxVisible = 5 }: { methods: PaymentMethod
 const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
     const [hasMounted, setHasMounted] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+    const [isFinished, setIsFinished] = useState(false);
 
     useEffect(() => {
         setHasMounted(true);
@@ -198,6 +199,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
                         seconds: Math.floor((difference / 1000) % 60),
                     });
                 } else {
+                    setIsFinished(true);
                     setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
                 }
             };
@@ -209,12 +211,18 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
     }, [hasMounted, targetDate]);
 
     const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
-
+    
+    // ✅ CAMBIO: El contenedor principal ahora tiene `min-h-[28px]` para mantener la altura.
     return (
         <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
             <Clock className="h-5 w-5 text-amber-400 flex-shrink-0" />
-            <div className="flex items-end gap-3 min-h-[28px]">
-                {hasMounted ? (
+            <div className="flex items-end gap-3 min-h-[28px] w-full justify-between">
+                {isFinished ? (
+                    // ✅ CAMBIO: El div del mensaje ahora tiene `w-full` y `justify-center` para que mantenga el ancho.
+                    <div className="flex items-center w-full justify-center text-base font-bold text-amber-400 animate-pulse">
+                        ¡El sorteo está por iniciar!
+                    </div>
+                ) : (
                     <>
                         {timeUnits.days > 0 && (
                             <div className="flex items-end leading-none">
@@ -227,14 +235,6 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
                         <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span>
                         <span className="text-zinc-500 -mx-2">:</span>
                         <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
-                    </>
-                ) : (
-                    <>
-                        <span className="text-2xl font-bold text-white">--</span>
-                        <span className="text-zinc-500 -mx-2">:</span>
-                        <span className="text-2xl font-bold text-white">--</span>
-                        <span className="text-zinc-500 -mx-2">:</span>
-                        <span className="text-2xl font-bold text-amber-400">--</span>
                     </>
                 )}
             </div>
@@ -291,7 +291,7 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                              </Badge>
                         )}
                         <Badge variant="secondary" className="absolute top-4 right-4 bg-black/50 text-amber-300 font-semibold py-1 px-3 border border-amber-300/20 backdrop-blur-sm">
-                           <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-400" /> ¡EN VIVO!
+                            <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-400" /> ¡EN VIVO!
                         </Badge>
                     </CardHeader>
                     <CardContent className="p-5 flex-grow flex flex-col">

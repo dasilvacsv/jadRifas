@@ -204,6 +204,8 @@ const WinnerDisplayCard = memo(function WinnerDisplayCard({ raffle, onShowProof 
 const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate: Date }) {
     const [hasMounted, setHasMounted] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+    // ✅ CAMBIO: Nuevo estado para controlar si el contador ha llegado a 0.
+    const [isFinished, setIsFinished] = useState(false);
 
     useEffect(() => { setHasMounted(true); }, []);
 
@@ -219,6 +221,8 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
                         seconds: Math.floor((difference / 1000) % 60),
                     });
                 } else {
+                    // ✅ CAMBIO: Si el contador llega a 0, establece isFinished a true.
+                    setIsFinished(true);
                     setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
                 }
             };
@@ -229,14 +233,18 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
     }, [hasMounted, targetDate]);
 
     const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    const hasEnded = hasMounted && !timeUnits.days && !timeUnits.hours && !timeUnits.minutes && !timeUnits.seconds;
+    // ✅ CAMBIO: Usa el estado isFinished para determinar qué renderizar.
+    const hasEnded = isFinished;
 
     return (
         <div className="flex items-center gap-3 font-mono">
             <Clock className="h-6 w-6 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] text-zinc-400">
                 {hasEnded ? (
-                     <p className="text-lg font-bold text-red-500">Esta rifa ha finalizado</p>
+                    // ✅ CAMBIO: Contenedor para el mensaje con el mismo tamaño que los números para evitar saltos.
+                    <div className="flex-grow flex items-center justify-center h-[36px]">
+                        <p className="text-lg font-bold text-amber-400 animate-pulse">¡El sorteo está por iniciar!</p>
+                    </div>
                 ) : hasMounted ? (
                     <>
                         {timeUnits.days > 0 && (
