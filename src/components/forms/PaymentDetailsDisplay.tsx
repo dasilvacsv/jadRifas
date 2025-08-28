@@ -108,14 +108,15 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
     if (isPagoMovil && amountValue) {
       const bankCode = method.bankName ? method.bankName.substring(0, 4) : '';
       const rifWithoutPrefix = method.rif ? method.rif.replace(/^[VJEG]-/, '') : '';
-      const amountInVes = convertedAmountInVes ? convertedAmountInVes.toFixed(2) : amountValue; // Usa el monto convertido
+      // Usa el monto convertido si existe, de lo contrario usa el valor original
+      const amountInVes = convertedAmountInVes ? convertedAmountInVes.toFixed(2) : amountValue;
       const linesToCopy = [
         bankCode,
         rifWithoutPrefix,
         method.phoneNumber,
         amountInVes
       ];
-      textToCopy = linesToCopy.join(',');
+      textToCopy = linesToCopy.join('\n'); // Cambiado a salto de línea
     } else if (isBinancePay && formattedAmount) {
       textToCopy = `Monto: ${formattedAmount}\nID de pago: ${method.binancePayId}`;
     } else if (isZinli && formattedAmount) {
@@ -147,7 +148,7 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 border-b border-white/10 pb-4">
         <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-3">
           <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-amber-400"/>
-          Datos para **{method.title}**
+          Datos para {method.title}
         </h2>
         <p className="text-zinc-400 text-xs sm:text-sm text-right">
           Copia la información necesaria para realizar tu pago.
@@ -165,12 +166,12 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
             />
             {currency === 'USD' && (
               <div className="bg-white/5 border-l-4 border-amber-400 p-3 mt-2 text-sm text-zinc-300">
-                <p>Monto original: **{formatAmount(amount, 'USD')}**</p>
+                <p>Monto original: {formatAmount(amount, 'USD')}</p>
                 {isLoadingRate ? (
                   <p className="flex items-center mt-1"><Loader2 className="animate-spin mr-2"/> Calculando monto en Bs...</p>
                 ) : (
                   bcvRate ? (
-                    <p className="mt-1">Tasa BCV: **1 USD = {formatAmount(bcvRate, 'VES')}**</p>
+                    <p className="mt-1">Tasa BCV: 1 USD = {formatAmount(bcvRate, 'VES')}</p>
                   ) : (
                     <p className="text-red-400 mt-1">No se pudo obtener la tasa de cambio.</p>
                   )

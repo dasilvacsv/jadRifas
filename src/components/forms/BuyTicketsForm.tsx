@@ -121,9 +121,14 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     let secondaryCurrencySymbol = ''; // Nuevo: Símbolo de la moneda secundaria
 
     if (exchangeRate !== null) {
+      // --- CAMBIO AQUÍ: Se revierte la lógica de cálculo ---
       const convertedTotal = raffle.currency === 'USD' ? total * exchangeRate : total * exchangeRate;
       const convertedCurrency = raffle.currency === 'USD' ? 'VES' : 'USD';
-      totalSecondary = formatCurrency(convertedTotal, convertedCurrency);
+      totalSecondary = new Intl.NumberFormat('es-VE', { 
+        style: 'decimal', 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      }).format(convertedTotal);
       secondaryCurrencySymbol = convertedCurrency === 'USD' ? '$' : 'Bs'; // Asigna el símbolo
     }
 
@@ -266,7 +271,8 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               currencyData.totalSecondary && (
                 <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center">
                   <span className="text-zinc-400 mr-2">equivalente a</span> 
-                  <span className="text-green-400">{currencyData.totalSecondary}</span>
+                  {/* --- CAMBIO AQUÍ: Muestra el símbolo de la moneda secundaria --- */}
+                  <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
                 </p>
               )
             )}
