@@ -187,6 +187,73 @@ async function sendEmail({ to, subject, body }: EmailData): Promise<void> {
   }
 }
 
+// ✅ --- INICIO DE CAMBIOS: NUEVA FUNCIÓN PARA NOTIFICAR AL GANADOR ---
+
+/**
+ * Envía una notificación de felicitación al ganador de la rifa por correo y WhatsApp.
+ * @param raffleId El ID de la rifa.
+ * @param winnerTicketId El ID del ticket ganador.
+ */
+async function sendWinnerNotification(raffleId: string, winnerTicketId: string): Promise<void> {
+  // 1. Obtener toda la información necesaria con una sola consulta
+  const winnerData = await db.query.tickets.findFirst({
+    where: eq(tickets.id, winnerTicketId),
+    with: {
+      raffle: {
+        columns: { name: true }
+      },
+      purchase: {
+        columns: {
+          buyerName: true,
+          buyerEmail: true,
+          buyerPhone: true,
+        }
+      }
+    }
+  });
+
+  // 2. Validar que se encontró toda la información
+  if (!winnerData || !winnerData.purchase || !winnerData.raffle) {
+    console.error(`No se pudo encontrar la información completa para notificar al ganador del ticket ID: ${winnerTicketId}`);
+    return;
+  }
+
+  const { raffle, purchase, ticketNumber } = winnerData;
+  const buyerName = purchase.buyerName || 'Ganador';
+
+  // 3. Construir los mensajes
+  const subject = `¡Felicidades! Eres el ganador de la rifa "${raffle.name}" 🎉`;
+  
+  const emailBody = `
+    <h1>¡Felicidades, ${buyerName}!</h1>
+    <p>¡Tenemos noticias increíbles! Has resultado ser el afortunado ganador de la rifa <strong>${raffle.name}</strong> con tu ticket número:</p>
+    <p style="font-size: 2rem; font-weight: bold; color: #22c55e; text-align: center; margin: 20px 0;">${ticketNumber}</p>
+    <p>Pronto nuestro equipo se pondrá en contacto contigo para coordinar la entrega de tu premio.</p>
+    <p>¡Gracias por participar y confiar en nosotros!</p>
+    <p>El equipo de Llevateloconjorvi.</p>
+  `;
+
+  const whatsappText = `🎉 ¡Felicidades, ${buyerName}! 🎉\n\n¡Eres el afortunado ganador de la rifa *${raffle.name}* con tu ticket número *${ticketNumber}*! 🥳\n\nPronto nos pondremos en contacto contigo para coordinar la entrega de tu premio. ¡Gracias por participar!`;
+
+  // 4. Enviar las notificaciones
+  // Envío de correo
+  await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
+
+  // Envío de WhatsApp (con verificación)
+  if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
+    console.log(`Intentando enviar WhatsApp de ganador a: ${purchase.buyerPhone}`);
+    try {
+      await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
+      console.log(`WhatsApp de ganador enviado con éxito a ${purchase.buyerPhone}`);
+    } catch (error) {
+      console.error(`ERROR al enviar WhatsApp de ganador a ${purchase.buyerPhone}:`, error);
+    }
+  } else {
+    console.warn(`No se envió WhatsApp al ganador de la rifa #${raffleId} por falta de número de teléfono.`);
+  }
+}
+
+
 async function sendConfirmationEmail(purchaseId: string): Promise<void> {
   const purchase = await db.query.purchases.findFirst({
     where: eq(purchases.id, purchaseId),
@@ -756,72 +823,75 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
 }
 
 const DrawWinnerSchema = z.object({
-  raffleId: z.string(),
-  lotteryNumber: z.string().min(4, "El número debe tener 4 dígitos.").max(4, "El número debe tener 4 dígitos."),
-  winnerProof: z.instanceof(File, { message: "La captura de la lotería es requerida." })
-    .refine((file) => file.size > 0, "La captura no puede estar vacía.")
-    .refine((file) => file.size < 5 * 1024 * 1024, "La imagen no debe pesar más de 5MB.")
-    .refine((file) => file.type.startsWith("image/"), "El archivo debe ser una imagen."),
+  raffleId: z.string(),
+  lotteryNumber: z.string().min(4, "El número debe tener 4 dígitos.").max(4, "El número debe tener 4 dígitos."),
+  winnerProof: z.instanceof(File, { message: "La captura de la lotería es requerida." })
+    .refine((file) => file.size > 0, "La captura no puede estar vacía.")
+    .refine((file) => file.size < 5 * 1024 * 1024, "La imagen no debe pesar más de 5MB.")
+    .refine((file) => file.type.startsWith("image/"), "El archivo debe ser una imagen."),
 });
 
 export async function drawWinnerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const data = Object.fromEntries(formData.entries());
-  const winnerProofFile = formData.get('winnerProof') as File | null;
-  const validatedFields = DrawWinnerSchema.safeParse({ ...data, winnerProof: winnerProofFile });
+  const data = Object.fromEntries(formData.entries());
+  const winnerProofFile = formData.get('winnerProof') as File | null;
+  const validatedFields = DrawWinnerSchema.safeParse({ ...data, winnerProof: winnerProofFile });
 
-  if (!validatedFields.success) {
-    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
-  }
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+  }
 
-  const { raffleId, lotteryNumber, winnerProof } = validatedFields.data;
+  const { raffleId, lotteryNumber, winnerProof } = validatedFields.data;
 
-  try {
-    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
-    if (!raffle || raffle.status !== 'finished') {
-      return { success: false, message: "La rifa no está en estado finalizado." };
-    }
+  try {
+    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+    if (!raffle || raffle.status !== 'finished') {
+      return { success: false, message: "La rifa no está en estado finalizado." };
+    }
 
-    const winningTicket = await db.query.tickets.findFirst({
-      where: and(
-        eq(tickets.raffleId, raffleId), 
-        eq(tickets.ticketNumber, lotteryNumber),
-        eq(tickets.status, 'sold') // <-- AÑADIDO: Asegura que el ticket haya sido vendido
-      ),
-      with: { purchase: true }
-    });
+    const winningTicket = await db.query.tickets.findFirst({
+      where: and(
+        eq(tickets.raffleId, raffleId), 
+        eq(tickets.ticketNumber, lotteryNumber),
+        eq(tickets.status, 'sold')
+      ),
+      with: { purchase: true }
+    });
 
-    // Ahora, si el ticket no fue vendido (o no existe), esta condición fallará.
-    if (!winningTicket || !winningTicket.purchase) {
-      return { success: false, message: `El ticket #${lotteryNumber} no fue vendido o no existe. La rifa puede ser pospuesta.` };
-    }
+    if (!winningTicket || !winningTicket.purchase) {
+      return { success: false, message: `El ticket #${lotteryNumber} no fue vendido o no existe. La rifa puede ser pospuesta.` };
+    }
 
-    const buffer = Buffer.from(await winnerProof.arrayBuffer());
-    const key = `winners/${raffleId}/${crypto.randomUUID()}-${winnerProof.name}`;
-    const winnerProofUrl = await uploadToS3(buffer, key, winnerProof.type);
+    const buffer = Buffer.from(await winnerProof.arrayBuffer());
+    const key = `winners/${raffleId}/${crypto.randomUUID()}-${winnerProof.name}`;
+    const winnerProofUrl = await uploadToS3(buffer, key, winnerProof.type);
 
-    await db.update(raffles).set({
-      winnerTicketId: winningTicket.id,
-      winnerLotteryNumber: lotteryNumber,
-      winnerProofUrl,
-    }).where(eq(raffles.id, raffleId));
+    await db.update(raffles).set({
+      winnerTicketId: winningTicket.id,
+      winnerLotteryNumber: lotteryNumber,
+      winnerProofUrl,
+    }).where(eq(raffles.id, raffleId));
 
-    revalidatePath("/rifas");
-    revalidatePath(`/rifas/${raffleId}`);
+    // ✅ --- INICIO DE CAMBIOS: LLAMAR A LA FUNCIÓN DE NOTIFICACIÓN ---
+    await sendWinnerNotification(raffleId, winningTicket.id);
+    // --- FIN DE CAMBIOS ---
 
-    return {
-      success: true,
-      message: "¡Ganador registrado con éxito!",
-      data: {
-        winnerTicketNumber: winningTicket.ticketNumber,
-        winnerName: winningTicket.purchase.buyerName,
-        winnerEmail: winningTicket.purchase.buyerEmail,
-        winnerProofUrl,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error al registrar ganador:", error);
-    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
-  }
+    revalidatePath("/rifas");
+    revalidatePath(`/rifas/${raffleId}`);
+
+    return {
+      success: true,
+      message: "¡Ganador registrado y notificado con éxito!",
+      data: {
+        winnerTicketNumber: winningTicket.ticketNumber,
+        winnerName: winningTicket.purchase.buyerName,
+        winnerEmail: winningTicket.purchase.buyerEmail,
+        winnerProofUrl,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error al registrar ganador:", error);
+    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+  }
 }
 
 const PostponeRaffleSchema = z.object({
