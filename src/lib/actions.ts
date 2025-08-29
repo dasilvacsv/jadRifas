@@ -478,6 +478,10 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
       console.log({ amount: amountToSend, bank_reference: referenceToSend });
 
       try {
+        // --- INICIO DE MEJORA: Añadir AbortController para timeout ---
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 65000); // Timeout de 65 segundos
+
         const pabiloResponse = await fetch(PABILO_API_URL, {
           method: 'POST',
           headers: {
@@ -488,7 +492,12 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             amount: amountToSend,
             bank_reference: referenceToSend,
           }),
+          signal: controller.signal, // <-- Asociar la señal
         });
+        
+        clearTimeout(timeoutId); // Limpiar el timeout si la respuesta llega a tiempo
+        // --- FIN DE MEJORA ---
+
         const pabiloData = await pabiloResponse.json();
         if (pabiloResponse.ok && pabiloData.data?.user_bank_payment?.status === 'paid') {
           console.info("✅ Pabilo CONFIRMÓ el pago exitosamente. La compra será automática.");
@@ -497,8 +506,14 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         } else {
           console.warn("⚠️ Pabilo NO encontró el pago. Pasando a verificación manual.");
         }
-      } catch (apiError) {
-        console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
+      } catch (apiError: any) {
+        // --- MEJORA: Manejar el error de timeout ---
+        if (apiError.name === 'AbortError') {
+            console.error("⛔ La API de Pabilo tardó demasiado en responder (timeout). Pasando a verificación manual.");
+        } else {
+            console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
+        }
+        // En ambos casos, el proceso continúa para verificación manual, no se detiene la compra.
       }
     }
 

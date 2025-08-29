@@ -1,28 +1,28 @@
 // BuyTicketsForm.tsx
 "use client";
 
-import { useState, useMemo, ChangeEvent, useEffect } from 'react';
+// --- CAMBIO 1: Importa useRef y Progress ---
+import { useState, useMemo, ChangeEvent, useEffect, useRef } from 'react';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+// --- CAMBIO 1.1: Asegúrate de importar Progress ---
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress"; // <-- AÑADIDO
 import { Loader2, X, Ticket, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Minus, Plus, Check } from 'lucide-react';
 import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 import Image from 'next/image';
-
-// --- Importa las nuevas funciones de exchangeRates.ts ---
 import { getBCVRates } from '@/lib/exchangeRates';
-// --- INICIO DE CAMBIOS ---
-import { CountryCodeSelector } from '@/components/ui/CountryCodeSelector'; // Importa el nuevo componente
-// --- FIN DE CAMBIOS ---
+import { CountryCodeSelector } from '@/components/ui/CountryCodeSelector';
 
-// --- INTERFACES (Sin cambios) ---
+// --- INTERFACES (Modificada) ---
 interface PaymentMethod {
   id: string;
   title: string;
+  triggersApiVerification?: boolean; // <-- CAMBIO: Campo opcional añadido
   iconUrl?: string | null;
   bankName?: string | null;
   rif?: string | null;
@@ -46,31 +46,27 @@ interface BuyTicketsFormProps {
   paymentMethods: PaymentMethod[];
 }
 
-// --- CONSTANTES Y ESTADO INICIAL (Modificado) ---
+// --- CONSTANTES Y ESTADO INICIAL (Sin cambios) ---
 const initialState = { success: false, message: '' };
 
-// ✅ --- FUNCIÓN CORREGIDA ---
-// Esta función ahora coloca el símbolo '$' correctamente para USD.
 const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string = 'es-VE') => {
-  // Formatea solo la parte numérica para tener control sobre el símbolo
   const formattedNumber = new Intl.NumberFormat(locale, {
     style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 
-  // Añade el símbolo de la moneda en la posición correcta
   if (currency === 'USD') {
-    return `$${formattedNumber}`; // Símbolo al principio para USD
+    return `$${formattedNumber}`;
   } else {
-    return `${formattedNumber} Bs`; // Símbolo al final para VES
+    return `${formattedNumber} Bs`;
   }
 };
-
 
 const TICKET_AMOUNTS = [2, 5, 10, 15, 20, 25];
 
 export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) {
+  // --- Estados existentes ---
   const [apiState, setApiState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
   const [ticketCount, setTicketCount] = useState<number>(2);
@@ -78,24 +74,28 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
-  // --- INICIO DE CAMBIOS: Estados para el teléfono ---
-  const [countryCode, setCountryCode] = useState('+58'); // Prefijo por defecto Venezuela
-  const [buyerPhone, setBuyerPhone] = useState(''); // Solo el número, sin prefijo
-  // --- FIN DE CAMBIOS ---
+  const [countryCode, setCountryCode] = useState('+58');
+  const [buyerPhone, setBuyerPhone] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [reservationError, setReservationError] = useState('');
-    
-  // --- Nuevo estado para la tasa de cambio y la carga ---
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isLoadingRates, setIsLoadingRates] = useState(true);
 
-  const selectedPaymentMethod = useMemo(() => 
+  // --- CAMBIO 2: Añadir nuevos estados y ref para la verificación ---
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [verificationProgress, setVerificationProgress] = useState(0);
+  const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
+    modalTimer: null,
+    progressTimer: null
+  });
+
+  const selectedPaymentMethod = useMemo(() =>
     paymentMethods.find(method => method.id === paymentMethodId)
   , [paymentMethodId, paymentMethods]);
 
-  // --- useEffect para obtener la tasa de cambio al cargar el componente ---
+  // --- useEffects y useMemos (Sin cambios) ---
   useEffect(() => {
     const fetchRates = async () => {
       setIsLoadingRates(true);
@@ -104,7 +104,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         if (raffle.currency === 'USD') {
           setExchangeRate(rates.usd.rate);
         } else if (raffle.currency === 'VES') {
-          setExchangeRate(1 / rates.usd.rate); // Tasa inversa para la conversión a USD
+          setExchangeRate(1 / rates.usd.rate);
         }
       } catch (error) {
         console.error("Error al obtener las tasas de cambio:", error);
@@ -121,7 +121,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     return ticketCount * price;
   }, [ticketCount, raffle.price]);
     
-  // --- useMemo modificado para calcular las conversiones ---
   const currencyData = useMemo(() => {
     const price = parseFloat(raffle.price); 
     const numTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
@@ -130,10 +129,9 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     let pricePrimary = formatCurrency(price, raffle.currency);
     let totalPrimary = formatCurrency(total, raffle.currency);
     let totalSecondary = '';
-    let secondaryCurrencySymbol = ''; // Nuevo: Símbolo de la moneda secundaria
+    let secondaryCurrencySymbol = '';
 
     if (exchangeRate !== null) {
-      // --- CAMBIO AQUÍ: Se revierte la lógica de cálculo ---
       const convertedTotal = raffle.currency === 'USD' ? total * exchangeRate : total * exchangeRate;
       const convertedCurrency = raffle.currency === 'USD' ? 'VES' : 'USD';
       totalSecondary = new Intl.NumberFormat('es-VE', { 
@@ -141,25 +139,23 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         minimumFractionDigits: 2, 
         maximumFractionDigits: 2 
       }).format(convertedTotal);
-      secondaryCurrencySymbol = convertedCurrency === 'USD' ? '$' : 'Bs'; // Asigna el símbolo
+      secondaryCurrencySymbol = convertedCurrency === 'USD' ? '$' : 'Bs';
     }
 
     return {
       pricePerTicket: pricePrimary,
       totalPrimary: totalPrimary,
       totalSecondary: totalSecondary,
-      secondaryCurrencySymbol: secondaryCurrencySymbol, // Devuelve el símbolo
+      secondaryCurrencySymbol: secondaryCurrencySymbol,
     };
   }, [ticketCount, reservedTickets, raffle.price, raffle.currency, exchangeRate]);
 
-  // --- MANEJADORES DE EVENTOS (Con cambios) ---
+  // --- MANEJADORES DE EVENTOS (Sin cambios) ---
   const resetForm = () => {
     setApiState(initialState); setTicketCount(2); setReservedTickets([]);
     setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
-    // --- INICIO DE CAMBIOS ---
-    setCountryCode('+58'); // Resetea el prefijo
-    setBuyerPhone('');     // Resetea el número
-    // --- FIN DE CAMBIOS ---
+    setCountryCode('+58');
+    setBuyerPhone('');
     setPaymentReference(''); setPaymentScreenshot(null); setPreview(null); setReservationError('');
   };
 
@@ -170,76 +166,109 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     else { setPreview(null); }
   };
   
-  // --- INICIO DE CAMBIOS: Manejador para el número de teléfono ---
   const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, ''); // Solo permite dígitos
-    
-    // Lógica para Venezuela: si el prefijo es +58 y el usuario escribe '0', lo quitamos.
+    let value = e.target.value.replace(/\D/g, '');
     if (countryCode === '+58' && value.startsWith('0')) {
       value = value.substring(1);
     }
     setBuyerPhone(value);
   };
-  // --- FIN DE CAMBIOS ---
 
   const handleTicketCountChange = (value: number) => {
     const newCount = Math.max(1, value); 
     setTicketCount(newCount);
   };
 
+  // --- CAMBIO 3: Lógica actualizada en handleFormSubmit ---
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); 
+    event.preventDefault();
     setIsPending(true);
     setReservationError('');
     setApiState(initialState);
-
-    // Paso 1: Reservar tickets
-    const reserveFormData = new FormData();
-    reserveFormData.append('raffleId', raffle.id);
-    reserveFormData.append('ticketCount', ticketCount.toString());
-    const reserveResult = await reserveTicketsAction(reserveFormData);
     
-    if (!reserveResult.success || !reserveResult.data?.reservedTickets) {
-      setReservationError(reserveResult.message || 'No se pudieron apartar los tickets. Intenta con otra cantidad.');
-      setIsPending(false);
-      return;
+    // --- Lógica para la barra de progreso ---
+    const willVerifyWithApi = selectedPaymentMethod?.triggersApiVerification;
+    const VERIFICATION_TIMEOUT = 70000; // 70 segundos
+    const SHOW_MODAL_DELAY = 3000; // Mostrar modal después de 3 segundos
+
+    if (willVerifyWithApi) {
+        // Inicia un temporizador para mostrar el modal si la operación es lenta
+        verificationTimers.current.modalTimer = setTimeout(() => {
+            setIsVerifyingPayment(true);
+            const startTime = Date.now();
+            
+            // Inicia un intervalo para actualizar la barra de progreso
+            verificationTimers.current.progressTimer = setInterval(() => {
+                const elapsedTime = Date.now() - startTime;
+                const progress = Math.min((elapsedTime / VERIFICATION_TIMEOUT) * 100, 100);
+                setVerificationProgress(progress);
+
+                if (progress >= 100) {
+                    clearInterval(verificationTimers.current.progressTimer!);
+                }
+            }, 200);
+
+        }, SHOW_MODAL_DELAY);
     }
-    
-    const ticketsToBuy = reserveResult.data.reservedTickets;
-    setReservedTickets(ticketsToBuy); 
+    // --- Fin de la lógica para la barra de progreso ---
 
-    // Paso 2: Realizar la compra
-    const buyFormData = new FormData();
-    // --- INICIO DE CAMBIOS: Construir el número de teléfono completo ---
-    const fullPhoneNumber = `${countryCode.replace('+', '')}${buyerPhone}`;
-    // --- FIN DE CAMBIOS ---
+    try {
+        // Paso 1: Reservar tickets
+        const reserveFormData = new FormData();
+        reserveFormData.append('raffleId', raffle.id);
+        reserveFormData.append('ticketCount', ticketCount.toString());
+        const reserveResult = await reserveTicketsAction(reserveFormData);
+        
+        if (!reserveResult.success || !reserveResult.data?.reservedTickets) {
+            setReservationError(reserveResult.message || 'No se pudieron apartar los tickets. Intenta con otra cantidad.');
+            // No es necesario setIsPending(false) aquí, el finally lo hará.
+            return;
+        }
+        
+        const ticketsToBuy = reserveResult.data.reservedTickets;
+        setReservedTickets(ticketsToBuy); 
 
-    buyFormData.append('raffleId', raffle.id);
-    buyFormData.append('reservedTickets', ticketsToBuy.join(','));
-    buyFormData.append('paymentMethod', selectedPaymentMethod?.title || '');
-    buyFormData.append('name', buyerName);
-    buyFormData.append('email', buyerEmail);
-    // --- INICIO DE CAMBIOS ---
-    buyFormData.append('phone', fullPhoneNumber); // Envía el número completo
-    // --- FIN DE CAMBIOS ---
-    buyFormData.append('paymentReference', paymentReference);
-    if (paymentScreenshot) {
-      buyFormData.append('paymentScreenshot', paymentScreenshot);
+        // Paso 2: Realizar la compra
+        const buyFormData = new FormData();
+        const fullPhoneNumber = `${countryCode.replace('+', '')}${buyerPhone}`;
+        buyFormData.append('raffleId', raffle.id);
+        buyFormData.append('reservedTickets', ticketsToBuy.join(','));
+        buyFormData.append('paymentMethod', selectedPaymentMethod?.title || '');
+        buyFormData.append('name', buyerName);
+        buyFormData.append('email', buyerEmail);
+        buyFormData.append('phone', fullPhoneNumber);
+        buyFormData.append('paymentReference', paymentReference);
+        if (paymentScreenshot) {
+            buyFormData.append('paymentScreenshot', paymentScreenshot);
+        }
+        
+        const buyResult = await buyTicketsAction(buyFormData);
+        setApiState(buyResult);
+
+    } catch (error) {
+        setApiState({ success: false, message: 'Ocurrió un error inesperado.' });
+    } finally {
+        // --- Limpieza de temporizadores y estados ---
+        setIsPending(false);
+        setIsVerifyingPayment(false);
+        setVerificationProgress(0);
+        if (verificationTimers.current.modalTimer) {
+            clearTimeout(verificationTimers.current.modalTimer);
+        }
+        if (verificationTimers.current.progressTimer) {
+            clearInterval(verificationTimers.current.progressTimer);
+        }
+        // --- Fin de la limpieza ---
     }
-    
-    const buyResult = await buyTicketsAction(buyFormData);
-    setApiState(buyResult);
-    setIsPending(false);
   };
 
-// --- RENDERIZADO DEL FORMULARIO COMPLETO ---
+  // --- RENDERIZADO (Sección de éxito sin cambios) ---
   if (apiState.success || apiState.message) {
     return (
       <CardContent className="p-0">
         <div className="p-5">
           <div className="text-center space-y-6 py-6 animate-fade-in">
             {apiState.success ? (
-              // ✅ --- SECCIÓN MODIFICADA ---
               <div className="p-4 rounded-lg bg-green-950/50 border border-green-400/30">
                 <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
                 <AlertDescription className="text-xl font-bold text-green-300">¡Solicitud de compra recibida!</AlertDescription>
@@ -265,6 +294,28 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     
   return (
     <CardContent className="p-0">
+      {/* --- CAMBIO 4: Añadir el Dialog de espera --- */}
+      <Dialog open={isVerifyingPayment}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 text-white" hideCloseButton>
+            <DialogHeader>
+                <DialogTitle className="text-center text-2xl font-bold text-amber-400">
+                    Verificando tu Pago
+                </DialogTitle>
+                <DialogDescription className="text-center text-zinc-400 pt-2">
+                    Estamos confirmando tu pago con el banco. Esto puede tardar hasta un minuto.
+                    <br/>
+                    <strong>Por favor, no cierres ni recargues esta página.</strong>
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Progress value={verificationProgress} className="w-full [&>div]:bg-amber-500" />
+                <p className="text-center text-sm text-zinc-500 mt-3">
+                    {verificationProgress < 90 ? 'Esperando respuesta...' : 'Casi listo...'}
+                </p>
+            </div>
+        </DialogContent>
+      </Dialog>
+      
       <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
         
         {/* --- Sección 1: Cantidad de Tickets --- */}
@@ -283,7 +334,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
             ))}
           </div>
 
-          {/* --- Sumador y Restador --- */}
           <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
             <div className="flex items-center justify-center space-x-3 mb-4">
               <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
@@ -296,7 +346,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               />
               <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
             </div>
-            {/* --- Presentación de los montos más notoria --- */}
             <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
             <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
             
@@ -308,7 +357,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               currencyData.totalSecondary && (
                 <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center">
                   <span className="text-zinc-400 mr-2">equivalente a</span> 
-                  {/* --- CAMBIO AQUÍ: Muestra el símbolo de la moneda secundaria --- */}
                   <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
                 </p>
               )
@@ -318,7 +366,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
 
         <hr className="border-t border-zinc-700" />
         
-        {/* --- Sección 2: Método de Pago (Sin cambios, pero pasa el monto convertido) --- */}
+        {/* --- Sección 2: Método de Pago --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Selecciona tu método de pago</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -338,7 +386,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         
         <hr className="border-t border-zinc-700" />
 
-        {/* --- Sección 3: Datos de Contacto y Referencia (CON CAMBIOS) --- */}
+        {/* --- Sección 3: Datos de Contacto y Referencia --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Completa tus datos de compra</h3>
           <div className="space-y-4">
@@ -353,7 +401,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
               <AtSign className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/>
             </div>
             
-            {/* --- INICIO DE CAMBIOS: Campo de teléfono actualizado --- */}
             <div>
               <Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)*</Label>
               <div className="flex items-center mt-1">
@@ -373,7 +420,6 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                 />
               </div>
             </div>
-            {/* --- FIN DE CAMBIOS --- */}
             
             <div className="relative">
               <Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago</Label>
@@ -385,7 +431,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
 
         <hr className="border-t border-zinc-700" />
 
-        {/* --- Sección 4: Subir Comprobante (Sin cambios) --- */}
+        {/* --- Sección 4: Subir Comprobante --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Sube el comprobante de pago</h3>
           <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-black/20 hover:bg-black/40 p-4 transition-colors">
