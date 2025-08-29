@@ -510,7 +510,7 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                             <div className="relative w-full h-full rounded-xl overflow-hidden bg-black/70 border border-amber-500/20 ring-1 ring-inset ring-black/40">
                                 <div style={{ transform: 'translateY(8%)', width: '100%', height: '100%' }}>
                                     <Image
-                                        src="/jorvi2.png" 
+                                        src="/jorvi5.png" 
                                         alt="Jorvi, dueña de la página" 
                                         layout="fill" 
                                         quality={100} 
