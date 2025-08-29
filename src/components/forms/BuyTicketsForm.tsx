@@ -204,17 +204,20 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     setIsPending(false);
   };
 
-  // --- RENDERIZADO DEL FORMULARIO COMPLETO ---
+// --- RENDERIZADO DEL FORMULARIO COMPLETO ---
   if (apiState.success || apiState.message) {
     return (
       <CardContent className="p-0">
         <div className="p-5">
           <div className="text-center space-y-6 py-6 animate-fade-in">
             {apiState.success ? (
+              // ✅ --- SECCIÓN MODIFICADA ---
               <div className="p-4 rounded-lg bg-green-950/50 border border-green-400/30">
                 <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
-                <AlertDescription className="text-xl font-bold text-green-300">{apiState.message}</AlertDescription>
-                <p className="text-base text-green-400/80 mt-2">¡Mucha suerte! Revisa tu correo electrónico para ver tus tickets asignados.</p>
+                <AlertDescription className="text-xl font-bold text-green-300">¡Solicitud de compra recibida!</AlertDescription>
+                <p className="text-base text-green-400/80 mt-2">
+                  Tus tickets están pendientes por confirmar. Una vez que validemos el pago, te enviaremos los números asignados a tu correo electrónico y a tu WhatsApp. ¡Mucha suerte!
+                </p>
               </div>
             ) : (
               <div className="p-4 rounded-lg bg-red-950/50 border border-red-400/30">

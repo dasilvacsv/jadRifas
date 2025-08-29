@@ -10,6 +10,10 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+// ✅ --- INICIO DE CAMBIOS: Importar el nuevo componente ---
+import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton'; // Asegúrate de que la ruta sea correcta
+// ✅ --- FIN DE CAMBIOS ---
+
 
 // --- INTERFACES DE DATOS ---
 export interface RaffleImage {
@@ -597,7 +601,7 @@ const WinnerCard = ({ raffle, onShowProof }: { raffle: FinishedRaffle, onShowPro
                 </div>
                 {raffle.winnerProofUrl && (
                    <Button className="mt-5 w-full bg-white/5 hover:bg-white/10 text-white font-bold rounded-lg border border-white/10" onClick={() => onShowProof(raffle.winnerProofUrl!)}>
-                        <CheckCircle className="h-4 w-4 mr-2" /> Ver Prueba del Sorteo
+                       <CheckCircle className="h-4 w-4 mr-2" /> Ver Prueba del Sorteo
                    </Button>
                 )}
             </div>
@@ -692,6 +696,10 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 </main>
             </div>
             {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
+
+            {/* ✅ --- INICIO DE CAMBIOS: Añadir el botón flotante aquí --- */}
+            <FloatingWhatsAppButton />
+            {/* ✅ --- FIN DE CAMBIOS --- */}
         </>
     );
 }
