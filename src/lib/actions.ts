@@ -46,16 +46,26 @@ const RegisterSchema = z.object({
   role: z.enum(["admin", "user"]).default("user"),
 });
 
-export async function registerAction(formData: FormData): Promise<ActionState> {
+export async function registerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
   const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) return { success: false, message: "Error de validación" };
+  
   const { name, email, password, role } = validatedFields.data;
+
   try {
     const existingUser = await db.query.users.findFirst({ where: eq(users.email, email) });
     if (existingUser) return { success: false, message: "El email ya está registrado" };
+
     const hashedPassword = await bcrypt.hash(password, 12);
     const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role }).returning({ id: users.id });
+    
+    // ✅ ¡ESTE ES EL CAMBIO CLAVE!
+    // Le decimos a Next.js que los datos de la página de usuarios están desactualizados
+    // y que debe volver a cargarlos para mostrar el nuevo registro.
+    revalidatePath("/usuarios");
+
     return { success: true, message: "Usuario registrado exitosamente", data: newUser[0] };
+
   } catch (error) {
     console.error("Error al registrar usuario:", error);
     return { success: false, message: "Error del servidor" };
