@@ -37,11 +37,9 @@ export async function sendWhatsappMessage(
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
-    // La función formatPhoneNumber ahora solo limpia el string.
     const formattedPhone = formatPhoneNumber(phoneNumber);
     const validated = sendMessageSchema.parse({ phoneNumber: formattedPhone, text });
     
-    // --- Usando los nombres de tu .env ---
     const API_BASE_URL = process.env.EVOLUTION_API_URL
     const API_KEY = process.env.EVOLUTION_API_KEY
     const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
@@ -57,16 +55,13 @@ export async function sendWhatsappMessage(
         'apikey': API_KEY,
         'Content-Type': 'application/json',
       },
+      // --- INICIO DE LA CORRECCIÓN ---
+      // El cuerpo (body) ahora es más simple, con "text" en el nivel principal.
       body: JSON.stringify({
         number: validated.phoneNumber,
-        options: {
-          delay: 1200,
-          presence: "composing"
-        },
-        textMessage: {
-          text: validated.text
-        },
+        text: validated.text,
       }),
+      // --- FIN DE LA CORRECCIÓN ---
     })
 
     if (!response.ok) {
