@@ -22,6 +22,7 @@ export const raffleStatusEnum = pgEnum("raffle_status", ["active", "finished", "
 export const purchaseStatusEnum = pgEnum("purchase_status", ["pending", "confirmed", "rejected"]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["available", "reserved", "sold"]);
 export const currencyEnum = pgEnum("currency", ["USD", "VES"]);
+export const rejectionReasonEnum = pgEnum("rejection_reason", ["invalid_payment", "malicious"]);
 // ----------------------------------------------------------------
 // TABLAS PRINCIPALES
 // ----------------------------------------------------------------
@@ -66,6 +67,10 @@ export const purchases = pgTable("purchases", {
   ticketCount: integer("ticket_count").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
+  // --- INICIO DE CAMBIOS: Nuevos campos para el rechazo ---
+  rejectionReason: rejectionReasonEnum("rejection_reason"), // Campo para el motivo (opcional)
+  rejectionComment: text("rejection_comment"), // Campo para el comentario (opcional)
+  // --- FIN DE CAMBIOS ---
 });
 
 export const tickets = pgTable("tickets", {

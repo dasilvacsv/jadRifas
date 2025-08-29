@@ -72,6 +72,65 @@ export async function registerAction(prevState: ActionState, formData: FormData)
   }
 }
 
+// ✅ --- NUEVA FUNCIÓN: ENVIAR NOTIFICACIÓN DE RECHAZO ---
+async function sendRejectionNotification(
+  purchaseId: string,
+  reason: 'invalid_payment' | 'malicious',
+  comment?: string | null
+): Promise<void> {
+  const purchase = await db.query.purchases.findFirst({
+    where: eq(purchases.id, purchaseId),
+    with: { raffle: true },
+  });
+
+  if (!purchase) {
+    console.error(`No se encontró la compra con ID: ${purchaseId} para notificar rechazo.`);
+    return;
+  }
+  
+  // --- Construcción de mensajes dinámicos ---
+  let subject = `Problema con tu compra para la rifa ${purchase.raffle.name}`;
+  let mainMessage: string;
+  let additionalComment: string = '';
+
+  if (reason === 'invalid_payment') {
+    mainMessage = "Lastimosamente no pudimos verificar tu pago. Por favor, revisa los datos de tu comprobante e intenta tu compra de nuevo. Si crees que se trata de un error, contáctanos.";
+  } else { // 'malicious'
+    mainMessage = "Lastimosamente no pudimos verificar tu pago. Tu compra ha sido marcada como rechazada por nuestro sistema.";
+    if (comment) {
+      additionalComment = `<p><strong>Motivo adicional:</strong> ${comment}</p>`;
+    }
+  }
+
+  // --- Plantilla de Correo ---
+  const emailBody = `
+    <h1>Hola, ${purchase.buyerName}</h1>
+    <p>${mainMessage}</p>
+    ${additionalComment}
+    <p>El equipo de Llevateloconjorvi.</p>
+  `;
+
+  // --- Texto de WhatsApp ---
+  // Reemplaza <br> y <p> por saltos de línea para WhatsApp
+  const whatsappText = `Hola, ${purchase.buyerName} 👋\n\n${mainMessage.replace(/<br\s*\/?>/gi, '\n')}\n\n${comment ? `*Motivo adicional:* ${comment}\n\n` : ''}El equipo de Llevateloconjorvi.`;
+  
+  // 1. Envío de Correo
+  await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
+
+  // 2. Envío de WhatsApp
+  if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
+    console.log(`Intentando enviar WhatsApp de rechazo a: ${purchase.buyerPhone}`);
+    try {
+      await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
+      console.log(`WhatsApp de rechazo enviado con éxito a ${purchase.buyerPhone}`);
+    } catch (error) {
+      console.error(`ERROR al enviar WhatsApp de rechazo a ${purchase.buyerPhone}:`, error);
+    }
+  } else {
+    console.warn(`No se envió WhatsApp de rechazo para la compra #${purchase.id} por falta de número.`);
+  }
+}
+
 // --- NUEVA ACCIÓN: OBTENER TOP COMPRADORES ---
 export async function getTopBuyers(raffleId: string): Promise<{ buyerName: string | null; buyerEmail: string; totalTickets: number }[]> {
   try {
@@ -414,62 +473,82 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
 }
 
 const UpdatePurchaseStatusSchema = z.object({
-  purchaseId: z.string(),
-  newStatus: z.enum(purchaseStatusEnum.enumValues),
+  purchaseId: z.string(),
+  newStatus: z.enum(purchaseStatusEnum.enumValues),
+  // Campos opcionales para el rechazo
+  rejectionReason: z.enum(rejectionReasonEnum.enumValues).optional(),
+  rejectionComment: z.string().optional(),
 });
 
 export async function updatePurchaseStatusAction(
-  prevState: ActionState,
-  formData: FormData
+  prevState: ActionState,
+  formData: FormData
 ): Promise<ActionState> {
-  const validatedFields = UpdatePurchaseStatusSchema.safeParse(
-    Object.fromEntries(formData.entries())
-  );
-  if (!validatedFields.success)
-    return { success: false, message: "Datos inválidos." };
-  const { purchaseId, newStatus } = validatedFields.data;
+  const validatedFields = UpdatePurchaseStatusSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
 
-  try {
-    const purchase = await db.query.purchases.findFirst({
-        where: eq(purchases.id, purchaseId),
-    });
+  if (!validatedFields.success)
+    return { success: false, message: "Datos inválidos." };
+  
+  // Extrae los nuevos campos
+  const { purchaseId, newStatus, rejectionReason, rejectionComment } = validatedFields.data;
 
-    if (!purchase) {
-        throw new Error("Compra no encontrada.");
-    }
-    // Evita modificar compras ya procesadas
-    if (purchase.status !== "pending") {
-        return { success: false, message: "Esta compra ya ha sido procesada y no se puede modificar."};
-    }
-
-    await db.transaction(async (tx) => {
-      await tx.update(purchases).set({ status: newStatus }).where(eq(purchases.id, purchaseId));
-      
-      if (newStatus === "confirmed") {
-        await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
-        // Se llama a la función centralizada que envía AMBOS email y WhatsApp
-        await sendTicketsEmailAndWhatsapp(purchaseId);
-      } else if (newStatus === "rejected") {
-        await tx.update(tickets).set({ status: "available", purchaseId: null, reservedUntil: null }).where(eq(tickets.purchaseId, purchaseId));
-        // Opcional: podrías implementar una notificación de rechazo aquí
-      }
-    });
-
-    revalidatePath("/dashboard");
-    revalidatePath("/mis-tickets");
-    revalidatePath(`/rifas`);
-
-    return {
-      success: true,
-      message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada"}.`,
-    };
-  } catch (error: any) {
-    console.error("Error al actualizar compra:", error);
-    return {
-      success: false,
-      message: error.message || "Ocurrió un error en el servidor.",
-    };
+  // Validación extra: si se rechaza, debe haber un motivo
+  if (newStatus === 'rejected' && !rejectionReason) {
+    return { success: false, message: "Debe seleccionar un motivo para el rechazo." };
   }
+
+  try {
+    const purchase = await db.query.purchases.findFirst({
+        where: eq(purchases.id, purchaseId),
+    });
+
+    if (!purchase) {
+        throw new Error("Compra no encontrada.");
+    }
+    if (purchase.status !== "pending") {
+        return { success: false, message: "Esta compra ya ha sido procesada."};
+    }
+
+    await db.transaction(async (tx) => {
+      // Modifica la actualización para incluir los nuevos campos
+      await tx.update(purchases).set({ 
+        status: newStatus,
+        // Guarda los datos del rechazo si el estado es 'rejected'
+        ...(newStatus === 'rejected' && {
+            rejectionReason: rejectionReason,
+            rejectionComment: rejectionComment
+        })
+      }).where(eq(purchases.id, purchaseId));
+      
+      if (newStatus === "confirmed") {
+        await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
+        await sendTicketsEmailAndWhatsapp(purchaseId);
+      } else if (newStatus === "rejected") {
+        await tx.update(tickets).set({ status: "available", purchaseId: null, reservedUntil: null }).where(eq(tickets.purchaseId, purchaseId));
+        // Llama a la nueva función de notificación de rechazo
+        if (rejectionReason) { // Asegura que rejectionReason no sea undefined
+            await sendRejectionNotification(purchaseId, rejectionReason, rejectionComment);
+        }
+      }
+    });
+
+    revalidatePath("/dashboard");
+    revalidatePath("/mis-tickets");
+    revalidatePath(`/rifas`);
+
+    return {
+      success: true,
+      message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada y notificada"}.`,
+    };
+  } catch (error: any) {
+    console.error("Error al actualizar compra:", error);
+    return {
+      success: false,
+      message: error.message || "Ocurrió un error en el servidor.",
+    };
+  }
 }
 
 export async function findMyTicketsAction(formData: FormData): Promise<ActionState> {
