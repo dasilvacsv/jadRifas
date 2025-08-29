@@ -62,44 +62,61 @@ export async function registerAction(formData: FormData): Promise<ActionState> {
   }
 }
 
+// --- NUEVA ACCIÓN: OBTENER TOP COMPRADORES ---
+export async function getTopBuyers(raffleId: string): Promise<{ buyerName: string | null; buyerEmail: string; totalTickets: number }[]> {
+  try {
+    const topBuyersData = await db
+      .select({
+        buyerName: purchases.buyerName,
+        buyerEmail: purchases.buyerEmail,
+        totalTickets: sql<number>`sum(${purchases.ticketCount})`.mapWith(Number),
+      })
+      .from(purchases)
+      .where(and(
+        eq(purchases.raffleId, raffleId),
+        eq(purchases.status, 'confirmed')
+      ))
+      .groupBy(purchases.buyerName, purchases.buyerEmail)
+      .orderBy(desc(sql`sum(${purchases.ticketCount})`))
+      .limit(5); // Obtenemos el top 5
+
+    return topBuyersData;
+
+  } catch (error) {
+    console.error("Error al obtener top compradores:", error);
+    return []; // Devolver un array vacío en caso de error
+  }
+}
+
 // ----------------------------------------------------------------
 // ACTIONS PARA ENVÍO DE CORREO
 // ----------------------------------------------------------------
 
 interface EmailData {
-  to: string;
-  subject: string;
-  body: string;
+  to: string;
+  subject: string;
+  body: string;
 }
 
-/**
- * Función auxiliar para enviar correos con Resend.
- * @param data EmailData
- */
 async function sendEmail({ to, subject, body }: EmailData): Promise<void> {
-  try {
-    // CAMBIO CRUCIAL: Se usa la instancia 'resend'
-    const { data, error } = await resend.emails.send({ 
-      from: "Ventas JadRifas <noreply@jadrifas.com>",
-      to: [to],
-      subject: subject,
-      html: body,
-    });
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "Llevateloconjorvi <ventas@llevateloconjorvi.com>",
+      to: [to],
+      subject: subject,
+      html: body,
+    });
 
-    if (error) {
-      throw new Error(error.message);
-    }
-    console.log("Correo enviado con éxito:", data);
-  } catch (error) {
-    console.error("Error al enviar el correo:", error);
-    // No lanzamos el error para no detener el flujo principal.
-  }
+    if (error) {
+      console.error("Error de la API de Resend al enviar correo:", error);
+      throw new Error(error.message);
+    }
+    console.log("Correo enviado con éxito a:", to);
+  } catch (error) {
+    console.error("Error general al enviar el correo:", error);
+  }
 }
 
-/**
- * Envía un correo de confirmación de compra pendiente.
- * @param purchaseId ID de la compra
- */
 async function sendConfirmationEmail(purchaseId: string): Promise<void> {
   const purchase = await db.query.purchases.findFirst({
     where: eq(purchases.id, purchaseId),
@@ -108,10 +125,10 @@ async function sendConfirmationEmail(purchaseId: string): Promise<void> {
 
   if (!purchase) return;
 
-  const subject = `Confirmación de compra en JadRifas - #${purchase.id}`;
+  const subject = `Confirmación de compra en Llevateloconjorvi - #${purchase.id}`;
   const body = `
     <h1>¡Hola, ${purchase.buyerName}!</h1>
-    <p>Gracias por tu compra en JadRifas. Hemos recibido tu solicitud para la rifa: <strong>${purchase.raffle.name}</strong>.</p>
+    <p>Gracias por tu compra en Llevateloconjorvi. Hemos recibido tu solicitud para la rifa: <strong>${purchase.raffle.name}</strong>.</p>
     <p>Tu compra está en estado <strong>pendiente</strong>. Una vez que nuestro equipo revise y confirme tu pago, recibirás un nuevo correo con tus tickets asignados.</p>
     <p><strong>Detalles de la compra:</strong></p>
     <ul>
@@ -120,13 +137,13 @@ async function sendConfirmationEmail(purchaseId: string): Promise<void> {
       <li>Referencia de pago: ${purchase.paymentReference}</li>
     </ul>
     <p>¡Te notificaremos pronto!</p>
-    <p>El equipo de JadRifas.</p>
+    <p>El equipo de Llevateloconjorvi.</p>
   `;
   await sendEmail({ to: purchase.buyerEmail, subject, body });
 }
 
 /**
- * Envía un correo y un mensaje de WhatsApp con los tickets asignados.
+ * Envía un correo Y un mensaje de WhatsApp con los tickets asignados.
  * @param purchaseId ID de la compra
  */
 async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
@@ -138,12 +155,12 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
     },
   });
 
-  if (!purchase) return;
+  if (!purchase) {
+    console.error(`No se encontró la compra con ID: ${purchaseId}`);
+    return;
+  }
 
-  const ticketNumbers = purchase.tickets
-    .map((t) => t.ticketNumber)
-    .sort()
-    .join(", ");
+  const ticketNumbers = purchase.tickets.map((t) => t.ticketNumber).sort().join(", ");
   const subject = `¡Tus tickets para la rifa ${purchase.raffle.name} han sido aprobados! 🎉`;
   const emailBody = `
     <h1>¡Felicidades, ${purchase.buyerName}!</h1>
@@ -151,16 +168,58 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
     <p>Estos son tus tickets de la suerte:</p>
     <p style="font-size: 1.5rem; font-weight: bold; color: #f97316;">${ticketNumbers}</p>
     <p>¡Mucha suerte en el sorteo! El ganador será anunciado en nuestra página web y redes sociales.</p>
-    <p>El equipo de JadRifas.</p>
+    <p>El equipo de Llevateloconjorvi.</p>
   `;
-  // Envío del correo
+  
+  // 1. Envío del correo (esto ya funcionaba)
   await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
 
-  // Envío del mensaje de WhatsApp
-  const whatsappText = `¡Hola, ${purchase.buyerName}! 🎉\n\nTu compra para la rifa *${
-    purchase.raffle.name
-  }* ha sido confirmada.\n\nAquí están tus tickets de la suerte:\n\n*${ticketNumbers}*\n\n¡Mucha suerte! Revisa tu email para más detalles. 😉`;
-  await sendWhatsappMessage(purchase.buyerPhone!, whatsappText);
+  // 2. Envío del mensaje de WhatsApp con verificación y manejo de errores
+  const whatsappText = `¡Hola, ${purchase.buyerName}! 🎉\n\nTu compra para la rifa *${purchase.raffle.name}* ha sido confirmada.\n\nAquí están tus tickets de la suerte:\n\n*${ticketNumbers}*\n\n¡Mucha suerte! Revisa tu email para más detalles. 😉`;
+  
+  // --- MEJORA CLAVE ---
+  // Verificamos si existe el número de teléfono antes de intentar enviar.
+  if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
+    console.log(`Intentando enviar WhatsApp al número: ${purchase.buyerPhone}`);
+    try {
+      // Envolvemos la llamada en un try...catch para capturar cualquier error.
+      await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
+      console.log(`WhatsApp enviado con éxito a ${purchase.buyerPhone}`);
+    } catch (error) {
+      // Si hay un error, lo mostraremos en la consola del servidor para poder depurarlo.
+      console.error(`ERROR al enviar WhatsApp a ${purchase.buyerPhone}:`, error);
+    }
+  } else {
+    console.warn(`No se envió WhatsApp para la compra #${purchase.id} porque no se proporcionó un número de teléfono.`);
+  }
+}
+
+// ✅ --- NUEVA FUNCIÓN ---
+// Envía un WhatsApp para notificar que la compra está pendiente de revisión.
+async function sendConfirmationWhatsapp(purchaseId: string): Promise<void> {
+  const purchase = await db.query.purchases.findFirst({
+    where: eq(purchases.id, purchaseId),
+    with: { raffle: true },
+  });
+
+  if (!purchase || !purchase.buyerPhone) {
+    console.warn(`No se envió WhatsApp de confirmación para la compra #${purchaseId} por falta de número.`);
+    return;
+  }
+  
+  const text = `¡Hola, ${purchase.buyerName}! 👋\n\nRecibimos tu solicitud de compra para la rifa *${purchase.raffle.name}*. \n\nTu pago está siendo verificado. Te notificaremos por aquí y por correo una vez que sea aprobado. ¡Gracias por participar!`;
+
+  try {
+    console.log(`Intentando enviar WhatsApp de confirmación a: ${purchase.buyerPhone}`);
+    const result = await sendWhatsappMessage(purchase.buyerPhone, text);
+    if (result.success) {
+      console.log(`WhatsApp de confirmación enviado con éxito a ${purchase.buyerPhone}`);
+    } else {
+      console.error(`Falló el envío de WhatsApp de confirmación a ${purchase.buyerPhone}:`, result.error);
+    }
+  } catch (error) {
+    console.error(`ERROR CATASTRÓFICO al enviar WhatsApp de confirmación:`, error);
+  }
 }
 
 // ----------------------------------------------------------------
@@ -296,15 +355,13 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         const pabiloData = await pabiloResponse.json();
         if (pabiloResponse.ok && pabiloData.data?.user_bank_payment?.status === 'paid') {
           console.info("✅ Pabilo CONFIRMÓ el pago exitosamente. La compra será automática.");
-          console.log("Respuesta de Pabilo:", pabiloData);
           purchaseStatus = "confirmed";
           responseMessage = "¡Pago confirmado automáticamente! Tus tickets ya han sido generados.";
         } else {
           console.warn("⚠️ Pabilo NO encontró el pago. Pasando a verificación manual.");
-          console.log("Respuesta de Pabilo:", pabiloData);
         }
       } catch (apiError) {
-        console.error("⛔ Error de conexión con la API de Pabilo. No se pudo verificar el pago.", apiError);
+        console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
       }
     }
 
@@ -329,11 +386,14 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     revalidatePath(`/rifas/${raffleId}`);
     revalidatePath("/dashboard");
 
-    // --- NUEVO: Lógica de notificación ---
+    // ✅ --- LÓGICA DE NOTIFICACIÓN MODIFICADA ---
     if (purchaseStatus === 'confirmed') {
+      // Si el pago es automático, envía tickets por ambos medios.
       await sendTicketsEmailAndWhatsapp(newPurchase.id);
     } else {
+      // Si el pago queda pendiente, envía notificación de confirmación por ambos medios.
       await sendConfirmationEmail(newPurchase.id);
+      await sendConfirmationWhatsapp(newPurchase.id);
     }
 
     return { success: true, message: responseMessage, data: newPurchase };
@@ -360,30 +420,29 @@ export async function updatePurchaseStatusAction(
   const { purchaseId, newStatus } = validatedFields.data;
 
   try {
-    await db.transaction(async (tx) => {
-      const purchase = await tx.query.purchases.findFirst({
+    const purchase = await db.query.purchases.findFirst({
         where: eq(purchases.id, purchaseId),
-      });
-      if (!purchase || purchase.status !== "pending")
-        throw new Error("Esta compra no se puede modificar.");
+    });
+
+    if (!purchase) {
+        throw new Error("Compra no encontrada.");
+    }
+    // Evita modificar compras ya procesadas
+    if (purchase.status !== "pending") {
+        return { success: false, message: "Esta compra ya ha sido procesada y no se puede modificar."};
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.update(purchases).set({ status: newStatus }).where(eq(purchases.id, purchaseId));
+      
       if (newStatus === "confirmed") {
-        await tx
-          .update(tickets)
-          .set({ status: "sold" })
-          .where(eq(tickets.purchaseId, purchaseId));
-        // --- NUEVO: Enviar notificaciones al confirmar ---
+        await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
+        // Se llama a la función centralizada que envía AMBOS email y WhatsApp
         await sendTicketsEmailAndWhatsapp(purchaseId);
       } else if (newStatus === "rejected") {
-        await tx
-          .update(tickets)
-          .set({ status: "available", purchaseId: null })
-          .where(eq(tickets.purchaseId, purchaseId));
-        // Opcional: Notificar rechazo (no implementado en este código para ser conciso)
+        await tx.update(tickets).set({ status: "available", purchaseId: null, reservedUntil: null }).where(eq(tickets.purchaseId, purchaseId));
+        // Opcional: podrías implementar una notificación de rechazo aquí
       }
-      await tx
-        .update(purchases)
-        .set({ status: newStatus })
-        .where(eq(purchases.id, purchaseId));
     });
 
     revalidatePath("/dashboard");
@@ -392,9 +451,7 @@ export async function updatePurchaseStatusAction(
 
     return {
       success: true,
-      message: `La compra ha sido ${
-        newStatus === "confirmed" ? "confirmada" : "rechazada"
-      }.`,
+      message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada"}.`,
     };
   } catch (error: any) {
     console.error("Error al actualizar compra:", error);
@@ -925,5 +982,38 @@ export async function deletePaymentMethodAction(prevState: any, formData: FormDa
     return { success: true, message: "Método de pago eliminado." };
   } catch (error) {
     return { success: false, message: "Error al eliminar." };
+  }
+}
+
+const DeleteUserSchema = z.object({
+  id: z.string().min(1, "ID de usuario requerido"),
+});
+
+export async function deleteUserAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const validatedFields = DeleteUserSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return { success: false, message: "ID de usuario inválido." };
+  }
+
+  const { id } = validatedFields.data;
+
+  try {
+    const deletedUser = await db.delete(users).where(eq(users.id, id)).returning({ id: users.id });
+
+    if (deletedUser.length === 0) {
+      return { success: false, message: "No se encontró el usuario a eliminar." };
+    }
+
+    revalidatePath("/usuarios"); // Revalida la ruta del panel de usuarios
+    return { success: true, message: "Usuario eliminado con éxito." };
+
+  } catch (error: any) {
+    console.error("Error al eliminar usuario:", error);
+    // Maneja el caso en que el usuario no se puede borrar por tener datos asociados
+    if (error.code === '23503') {
+        return { success: false, message: "No se puede eliminar el usuario porque tiene registros asociados." };
+    }
+    return { success: false, message: "Error del servidor al intentar eliminar el usuario." };
   }
 }

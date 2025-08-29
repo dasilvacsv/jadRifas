@@ -1,3 +1,4 @@
+// features/whatsapp/actions.ts
 'use server'
 
 import { z } from 'zod'
@@ -19,15 +20,11 @@ type SendMessageResponse = {
   data?: any
 }
 
-// --- NUEVA FUNCIÓN DE AYUDA PARA FORMATEAR EL NÚMERO ---
 const formatPhoneNumber = (phone: string): string => {
-  // Limpia el número de cualquier carácter no numérico
   const cleanPhone = phone.replace(/\D/g, '');
-  // Si el número comienza con '0', lo reemplaza con '58'
-  if (cleanPhone.startsWith('0')) {
+  if (cleanPhone.startsWith('0') && cleanPhone.length === 11) { // Específico para Venezuela
     return `58${cleanPhone.substring(1)}`;
   }
-  // Si no, devuelve el número tal cual (asumiendo que ya tiene el formato correcto)
   return cleanPhone;
 };
 
@@ -42,19 +39,19 @@ export async function sendWhatsappMessage(
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
-    // --- CAMBIO: Formatea el número antes de validarlo y usarlo ---
     const formattedPhone = formatPhoneNumber(phoneNumber);
     const validated = sendMessageSchema.parse({ phoneNumber: formattedPhone, text });
     
-    const API_BASE_URL = process.env.NEXT_PUBLIC_EVOLUTION_API_URL
-    const API_KEY = process.env.EVO_API_KEY
-    const INSTANCE_NAME = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'jadRifas'
+    // --- CAMBIO: Usando los nombres de tu .env ---
+    const API_BASE_URL = process.env.EVOLUTION_API_URL
+    const API_KEY = process.env.EVOLUTION_API_KEY
+    const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
     
-    if (!API_BASE_URL || !API_KEY) {
+    if (!API_BASE_URL || !API_KEY || !INSTANCE_NAME) {
       throw new Error('Missing Evolution API configuration')
     }
 
-    console.log(`Sending WhatsApp message to ${formattedPhone} using instance ${INSTANCE_NAME}...`);
+    console.log(`Sending WhatsApp message to ${validated.phoneNumber} using instance ${INSTANCE_NAME}...`);
     const response = await fetch(`${API_BASE_URL}/message/sendText/${INSTANCE_NAME}`, {
       method: 'POST',
       headers: {
@@ -62,21 +59,18 @@ export async function sendWhatsappMessage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        number: validated.phoneNumber, // Usa el número ya formateado y validado
+        number: validated.phoneNumber,
         text: validated.text,
-        delay: 450,
-        linkPreview: true,
       }),
     })
 
     if (!response.ok) {
       const error = await response.json()
       console.error('Evolution API response error:', error);
-      throw new Error(error.message || 'Failed to send message')
+      throw new Error(JSON.stringify(error) || 'Failed to send message')
     }
 
     const data = await response.json()
-    console.log('WhatsApp message sent successfully:', data);
     return { success: true, data }
 
   } catch (error) {
@@ -94,31 +88,22 @@ export async function sendWhatsappMessageWithQR(
   image: string
 ): Promise<SendMessageResponse> {
   try {
-    // Check if messaging is enabled in environment variables
     const messagesEnabled = process.env.MESSAGES_ENABLED === 'true';
     if (!messagesEnabled) {
-      console.log('WhatsApp messages are disabled by environment setting');
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
-    const validated = sendMessageWithQRSchema.parse({ 
-      phoneNumber, 
-      text, 
-      image
-    });
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    const validated = sendMessageWithQRSchema.parse({ phoneNumber: formattedPhone, text, image });
     
-    // Remove the data URL prefix if present
     const base64Image = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
     
-    const cleanPhone = validated.phoneNumber.replace(/\D/g, '')
-    
-    const API_BASE_URL = process.env.NEXT_PUBLIC_EVOLUTION_API_URL
-    const API_KEY = process.env.EVO_API_KEY
-    const INSTANCE_NAME = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'Multiservice'
-    // Get boss phone from environment variable
-    const bossPhone = process.env.BOSS_PHONE || '+584167435109'
+    // --- CAMBIO: Usando los nombres de tu .env ---
+    const API_BASE_URL = process.env.EVOLUTION_API_URL
+    const API_KEY = process.env.EVOLUTION_API_KEY
+    const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
 
-    if (!API_BASE_URL || !API_KEY) {
+    if (!API_BASE_URL || !API_KEY || !INSTANCE_NAME) {
       throw new Error('Missing Evolution API configuration')
     }
 
@@ -129,33 +114,26 @@ export async function sendWhatsappMessageWithQR(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        number: cleanPhone,
+        number: validated.phoneNumber,
         mediatype: "image",
         mimetype: "image/png",
-        media: base64Image, // Send only the base64 string without the prefix
+        media: base64Image,
         caption: validated.text,
-        fileName: `order-${Date.now()}.png`, // Add a dynamic filename
-        delay: 450,
+        fileName: `order-${Date.now()}.png`,
       }),
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.message || 'Failed to send media message')
+      throw new Error(JSON.stringify(error) || 'Failed to send media message')
     }
 
     const data = await response.json()
-    return {
-      success: true,
-      data,
-    }
+    return { success: true, data }
 
   } catch (error) {
     console.error('Error sending WhatsApp message with QR:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message with QR',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send message with QR' }
   }
 }
 
@@ -166,52 +144,31 @@ export async function sendWhatsappMessageWithPDF(
   fileName: string
 ): Promise<SendMessageResponse> {
   try {
-    // Check if messaging is enabled in environment variables
     const messagesEnabled = process.env.MESSAGES_ENABLED === 'true';
     if (!messagesEnabled) {
-      console.log('WhatsApp messages are disabled by environment setting');
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
-    // Remove any data URL prefix if present
+    const formattedPhone = formatPhoneNumber(phoneNumber);
     const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
     
-    // Log the original phone before cleaning
-    console.log('Original phone number before cleaning:', phoneNumber);
-    
-    const cleanPhone = phoneNumber.replace(/\D/g, '')
-    
-    // Log the phone after cleaning to see if formatting is an issue
-    console.log('Clean phone number after removing non-digits:', cleanPhone);
-    
-    const API_BASE_URL = process.env.NEXT_PUBLIC_EVOLUTION_API_URL
-    const API_KEY = process.env.EVO_API_KEY
-    const INSTANCE_NAME = process.env.NEXT_PUBLIC_EVOLUTION_INSTANCE || 'Multiservice'
-    // Get boss phone from environment variable
-    const bossPhone = process.env.BOSS_PHONE || '+584167435109'
+    // --- CAMBIO: Usando los nombres de tu .env ---
+    const API_BASE_URL = process.env.EVOLUTION_API_URL
+    const API_KEY = process.env.EVOLUTION_API_KEY
+    const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
 
-    if (!API_BASE_URL || !API_KEY) {
+    if (!API_BASE_URL || !API_KEY || !INSTANCE_NAME) {
       throw new Error('Missing Evolution API configuration')
     }
-
-    console.log(`Attempting to send PDF to ${cleanPhone}, file name: ${fileName}`);
     
-    // Create the request body
     const requestBody = {
-      number: cleanPhone,
+      number: formattedPhone,
       mediatype: "document",
       mimetype: "application/pdf",
       media: base64Data,
       caption: text,
       fileName: fileName || `document-${Date.now()}.pdf`,
-      delay: 450,
     };
-    
-    // Log the request body (without the media content for brevity)
-    console.log('Request body (without media content):', {
-      ...requestBody,
-      media: base64Data ? `[Base64 string of length ${base64Data.length}]` : '[No media data]'
-    });
     
     const response = await fetch(`${API_BASE_URL}/message/sendMedia/${INSTANCE_NAME}`, {
       method: 'POST',
@@ -224,26 +181,14 @@ export async function sendWhatsappMessageWithPDF(
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Evolution API response error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorData
-      });
-      throw new Error(errorData.message || `Failed to send PDF document (Status: ${response.status})`)
+      throw new Error(JSON.stringify(errorData) || `Failed to send PDF document (Status: ${response.status})`)
     }
 
     const data = await response.json()
-    console.log('Success response from Evolution API:', data);
-    return {
-      success: true,
-      data,
-    }
+    return { success: true, data }
 
   } catch (error) {
     console.error('Error sending WhatsApp message with PDF:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message with PDF',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send message with PDF' }
   }
 }

@@ -3,37 +3,31 @@ import { raffles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { RaffleDetailView } from '@/components/rifas/raffle-detail-view'; // Asegúrate que esta ruta sea correcta
+import { getTopBuyers } from '@/lib/actions'; // 1. IMPORTA la nueva server action
 
 export const revalidate = 0;
 
 export default async function RaffleDetailPage({ params }: { params: { id: string } }) {
-  // Obtenemos todos los datos necesarios en el servidor
+  const raffleId = params.id;
+
+  // 2. OBTÉN LOS DATOS DE LA RIFA (CON TICKETS COMPLETOS)
   const raffle = await db.query.raffles.findFirst({
-    where: eq(raffles.id, params.id),
+    where: eq(raffles.id, raffleId),
     with: {
       images: true,
-      // Ordenamos las compras para que las más recientes aparezcan primero
       purchases: {
         orderBy: (purchases, { desc }) => [desc(purchases.createdAt)],
       },
-      // Para las estadísticas, solo necesitamos saber cuántos tickets hay, 
-      // no todos sus datos, así que solo pedimos el ID por eficiencia.
-      tickets: {
-        columns: {
-          id: true,
-        }
-      },
-      // ---- INICIO DE LA CORRECCIÓN ----
-      // Aquí le pedimos a la base de datos que también nos traiga la información
-      // del ticket que ganó la rifa.
+      // --- CAMBIO CLAVE ---
+      // Necesitamos los datos completos de los tickets (número, estado, purchaseId)
+      // para que la nueva tabla de datos pueda funcionar.
+      // Por eso cambiamos la consulta a `true`.
+      tickets: true,
       winnerTicket: {
         with: {
-          // Y para ese ticket ganador, también necesitamos los datos de la compra
-          // asociada para poder mostrar el nombre del comprador.
           purchase: true,
         },
       },
-      // ---- FIN DE LA CORRECCIÓN ----
     },
   });
 
@@ -41,6 +35,16 @@ export default async function RaffleDetailPage({ params }: { params: { id: strin
     notFound();
   }
 
-  // Pasamos los datos completos (incluyendo el ganador) al componente cliente
-  return <RaffleDetailView initialRaffle={raffle} />;
+  // 3. OBTÉN EL TOP DE COMPRADORES
+  // Llamamos a la nueva acción que creamos para obtener el ranking.
+  const topBuyersData = await getTopBuyers(raffleId);
+
+  // 4. PASA AMBOS DATOS AL COMPONENTE CLIENTE
+  // Ahora el componente recibe tanto la rifa como el top de compradores como props.
+  return (
+    <RaffleDetailView
+      initialRaffle={raffle as any} // 'as any' para simplificar, puedes crear un tipo más estricto
+      topBuyers={topBuyersData}
+    />
+  );
 }

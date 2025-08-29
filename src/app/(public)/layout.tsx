@@ -107,6 +107,14 @@ export default function PublicLayout({
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
                         </nav>
                         
+                        {/* ▼▼▼ MODIFICADO: Logos de Loterías con tamaño aún más ajustado ▼▼▼ */}
+                        <div className="hidden lg:flex items-center gap-6">
+                            <Image src="/conalot.png" alt="Conalot Logo" width={70} height={25} className="object-contain" />
+                            <Image src="/tachira.png" alt="Lotería del Táchira Logo" width={70} height={25} className="object-contain" />
+                            <Image src="/super-gana.png" alt="Super Gana Logo" width={70} height={25} className="object-contain" />
+                        </div>
+                        {/* ▲▲▲ FIN MODIFICADO ▲▲▲ */}
+                        
                         {/* Botones de acción adaptativos */}
                         <div className="flex items-center gap-2 sm:gap-3">
                             <Link href="/mis-tickets">
@@ -168,53 +176,63 @@ export default function PublicLayout({
             {/* ✅ MEJORA: Footer con sección de redes sociales y efectos visuales refinados */}
             <footer className="bg-black border-t border-zinc-800/50 overflow-hidden">
                  <div className="relative max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
-                     {/* Efecto Aurora refinado */}
-                     <div className="absolute inset-0 z-0 opacity-15 mix-blend-lighten">
-                       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-amber-500 rounded-full filter blur-3xl animate-blob"></div>
-                       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-orange-600 rounded-full filter blur-3xl animate-blob animation-delay-2000"></div>
-                     </div>
+                       {/* Efecto Aurora refinado */}
+                       <div className="absolute inset-0 z-0 opacity-15 mix-blend-lighten">
+                           <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-amber-500 rounded-full filter blur-3xl animate-blob"></div>
+                           <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-orange-600 rounded-full filter blur-3xl animate-blob animation-delay-2000"></div>
+                       </div>
 
-                     <div className="absolute inset-0 z-0 bg-grid-white/[0.03]"></div>
-                     <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-12">
-                         <div className="space-y-4 md:col-span-2">
-                             <div className="flex items-center gap-4">
-                                 <div className="relative h-12 w-12 flex items-center justify-center rounded-full bg-white/90 p-1">
-                                      <Image 
-                                          src="/jorvi.png" 
-                                          alt="Jorvilaniña Logo" 
-                                          fill 
-                                          className="object-contain rounded-full"
-                                          sizes="48px"
-                                      />
-                                 </div>
-                                 <span className="text-xl font-bold text-white">Jorvilaniña</span>
-                             </div>
-                             <p className="text-zinc-400 text-sm max-w-xs">
-                                  La plataforma más segura y emocionante para participar en rifas y ganar premios increíbles. ¡Tu suerte te espera!
-                             </p>
-                         </div>
-                        
-                         <div>
-                             <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Navegación</h3>
-                             <ul className="mt-4 space-y-3">
-                                 <li><Link href="/" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Inicio</Link></li>
-                                 <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
-                                 <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
-                             </ul>
-                         </div>
+                       <div className="absolute inset-0 z-0 bg-grid-white/[0.03]"></div>
+                       <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-12">
+                           <div className="space-y-4 md:col-span-2">
+                               <div className="flex items-center gap-4">
+                                   <div className="relative h-12 w-12 flex items-center justify-center rounded-full bg-white/90 p-1">
+                                        <Image 
+                                             src="/jorvi.png" 
+                                             alt="Jorvilaniña Logo" 
+                                             fill 
+                                             className="object-contain rounded-full"
+                                             sizes="48px"
+                                        />
+                                   </div>
+                                   <span className="text-xl font-bold text-white">Jorvilaniña</span>
+                               </div>
+                               <p className="text-zinc-400 text-sm max-w-xs">
+                                    La plataforma más segura y emocionante para participar en rifas y ganar premios increíbles. ¡Tu suerte te espera!
+                               </p>
 
-                         <div>
-                             <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Síguenos</h3>
-                             <div className="flex items-center gap-4 mt-4">
-                                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Instagram className="h-6 w-6"/></a>
-                                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Facebook className="h-6 w-6"/></a>
-                             </div>
-                         </div>
-                     </div>
-                    
-                     <div className="relative z-10 mt-16 pt-8 border-t border-zinc-800/50 text-center">
-                         <p className="text-sm text-zinc-500">&copy; {new Date().getFullYear()} Jorvilaniña. Todos los derechos reservados.</p>
-                     </div>
+                               {/* Logos de respaldo en el footer (mantienen su tamaño más grande) */}
+                               <div className="pt-6">
+                                   <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Nos Respaldan</h3>
+                                   <div className="flex items-center gap-6 mt-4">
+                                       <Image src="/conalot.png" alt="Conalot Logo" width={120} height={40} className="object-contain" />
+                                       <Image src="/tachira.png" alt="Lotería del Táchira Logo" width={120} height={40} className="object-contain" />
+                                       <Image src="/super-gana.png" alt="Super Gana Logo" width={120} height={40} className="object-contain" />
+                                   </div>
+                               </div>
+                           </div>
+                           
+                           <div>
+                               <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Navegación</h3>
+                               <ul className="mt-4 space-y-3">
+                                   <li><Link href="/" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Inicio</Link></li>
+                                   <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
+                                   <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
+                               </ul>
+                           </div>
+
+                           <div>
+                               <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Síguenos</h3>
+                               <div className="flex items-center gap-4 mt-4">
+                                   <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Instagram className="h-6 w-6"/></a>
+                                   <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Facebook className="h-6 w-6"/></a>
+                               </div>
+                           </div>
+                       </div>
+                       
+                       <div className="relative z-10 mt-16 pt-8 border-t border-zinc-800/50 text-center">
+                           <p className="text-sm text-zinc-500">&copy; {new Date().getFullYear()} Jorvilaniña. Todos los derechos reservados.</p>
+                       </div>
                  </div>
             </footer>
         </div>

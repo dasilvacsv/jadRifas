@@ -46,18 +46,24 @@ interface BuyTicketsFormProps {
 // --- CONSTANTES Y ESTADO INICIAL (Modificado) ---
 const initialState = { success: false, message: '' };
 
+// ✅ --- FUNCIÓN CORREGIDA ---
+// Esta función ahora coloca el símbolo '$' correctamente para USD.
 const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string = 'es-VE') => {
-  // Manejar el formato para USD y VES
-  const symbol = currency === 'USD' ? '$' : 'Bs';
-  const formattedAmount = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
+  // Formatea solo la parte numérica para tener control sobre el símbolo
+  const formattedNumber = new Intl.NumberFormat(locale, {
+    style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
 
-  return formattedAmount.replace(currency, '').trim() + (currency === 'USD' ? '' : ' Bs');
+  // Añade el símbolo de la moneda en la posición correcta
+  if (currency === 'USD') {
+    return `$${formattedNumber}`; // Símbolo al principio para USD
+  } else {
+    return `${formattedNumber} Bs`; // Símbolo al final para VES
+  }
 };
+
 
 const TICKET_AMOUNTS = [2, 5, 10, 15, 20, 25];
 
