@@ -268,17 +268,17 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
         <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
             <Clock className="h-5 w-5 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] w-full justify-between">
-                 <>
-                    {timeUnits.days > 0 && (
-                        <div className="flex items-end leading-none">
-                            <span className="text-2xl font-bold text-white">{String(timeUnits.days).padStart(2, '0')}</span>
-                            <span className="text-zinc-500 ml-1 mb-0.5">d</span>
-                        </div>
-                    )}
-                    <span className="text-2xl font-bold text-white">{String(timeUnits.hours).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
-                    <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
-                    <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
-                </>
+                     <>
+                        {timeUnits.days > 0 && (
+                            <div className="flex items-end leading-none">
+                                <span className="text-2xl font-bold text-white">{String(timeUnits.days).padStart(2, '0')}</span>
+                                <span className="text-zinc-500 ml-1 mb-0.5">d</span>
+                            </div>
+                        )}
+                        <span className="text-2xl font-bold text-white">{String(timeUnits.hours).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
+                        <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
+                    </>
             </div>
         </div>
     );
@@ -349,9 +349,9 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                         )}
                         <RaffleImagesCarousel images={raffle.images} raffleName={raffle.name} />
                         {isFeatured && (
-                             <Badge className="absolute top-4 left-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-1.5 px-4 border border-purple-300/50 shadow-lg shadow-black/30 animate-pulse">
-                                 <Star className="h-4 w-4 mr-2" /> RIFA ESTRELLA
-                             </Badge>
+                               <Badge className="absolute top-4 left-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-1.5 px-4 border border-purple-300/50 shadow-lg shadow-black/30 animate-pulse">
+                                   <Star className="h-4 w-4 mr-2" /> RIFA ESTRELLA
+                               </Badge>
                         )}
                         <Badge variant="secondary" className="absolute top-4 right-4 bg-black/50 text-amber-300 font-semibold py-1 px-3 border border-amber-300/20 backdrop-blur-sm">
                             <Sparkles className="h-3.5 w-3.5 mr-1.5 text-amber-400" /> ¡EN VIVO!
@@ -381,8 +381,8 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                             <p className="text-3xl font-extrabold text-white leading-none">{formatCurrency(raffle.price, raffle.currency)}</p>
                         </div>
                         <Button size="lg" className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-xl px-8 py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
-                                <Ticket className="h-5 w-5 mr-2.5"/>
-                                Participar Ahora
+                                 <Ticket className="h-5 w-5 mr-2.5"/>
+                                 Participar Ahora
                         </Button>
                     </CardFooter>
                 </Card>
@@ -487,7 +487,7 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
                 style={{ rotateX, rotateY }}
-                className="group relative rounded-[2.5rem] p-px overflow-hidden animated-border-jorvi w-full max-w-lg mx-auto z-20"
+                className="group relative rounded-[2.5rem] p-px overflow-hidden animated-border-jorvi w-full max-w-2xl mx-auto z-20" // AUMENTADO el max-w-xl a max-w-2xl
             >
                 <motion.div
                     className="pointer-events-none absolute -inset-px rounded-[2.5rem] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
@@ -495,28 +495,26 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                 />
 
                 <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl shadow-black/70 transition-shadow duration-500 group-hover:shadow-[0_0_25px_theme(colors.amber.500/40%)]">
-                    <div className="relative w-full h-[320px] flex justify-center items-end bg-gradient-to-b from-black/50 to-transparent">
+                    <div className="relative w-full h-[550px] flex justify-center items-end bg-gradient-to-b from-black/50 to-transparent"> {/* AUMENTADO el h-[400px] a h-[550px] */}
                         <div className="sparkle-particles">
                             {[...Array(10)].map((_, i) => <div key={i} className="sparkle" />)}
                         </div>
                         
-                        {/* ✅ MODIFICADO: Contenedor de la imagen de Jorvi ahora con un fondo de universo */}
                         <motion.div
-                            className="absolute w-[300px] h-[400px] p-0.5 rounded-2xl golden-bevel universe-background shadow-xl shadow-amber-950/70 z-10 -bottom-16"
+                            className="absolute w-[600px] h-[750px] p-0.5 rounded-2xl golden-bevel universe-background shadow-xl shadow-amber-950/70 z-10 -bottom-24" // AUMENTADO el tamaño y ajustado el bottom
                             initial={{ y: 50, scale: 0.9, opacity: 0 }}
                             animate={{ y: 0, scale: 1, opacity: 1 }}
                             transition={{ type: "spring", stiffness: 120, damping: 15, delay: 0.2 }}
                             whileHover={{ scale: 1.05 }}
                         >
                             <div className="relative w-full h-full rounded-xl overflow-hidden bg-black/70 border border-amber-500/20 ring-1 ring-inset ring-black/40">
-                                {/* NUEVO ENVOLTORIO CON TRANSLATEY */}
-                                <div style={{ transform: 'translateY(15%)', width: '100%', height: '100%' }}>
+                                <div style={{ transform: 'translateY(8%)', width: '100%', height: '100%' }}>
                                     <Image
-                                        src="/Jorvi2.PNG" 
+                                        src="/jorvi2.png" 
                                         alt="Jorvi, dueña de la página" 
                                         layout="fill" 
                                         quality={100} 
-                                        className="drop-shadow-xl" 
+                                        className="object-cover drop-shadow-xl" 
                                         priority
                                     />
                                 </div>
@@ -533,7 +531,7 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                         >
                             Tu suerte
                         </motion.h3>
-                         <motion.h3
+                            <motion.h3
                             className="text-5xl font-extrabold text-gold-gradient leading-tight drop-shadow-lg"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
