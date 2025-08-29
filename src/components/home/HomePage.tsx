@@ -508,7 +508,7 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                                 {/* NUEVO ENVOLTORIO CON TRANSLATEY */}
                                 <div style={{ transform: 'translateY(15%)', width: '100%', height: '100%' }}>
                                     <Image
-                                        src="/Jorvi2.png" 
+                                        src="/Jorvi2.PNG" 
                                         alt="Jorvi, dueña de la página" 
                                         layout="fill" 
                                         quality={100} 
