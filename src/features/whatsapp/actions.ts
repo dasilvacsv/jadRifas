@@ -21,11 +21,9 @@ type SendMessageResponse = {
 }
 
 const formatPhoneNumber = (phone: string): string => {
-  const cleanPhone = phone.replace(/\D/g, '');
-  if (cleanPhone.startsWith('0') && cleanPhone.length === 11) { // Específico para Venezuela
-    return `58${cleanPhone.substring(1)}`;
-  }
-  return cleanPhone;
+  // El número ya viene con el prefijo de país desde el frontend.
+  // La única tarea es limpiar cualquier caracter que no sea un dígito.
+  return phone.replace(/\D/g, '');
 };
 
 export async function sendWhatsappMessage(
@@ -39,10 +37,11 @@ export async function sendWhatsappMessage(
       return { success: true, data: { skipped: true, reason: 'Messages disabled by environment setting' } };
     }
     
+    // La función formatPhoneNumber ahora solo limpia el string.
     const formattedPhone = formatPhoneNumber(phoneNumber);
     const validated = sendMessageSchema.parse({ phoneNumber: formattedPhone, text });
     
-    // --- CAMBIO: Usando los nombres de tu .env ---
+    // --- Usando los nombres de tu .env ---
     const API_BASE_URL = process.env.EVOLUTION_API_URL
     const API_KEY = process.env.EVOLUTION_API_KEY
     const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
@@ -60,7 +59,13 @@ export async function sendWhatsappMessage(
       },
       body: JSON.stringify({
         number: validated.phoneNumber,
-        text: validated.text,
+        options: {
+          delay: 1200,
+          presence: "composing"
+        },
+        textMessage: {
+          text: validated.text
+        },
       }),
     })
 
@@ -98,7 +103,7 @@ export async function sendWhatsappMessageWithQR(
     
     const base64Image = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
     
-    // --- CAMBIO: Usando los nombres de tu .env ---
+    // --- Usando los nombres de tu .env ---
     const API_BASE_URL = process.env.EVOLUTION_API_URL
     const API_KEY = process.env.EVOLUTION_API_KEY
     const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
@@ -115,11 +120,16 @@ export async function sendWhatsappMessageWithQR(
       },
       body: JSON.stringify({
         number: validated.phoneNumber,
-        mediatype: "image",
-        mimetype: "image/png",
-        media: base64Image,
-        caption: validated.text,
-        fileName: `order-${Date.now()}.png`,
+        options: {
+          delay: 1200,
+          presence: "composing"
+        },
+        mediaMessage: {
+          mediatype: "image",
+          caption: validated.text,
+          media: base64Image,
+          fileName: `order-${Date.now()}.png`
+        },
       }),
     })
 
@@ -152,7 +162,7 @@ export async function sendWhatsappMessageWithPDF(
     const formattedPhone = formatPhoneNumber(phoneNumber);
     const base64Data = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
     
-    // --- CAMBIO: Usando los nombres de tu .env ---
+    // --- Usando los nombres de tu .env ---
     const API_BASE_URL = process.env.EVOLUTION_API_URL
     const API_KEY = process.env.EVOLUTION_API_KEY
     const INSTANCE_NAME = process.env.EVOLUTION_INSTANCE
@@ -163,11 +173,16 @@ export async function sendWhatsappMessageWithPDF(
     
     const requestBody = {
       number: formattedPhone,
-      mediatype: "document",
-      mimetype: "application/pdf",
-      media: base64Data,
-      caption: text,
-      fileName: fileName || `document-${Date.now()}.pdf`,
+      options: {
+        delay: 1200,
+        presence: "composing"
+      },
+      mediaMessage: {
+        mediatype: "document",
+        caption: text,
+        media: base64Data,
+        fileName: fileName || `document-${Date.now()}.pdf`,
+      },
     };
     
     const response = await fetch(`${API_BASE_URL}/message/sendMedia/${INSTANCE_NAME}`, {

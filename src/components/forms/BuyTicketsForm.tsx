@@ -15,6 +15,9 @@ import Image from 'next/image';
 
 // --- Importa las nuevas funciones de exchangeRates.ts ---
 import { getBCVRates } from '@/lib/exchangeRates';
+// --- INICIO DE CAMBIOS ---
+import { CountryCodeSelector } from '@/components/ui/CountryCodeSelector'; // Importa el nuevo componente
+// --- FIN DE CAMBIOS ---
 
 // --- INTERFACES (Sin cambios) ---
 interface PaymentMethod {
@@ -75,7 +78,10 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
-  const [buyerPhone, setBuyerPhone] = useState('');
+  // --- INICIO DE CAMBIOS: Estados para el teléfono ---
+  const [countryCode, setCountryCode] = useState('+58'); // Prefijo por defecto Venezuela
+  const [buyerPhone, setBuyerPhone] = useState(''); // Solo el número, sin prefijo
+  // --- FIN DE CAMBIOS ---
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -146,10 +152,14 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     };
   }, [ticketCount, reservedTickets, raffle.price, raffle.currency, exchangeRate]);
 
-  // --- MANEJADORES DE EVENTOS (Sin cambios) ---
+  // --- MANEJADORES DE EVENTOS (Con cambios) ---
   const resetForm = () => {
     setApiState(initialState); setTicketCount(2); setReservedTickets([]);
-    setPaymentMethodId(''); setBuyerName(''); setBuyerEmail(''); setBuyerPhone('');
+    setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
+    // --- INICIO DE CAMBIOS ---
+    setCountryCode('+58'); // Resetea el prefijo
+    setBuyerPhone('');     // Resetea el número
+    // --- FIN DE CAMBIOS ---
     setPaymentReference(''); setPaymentScreenshot(null); setPreview(null); setReservationError('');
   };
 
@@ -159,7 +169,19 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
     if (file) { setPreview(URL.createObjectURL(file)); } 
     else { setPreview(null); }
   };
+  
+  // --- INICIO DE CAMBIOS: Manejador para el número de teléfono ---
+  const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, ''); // Solo permite dígitos
     
+    // Lógica para Venezuela: si el prefijo es +58 y el usuario escribe '0', lo quitamos.
+    if (countryCode === '+58' && value.startsWith('0')) {
+      value = value.substring(1);
+    }
+    setBuyerPhone(value);
+  };
+  // --- FIN DE CAMBIOS ---
+
   const handleTicketCountChange = (value: number) => {
     const newCount = Math.max(1, value); 
     setTicketCount(newCount);
@@ -188,12 +210,18 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
 
     // Paso 2: Realizar la compra
     const buyFormData = new FormData();
+    // --- INICIO DE CAMBIOS: Construir el número de teléfono completo ---
+    const fullPhoneNumber = `${countryCode.replace('+', '')}${buyerPhone}`;
+    // --- FIN DE CAMBIOS ---
+
     buyFormData.append('raffleId', raffle.id);
     buyFormData.append('reservedTickets', ticketsToBuy.join(','));
     buyFormData.append('paymentMethod', selectedPaymentMethod?.title || '');
     buyFormData.append('name', buyerName);
     buyFormData.append('email', buyerEmail);
-    buyFormData.append('phone', buyerPhone);
+    // --- INICIO DE CAMBIOS ---
+    buyFormData.append('phone', fullPhoneNumber); // Envía el número completo
+    // --- FIN DE CAMBIOS ---
     buyFormData.append('paymentReference', paymentReference);
     if (paymentScreenshot) {
       buyFormData.append('paymentScreenshot', paymentScreenshot);
@@ -238,7 +266,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   return (
     <CardContent className="p-0">
       <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
-          
+        
         {/* --- Sección 1: Cantidad de Tickets --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Cantidad de Tickets</h3>
@@ -289,7 +317,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         </div>
 
         <hr className="border-t border-zinc-700" />
-          
+        
         {/* --- Sección 2: Método de Pago (Sin cambios, pero pasa el monto convertido) --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Selecciona tu método de pago</h3>
@@ -307,17 +335,51 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
           </div>
           {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency}/>}
         </div>
-          
+        
         <hr className="border-t border-zinc-700" />
 
-        {/* --- Sección 3: Datos de Contacto y Referencia (Sin cambios) --- */}
+        {/* --- Sección 3: Datos de Contacto y Referencia (CON CAMBIOS) --- */}
         <div className="space-y-6">
           <h3 className="text-xl font-bold text-center text-white">Completa tus datos de compra</h3>
           <div className="space-y-4">
-            <div className="relative"><Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label><Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><User className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
-            <div className="relative"><Label htmlFor="email" className="text-zinc-400">Email</Label><Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><AtSign className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
-            <div className="relative"><Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)</Label><Input id="phone" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><Phone className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
-            <div className="relative"><Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago</Label><Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/><FileText className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/></div>
+            <div className="relative">
+              <Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label>
+              <Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/>
+              <User className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/>
+            </div>
+            <div className="relative">
+              <Label htmlFor="email" className="text-zinc-400">Email</Label>
+              <Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/>
+              <AtSign className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/>
+            </div>
+            
+            {/* --- INICIO DE CAMBIOS: Campo de teléfono actualizado --- */}
+            <div>
+              <Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)*</Label>
+              <div className="flex items-center mt-1">
+                <CountryCodeSelector
+                  value={countryCode}
+                  onChange={setCountryCode}
+                  disabled={isPending}
+                />
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="412 1234567"
+                  value={buyerPhone}
+                  onChange={handlePhoneChange}
+                  required
+                  className="h-12 bg-black/30 border-white/10 text-white text-base rounded-l-none focus-visible:ring-offset-0 focus-visible:ring-1"
+                />
+              </div>
+            </div>
+            {/* --- FIN DE CAMBIOS --- */}
+            
+            <div className="relative">
+              <Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago</Label>
+              <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white text-base rounded-lg"/>
+              <FileText className="absolute left-3 top-9 h-5 w-5 text-zinc-500"/>
+            </div>
           </div>
         </div>
 
@@ -343,7 +405,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
         </div>
 
         <hr className="border-t border-zinc-700" />
-          
+        
         {/* --- Botón de Submit Final --- */}
         <Button type="submit" disabled={isPending || !paymentScreenshot || !paymentMethodId} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
           {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
