@@ -13,6 +13,7 @@ import {
   raffleImages,
   paymentMethods,
   currencyEnum,
+  rejectionReasonEnum,
 } from "./db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
