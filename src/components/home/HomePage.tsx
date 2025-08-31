@@ -10,9 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
-// ✅ --- INICIO DE CAMBIOS: Importar el nuevo componente ---
 import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton'; // Asegúrate de que la ruta sea correcta
-// ✅ --- FIN DE CAMBIOS ---
 
 
 // --- INTERFACES DE DATOS ---
@@ -219,7 +217,6 @@ const GlobalStyles = () => (
         position: absolute;
         filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
     }
-    /* ✅ NUEVO: Estilo para el fondo del universo */
     .universe-background {
         background-image: url('/space-background.jpg'); /* Asegúrate de tener esta imagen en tu carpeta public */
         background-size: cover;
@@ -253,10 +250,8 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
                 }
             };
             
-            // Run once immediately
             calculateTime();
             
-            // Then set up interval
             const timer = setInterval(calculateTime, 1000);
             return () => clearInterval(timer);
         }
@@ -268,17 +263,17 @@ const CountdownTimer = ({ targetDate }: { targetDate: Date }) => {
         <div className="flex items-center gap-3 text-xs text-zinc-400 font-mono">
             <Clock className="h-5 w-5 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] w-full justify-between">
-                     <>
-                        {timeUnits.days > 0 && (
-                            <div className="flex items-end leading-none">
-                                <span className="text-2xl font-bold text-white">{String(timeUnits.days).padStart(2, '0')}</span>
-                                <span className="text-zinc-500 ml-1 mb-0.5">d</span>
-                            </div>
-                        )}
-                        <span className="text-2xl font-bold text-white">{String(timeUnits.hours).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
-                        <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
-                        <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
-                    </>
+                       <>
+                            {timeUnits.days > 0 && (
+                                <div className="flex items-end leading-none">
+                                    <span className="text-2xl font-bold text-white">{String(timeUnits.days).padStart(2, '0')}</span>
+                                    <span className="text-zinc-500 ml-1 mb-0.5">d</span>
+                                </div>
+                            )}
+                            <span className="text-2xl font-bold text-white">{String(timeUnits.hours).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
+                            <span className="text-2xl font-bold text-white">{String(timeUnits.minutes).padStart(2, '0')}</span><span className="text-zinc-500 -mx-2">:</span>
+                            <span className="text-2xl font-bold text-amber-400">{String(timeUnits.seconds).padStart(2, '0')}</span>
+                       </>
             </div>
         </div>
     );
@@ -320,7 +315,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
     const ticketsSold = raffle.tickets.length;
     const progress = Math.min((ticketsSold / raffle.minimumTickets) * 100, 100);
 
-    // ✅ NUEVO: Estado para saber si el contador de la rifa ha terminado.
     const [isTimerFinished, setIsTimerFinished] = useState(false);
 
     useEffect(() => {
@@ -328,9 +322,9 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
             const difference = +new Date(raffle.limitDate) - +new Date();
             setIsTimerFinished(difference <= 0);
         };
-        checkTime(); // Verificar al montar
-        const intervalId = setInterval(checkTime, 1000); // Verificar cada segundo
-        return () => clearInterval(intervalId); // Limpiar al desmontar
+        checkTime();
+        const intervalId = setInterval(checkTime, 1000);
+        return () => clearInterval(intervalId);
     }, [raffle.limitDate]);
 
     return (
@@ -338,7 +332,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
             <Link href={`/rifa/${raffle.id}`} className="block h-full">
                 <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden h-full flex flex-col shadow-2xl shadow-black/40 transition-all duration-300">
                     <CardHeader className="p-0 relative">
-                        {/* ✅ NUEVO: Badge que aparece cuando el timer termina */}
                         {isTimerFinished && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] z-30 pointer-events-none">
                                 <div className="bg-sky-500/95 text-white text-sm font-bold px-4 py-2.5 rounded-xl backdrop-blur-sm border border-sky-300/60 shadow-lg flex items-center justify-center animate-pulse">
@@ -366,7 +359,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                         )}
                         <div className="mt-auto space-y-5 pt-4">
                             <div>
-                                {/* ✅ MODIFICADO: Ahora solo muestra el porcentaje a la derecha */}
                                 <div className="flex justify-end items-center text-xs mb-1.5">
                                     <span className="font-bold text-white">{progress.toFixed(0)}% Vendido</span>
                                 </div>
@@ -439,7 +431,19 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
     const rotateX = useTransform(cardY, [-0.5, 0.5], ['10deg', '-10deg']);
     const rotateY = useTransform(cardX, [-0.5, 0.5], ['-10deg', '10deg']);
     
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkScreenSize = () => {
+            setIsMobile(window.innerWidth < 640);
+        };
+        checkScreenSize();
+        window.addEventListener('resize', checkScreenSize);
+        return () => window.removeEventListener('resize', checkScreenSize);
+    }, []);
+
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+        if (isMobile) return;
         const rect = e.currentTarget.getBoundingClientRect();
         const mouseX_val = e.clientX - rect.left;
         const mouseY_val = e.clientY - rect.top;
@@ -452,21 +456,24 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
     };
     
     const handleMouseLeave = () => {
+        if (isMobile) return;
         cardX.set(0);
         cardY.set(0);
     };
 
     const ticketPositions = [
-        { x: "-10%", y: "15%", rotate: -20, delay: 0.6, size: 80 },
-        { x: "80%", y: "5%", rotate: 15, delay: 0.8, size: 90 },
-        { x: "20%", y: "85%", rotate: -5, delay: 1.0, size: 70 },
-        { x: "90%", y: "70%", rotate: 25, delay: 1.2, size: 100 },
-        { x: "40%", y: "-10%", rotate: 5, delay: 1.4, size: 75 },
-        { x: "-20%", y: "60%", rotate: 22, delay: 1.6, size: 85 },
+        { x: "-10%", y: "15%", rotate: -20, delay: 0.6, size: isMobile ? 60 : 80 },
+        { x: "80%", y: "5%", rotate: 15, delay: 0.8, size: isMobile ? 68 : 90 },
+        { x: "20%", y: "85%", rotate: -5, delay: 1.0, size: isMobile ? 52 : 70 },
+        { x: "90%", y: "70%", rotate: 25, delay: 1.2, size: isMobile ? 75 : 100 },
+        { x: "40%", y: "-10%", rotate: 5, delay: 1.4, size: isMobile ? 56 : 75 },
+        { x: "-20%", y: "60%", rotate: 22, delay: 1.6, size: isMobile ? 64 : 85 },
     ];
 
     return (
-        <div className="relative" style={{ perspective: '1000px' }}>
+        // ✅ --- INICIO DE CAMBIO: Se ajusta la escala en móvil ---
+        <div className="relative scale-[.80] origin-top sm:scale-100" style={{ perspective: '1000px' }}>
+        {/* ✅ --- FIN DE CAMBIO --- */}
             <div className="absolute inset-0 floating-ticket-container">
                 {ticketPositions.map((pos, i) => (
                     <motion.div
@@ -487,84 +494,85 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
                 style={{ rotateX, rotateY }}
-                className="group relative rounded-[2.5rem] p-px overflow-hidden animated-border-jorvi w-full max-w-2xl mx-auto z-20" // AUMENTADO el max-w-xl a max-w-2xl
+                className="group relative rounded-[1.875rem] sm:rounded-[2.5rem] p-px overflow-hidden animated-border-jorvi w-full max-w-lg sm:max-w-2xl mx-auto z-20"
             >
                 <motion.div
-                    className="pointer-events-none absolute -inset-px rounded-[2.5rem] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                    style={{ background: `radial-gradient(400px at ${mouseX}px ${mouseY}px, rgba(251, 191, 36, 0.15), transparent 80%)` }}
+                    className="pointer-events-none absolute -inset-px rounded-[1.875rem] sm:rounded-[2.5rem] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                    style={{ background: `radial-gradient(${isMobile ? '300px' : '400px'} at ${mouseX}px ${mouseY}px, rgba(251, 191, 36, 0.15), transparent 80%)` }}
                 />
 
-                <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl shadow-black/70 transition-shadow duration-500 group-hover:shadow-[0_0_25px_theme(colors.amber.500/40%)]">
-                    <div className="relative w-full h-[550px] flex justify-center items-end bg-gradient-to-b from-black/50 to-transparent"> {/* AUMENTADO el h-[400px] a h-[550px] */}
-                        <div className="sparkle-particles">
-                            {[...Array(10)].map((_, i) => <div key={i} className="sparkle" />)}
-                        </div>
-                        
-                        <motion.div
-                            className="absolute w-[600px] h-[750px] p-0.5 rounded-2xl golden-bevel universe-background shadow-xl shadow-amber-950/70 z-10 -bottom-24" // AUMENTADO el tamaño y ajustado el bottom
-                            initial={{ y: 50, scale: 0.9, opacity: 0 }}
-                            animate={{ y: 0, scale: 1, opacity: 1 }}
-                            transition={{ type: "spring", stiffness: 120, damping: 15, delay: 0.2 }}
-                            whileHover={{ scale: 1.05 }}
-                        >
-                            <div className="relative w-full h-full rounded-xl overflow-hidden bg-black/70 border border-amber-500/20 ring-1 ring-inset ring-black/40">
-                                <div style={{ transform: 'translateY(8%)', width: '100%', height: '100%' }}>
-                                    <Image
-                                        src="/jorvi5.png" 
-                                        alt="Jorvi, dueña de la página" 
-                                        layout="fill" 
-                                        quality={100} 
-                                        className="object-cover drop-shadow-xl" 
-                                        priority
-                                    />
-                                </div>
-                            </div>
-                        </motion.div>
+                <div className="relative bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-[1.875rem] sm:rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl shadow-black/70 transition-shadow duration-500 group-hover:shadow-[0_0_25px_theme(colors.amber.500/40%)]">
+                
+                <div className="relative w-full h-[412.5px] sm:h-[550px] flex justify-center items-end bg-gradient-to-b from-black/50 to-transparent">
+                    <div className="sparkle-particles">
+                        {[...Array(10)].map((_, i) => <div key={i} className="sparkle" />)}
                     </div>
+                    
+                    <motion.div
+                        className="absolute w-[450px] sm:w-[600px] h-[562.5px] sm:h-[750px] p-0.5 rounded-2xl golden-bevel universe-background shadow-xl shadow-amber-950/70 z-10 -bottom-18 sm:-bottom-24"
+                        initial={{ y: 50, scale: 0.9, opacity: 0 }}
+                        animate={{ y: 0, scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 120, damping: 15, delay: 0.2 }}
+                        whileHover={{ scale: 1.05 }}
+                    >
+                        <div className="relative w-full h-full rounded-xl overflow-hidden bg-black/70 border border-amber-500/20 ring-1 ring-inset ring-black/40">
+                            <div style={{ transform: 'translateY(8%)', width: '100%', height: '100%' }}>
+                                <Image
+                                    src="/jorvi5.png" 
+                                    alt="Jorvi, dueña de la página" 
+                                    layout="fill" 
+                                    quality={100} 
+                                    className="object-cover drop-shadow-xl" 
+                                    priority
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
 
-                    <div className="relative flex flex-col items-center justify-between gap-4 px-8 pt-28 pb-10 bg-zinc-900/80 rounded-b-[2.4rem] shadow-inner shadow-black/40 text-center">
+                <div className="relative flex flex-col items-center justify-between gap-4 sm:gap-4 px-6 sm:px-8 pt-20 sm:pt-28 pb-8 sm:pb-10 bg-zinc-900/80 rounded-b-[1.8rem] sm:rounded-b-[2.4rem] shadow-inner shadow-black/40 text-center">
+                    <motion.h3
+                        className="text-4xl sm:text-5xl font-extrabold text-gold-gradient leading-tight drop-shadow-lg"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
+                    >
+                        Tu suerte
+                    </motion.h3>
                         <motion.h3
-                            className="text-5xl font-extrabold text-gold-gradient leading-tight drop-shadow-lg"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
-                        >
-                            Tu suerte
-                        </motion.h3>
-                            <motion.h3
-                            className="text-5xl font-extrabold text-gold-gradient leading-tight drop-shadow-lg"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
-                        >
-                            con Jorvi
-                        </motion.h3>
+                        className="text-4xl sm:text-5xl font-extrabold text-gold-gradient leading-tight drop-shadow-lg"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
+                    >
+                        con Jorvi
+                    </motion.h3>
 
+                    <motion.p
+                        className="text-zinc-400 text-sm sm:text-base max-w-[18rem] sm:max-w-sm"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.7, delay: 0.6, ease: "easeOut" }}
+                    >
+                        Participa en rifas exclusivas y sé el próximo afortunado. ¡La suerte te espera!
+                    </motion.p>
+                    
+                    <DecorativeSeparator />
+
+                    <div className="flex flex-col items-center gap-4 sm:gap-5">
                         <motion.p
-                            className="text-zinc-400 text-base max-w-sm"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.7, delay: 0.6, ease: "easeOut" }}
+                            className="text-sm text-zinc-500 font-semibold uppercase tracking-wider"
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1 }}
                         >
-                            Participa en rifas exclusivas y sé el próximo afortunado. ¡La suerte te espera!
+                            Aceptamos tus métodos de pago favoritos:
                         </motion.p>
-                        
-                        <DecorativeSeparator />
-
-                        <div className="flex flex-col items-center gap-4">
-                            <motion.p
-                                className="text-sm text-zinc-500 font-semibold uppercase tracking-wider"
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 1 }}
-                            >
-                                Aceptamos tus métodos de pago favoritos:
-                            </motion.p>
-                            <div className="flex items-center gap-5 flex-wrap justify-center">
-                                {paymentMethods.slice(0, 4).map((method, i) => (
-                                    <PaymentIcon key={method.id} method={method} index={i} />
-                                ))}
-                            </div>
+                        <div className="flex items-center gap-4 sm:gap-5 flex-wrap justify-center">
+                            {paymentMethods.slice(0, 4).map((method, i) => (
+                                <PaymentIcon key={method.id} method={method} index={i} />
+                            ))}
                         </div>
                     </div>
+                </div>
                 </div>
             </motion.div>
         </div>
@@ -650,7 +658,7 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
                     <section className="mb-20 sm:mb-28">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                            <div className="flex flex-col items-center lg:items-end justify-center pt-20 sm:pt-24 lg:order-first">
+                            <div className="flex flex-col items-center lg:items-end justify-center pt-20 sm:pt-0 lg:order-first">
                                 <JorviHeroCard paymentMethods={paymentMethods} />
                             </div>
 
@@ -695,9 +703,7 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
             </div>
             {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
 
-            {/* ✅ --- INICIO DE CAMBIOS: Añadir el botón flotante aquí --- */}
             <FloatingWhatsAppButton />
-            {/* ✅ --- FIN DE CAMBIOS --- */}
         </>
     );
 }
