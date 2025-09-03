@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Users, DollarSign, Ticket, Crown, Loader2, Edit, Receipt, Calendar as CalendarIcon, AlertCircle, AlertTriangle, Search, Star, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Users, DollarSign, Ticket, Crown, Loader2, Edit, Receipt, Calendar as CalendarIcon, AlertCircle, AlertTriangle, Search, Star, ChevronDown, Phone, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ImageCarousel } from './image-carousel';
@@ -54,6 +54,8 @@ type WinnerTicket = {
   purchase: {
     buyerName: string | null;
     buyerEmail: string;
+    // --- CAMBIO: Se añade el teléfono del comprador ---
+    buyerPhone: string | null;
   } | null;
 };
 
@@ -95,13 +97,13 @@ type RaffleWithRelations = {
 };
 
 type UnifiedTicketInfo = {
-  id: string; 
+  id: string;
   ticketNumber: string;
   ticketStatus: 'available' | 'reserved' | 'sold';
   buyerName: string | null;
   buyerEmail: string | null;
   purchaseStatus: 'pending' | 'confirmed' | 'rejected' | null;
-  purchase: Purchase | null; 
+  purchase: Purchase | null;
 };
 
 type PurchaseWithTickets = Purchase & {
@@ -122,7 +124,7 @@ const getStatusBadge = (status: string | null) => {
       case 'confirmed': return <Badge className="bg-green-100 text-green-800">Confirmado</Badge>;
       case 'pending': return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>;
       case 'rejected': return <Badge className="bg-red-100 text-red-800">Rechazado</Badge>;
-      default: return null; 
+      default: return null;
     }
 };
 
@@ -321,7 +323,7 @@ function TopBuyersCard({ topBuyers }: { topBuyers: TopBuyer[] }) {
                         <li key={`${buyer.buyerEmail}-${index}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <span className={`flex items-center justify-center h-8 w-8 rounded-full font-bold text-sm ${
-                                    index === 0 ? 'bg-yellow-400 text-white' : 
+                                    index === 0 ? 'bg-yellow-400 text-white' :
                                     index === 1 ? 'bg-gray-300 text-gray-700' :
                                     index === 2 ? 'bg-yellow-700 text-white' : 'bg-gray-100'
                                 }`}>{index + 1}</span>
@@ -364,7 +366,7 @@ const unifiedColumns: ColumnDef<UnifiedTicketInfo>[] = [
       },
     },
 ];
-  
+
 function UnifiedDataTable({ data }: { data: UnifiedTicketInfo[] }) {
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
     const [globalFilter, setGlobalFilter] = useState('');
@@ -514,11 +516,11 @@ function SalesDataTable({ data }: { data: PurchaseWithTickets[] }) {
 }
 
 
-// --- COMPONENTE PRINCIPAL (SIN CAMBIOS) ---
-export function RaffleDetailView({ 
+// --- COMPONENTE PRINCIPAL ---
+export function RaffleDetailView({
     initialRaffle,
     topBuyers
-}: { 
+}: {
     initialRaffle: RaffleWithRelations;
     topBuyers: TopBuyer[];
 }) {
@@ -527,7 +529,7 @@ export function RaffleDetailView({
 
   const isDrawDay = new Date(raffle.limitDate) <= new Date() && raffle.status === 'active';
   const ticketsSoldCount = raffle.tickets.filter(t => t.status === 'sold').length;
-  
+
   const confirmedRevenue = raffle.purchases
     .filter(p => p.status === 'confirmed')
     .reduce((sum, purchase) => sum + parseFloat(purchase.amount), 0);
@@ -569,7 +571,7 @@ export function RaffleDetailView({
           .map(purchase => ({ ...purchase, ticketNumbers: ticketsByPurchaseId[purchase.id]?.sort((a,b) => a.localeCompare(b, undefined, {numeric: true})) || [] }))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [raffle.purchases, raffle.tickets]);
-  
+
   if (isEditing) {
     return <EditRaffleForm raffle={raffle} onCancel={() => setIsEditing(false)} />;
   }
@@ -634,6 +636,10 @@ export function RaffleDetailView({
                 </CardContent>
             </Card>
             <TopBuyersCard topBuyers={topBuyers} />
+
+            {/* ============================================================= */}
+            {/* === INICIO DEL BLOQUE DE CÓDIGO ACTUALIZADO PARA EL GANADOR === */}
+            {/* ============================================================= */}
             {raffle.status === 'finished' && (
               <Card className="shadow-lg">
                 <CardHeader><CardTitle className="flex items-center gap-2"><Crown className="h-5 w-5 text-yellow-500" />{raffle.winnerTicketId ? 'Ganador' : 'Sorteo'}</CardTitle></CardHeader>
@@ -641,7 +647,28 @@ export function RaffleDetailView({
                   {raffle.winnerTicketId && raffle.winnerTicket ? (
                     <div className="space-y-4">
                       <div><Label>Número Sorteado</Label><p className="text-2xl font-bold">{raffle.winnerLotteryNumber}</p></div>
-                      <div><Label>Ganador</Label><p className="font-semibold text-lg">{raffle.winnerTicket?.purchase?.buyerName ?? "Sin nombre"}</p><p className="text-sm text-gray-600">{raffle.winnerTicket?.purchase?.buyerEmail}</p></div>
+
+                      {/* --- Datos del Ganador con Teléfono y WhatsApp --- */}
+                      <div>
+                        <Label>Ganador</Label>
+                        <p className="font-semibold text-lg">{raffle.winnerTicket?.purchase?.buyerName ?? "Sin nombre"}</p>
+                        <p className="text-sm text-gray-600">{raffle.winnerTicket?.purchase?.buyerEmail}</p>
+
+                        {/* Se muestra solo si existe el número de teléfono */}
+                        {raffle.winnerTicket?.purchase?.buyerPhone && (
+                            <>
+                                <a href={`tel:${raffle.winnerTicket.purchase.buyerPhone}`} className="flex items-center gap-2 mt-2 text-sm text-blue-600 hover:underline">
+                                    <Phone className="h-4 w-4" />
+                                    {raffle.winnerTicket.purchase.buyerPhone}
+                                </a>
+                                <a href={`https://wa.me/${raffle.winnerTicket.purchase.buyerPhone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mt-1 text-sm text-green-600 hover:underline">
+                                    <MessageSquare className="h-4 w-4" />
+                                    Enviar WhatsApp
+                                </a>
+                            </>
+                        )}
+                      </div>
+
                       {raffle.winnerProofUrl && (
                         <div><Label>Prueba del Sorteo</Label><a href={raffle.winnerProofUrl} target="_blank" rel="noopener noreferrer"><Image src={raffle.winnerProofUrl} alt="Prueba del sorteo" width={400} height={200} className="rounded-md object-cover mt-1 border" /></a></div>
                       )}
@@ -650,6 +677,10 @@ export function RaffleDetailView({
                 </CardContent>
               </Card>
             )}
+            {/* =========================================================== */}
+            {/* === FIN DEL BLOQUE DE CÓDIGO ACTUALIZADO PARA EL GANADOR === */}
+            {/* =========================================================== */}
+
             <Card className="shadow-lg">
                 <CardHeader><CardTitle>Información</CardTitle></CardHeader>
                 <CardContent className="space-y-4 text-sm">
