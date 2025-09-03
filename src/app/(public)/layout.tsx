@@ -6,7 +6,6 @@ import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, Sp
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { AdminAuthDialog } from '@/components/admin/AdminAuthDialog';
 import { cn } from '@/lib/utils';
 import { TermsModal } from '@/components/TermsModal'; 
 import { WaitlistNavLink } from '@/components/ui/waitlist-nav-link';
@@ -144,13 +143,6 @@ export default function PublicLayout({
                                 </Button>
                             </Link>
 
-                            <AdminAuthDialog>
-                                <Button variant="outline" className="bg-transparent text-zinc-300 border-zinc-700/80 hover:bg-zinc-800 hover:text-amber-400 hover:border-amber-900/50 rounded-full transition-colors duration-300 px-3 sm:px-4">
-                                    {/* ✨ CAMBIO: Tamaño del icono ajustado para móvil (h-4 w-4) */}
-                                    <ShieldCheck className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
-                                    <span className="hidden sm:inline">Admin</span>
-                                </Button>
-                            </AdminAuthDialog>
                             
                             {/* Botón del menú móvil (sin cambios de lógica) */}
                             <div className="md:hidden">
@@ -183,12 +175,7 @@ export default function PublicLayout({
                                     Consultar Tickets
                                 </Button>
                             </Link>
-                            <AdminAuthDialog>
-                                <Button size="lg" variant="outline" className="w-full bg-transparent text-zinc-300 border-zinc-700 hover:bg-zinc-800 hover:text-amber-400 rounded-full py-6 text-base transition-colors duration-300">
-                                    <ShieldCheck className="h-5 w-5 mr-2" />
-                                    Panel de Admin
-                                </Button>
-                            </AdminAuthDialog>
+                           
                         </div>
                     </div>
                 </div>
