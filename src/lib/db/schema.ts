@@ -115,6 +115,18 @@ export const paymentMethods = pgTable("payment_methods", {
 });
 
 // ----------------------------------------------------------------
+// NUEVA TABLA PARA LA LISTA DE ESPERA (WAITLIST)
+// ----------------------------------------------------------------
+
+export const waitlistSubscribers = pgTable("waitlist_subscribers", {
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  name: varchar("name", { length: 256 }).notNull(),
+  email: varchar("email", { length: 256 }).notNull().unique(),
+  whatsapp: varchar("whatsapp", { length: 50 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ----------------------------------------------------------------
 // RELACIONES
 // ----------------------------------------------------------------
 

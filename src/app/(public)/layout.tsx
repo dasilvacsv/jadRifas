@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook } from 'lucide-react';
+import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, Sparkles } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { AdminAuthDialog } from '@/components/admin/AdminAuthDialog';
 import { cn } from '@/lib/utils';
-import { TermsModal } from '@/components/TermsModal'; // <-- Importación añadida
+import { TermsModal } from '@/components/TermsModal'; 
+import { WaitlistNavLink } from '@/components/ui/waitlist-nav-link';// <-- Importación añadida
 
 // ✅ Estilos globales para las animaciones
 const GlobalStyles = () => (
@@ -31,6 +32,20 @@ const GlobalStyles = () => (
             33% { transform: translate(30px, -50px) scale(1.1); }
             66% { transform: translate(-20px, 20px) scale(0.9); }
             100% { transform: translate(0px, 0px) scale(1); }
+        }
+
+         @keyframes pulse-glow {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+            }
+            50% {
+                transform: scale(1.03);
+                box-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+            }
+        }
+        .animate-pulse-glow {
+            animation: pulse-glow 2.5s infinite ease-in-out;
         }
     `}</style>
 );
@@ -106,6 +121,9 @@ export default function PublicLayout({
                         <nav className="hidden md:flex items-center gap-2 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1.5 shadow-inner shadow-black/20">
                             <NavLink href="/"><LayoutGrid className="h-4 w-4" /> Inicio</NavLink>
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
+                             <WaitlistNavLink href="/unete">
+        <Sparkles className="h-4 w-4" /> ¡Únete!
+    </WaitlistNavLink>
                         </nav>
                         
                         {/* Logos de Loterías con tamaño ajustado */}
@@ -151,6 +169,9 @@ export default function PublicLayout({
                     <div className="flex flex-col items-center justify-center h-full gap-y-6 px-8">
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
                         <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
+                         <WaitlistNavLink href="/unete">
+        <Sparkles className="h-4 w-4" /> ¡Únete!
+    </WaitlistNavLink>
                         
                         <div className="w-full max-w-xs pt-8 flex flex-col gap-4">
                              <Link href="/mis-tickets" className="w-full">

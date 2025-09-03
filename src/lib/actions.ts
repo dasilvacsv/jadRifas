@@ -14,6 +14,7 @@ import {
   paymentMethods,
   currencyEnum,
   rejectionReasonEnum,
+  waitlistSubscribers,
 } from "./db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
@@ -708,9 +709,7 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
       return { success: false, message: firstError || "Error de validación en los campos." };
   }
   
-  // --- MODIFICADO: Extraemos 'currency' de los datos validados ---
   const { name, description, price, minimumTickets, limitDate, currency } = validatedFields.data;
-  // --- FIN MODIFICADO ---
 
   for (const file of images) {
     if (file.size > 5 * 1024 * 1024) return { success: false, message: `El archivo ${file.name} es demasiado grande.` };
@@ -719,7 +718,6 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
 
   try {
     const newRaffle = await db.transaction(async (tx) => {
-      // --- MODIFICADO: Pasamos 'currency' al insertar en la base de datos ---
       const [createdRaffle] = await tx.insert(raffles).values({
         name, 
         description, 
@@ -727,9 +725,8 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
         minimumTickets, 
         status: "draft", 
         limitDate: new Date(limitDate),
-        currency, // <-- Campo añadido
+        currency,
       }).returning({ id: raffles.id });
-      // --- FIN MODIFICADO ---
 
       const imageUrls = await Promise.all(images.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer());
@@ -743,6 +740,17 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
     });
 
     revalidatePath("/rifas");
+    
+    // ▼▼▼ ¡AQUÍ ESTÁ LA MAGIA! ▼▼▼
+    // Después de crear la rifa, llamamos a la función de notificación.
+    // Lo hacemos en un try/catch para que, si falla la notificación, no afecte la creación de la rifa.
+    try {
+      await notifyWaitlistAboutNewRaffle(newRaffle.id, name, price.toString(), currency);
+    } catch (notificationError) {
+      console.error("La rifa se creó, pero falló el envío de notificaciones a la lista de espera.", notificationError);
+    }
+    // ▲▲▲ FIN DE LA MODIFICACIÓN ▲▲▲
+
     return { success: true, message: "Rifa creada con éxito.", data: newRaffle };
   } catch (error) {
     console.error("Error al crear la rifa:", error);
@@ -1221,5 +1229,103 @@ export async function deleteUserAction(prevState: ActionState, formData: FormDat
         return { success: false, message: "No se puede eliminar el usuario porque tiene registros asociados." };
     }
     return { success: false, message: "Error del servidor al intentar eliminar el usuario." };
+  }
+}
+
+// ----------------------------------------------------------------
+// ACTIONS PARA LA LISTA DE ESPERA (WAITLIST)
+// ----------------------------------------------------------------
+
+const WaitlistSchema = z.object({
+  name: z.string().min(3, "El nombre es requerido."),
+  email: z.string().email("El correo electrónico no es válido."),
+  whatsapp: z.string().min(10, "El número de WhatsApp no es válido."),
+});
+
+/**
+ * Acción para registrar un nuevo usuario en la lista de espera.
+ */
+export async function addToWaitlistAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const validatedFields = WaitlistSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return { success: false, message: "Datos inválidos. Por favor, revisa el formulario." };
+  }
+
+  const { name, email, whatsapp } = validatedFields.data;
+
+  try {
+    await db.insert(waitlistSubscribers).values({
+      name,
+      email,
+      whatsapp,
+    });
+
+    return { success: true, message: "¡Gracias por unirte! Te notificaremos de las próximas rifas." };
+  } catch (error: any) {
+    // Error de restricción única (código 23505 en PostgreSQL)
+    if (error.code === '23505') {
+      return { success: false, message: "Este correo o número de WhatsApp ya está registrado." };
+    }
+    console.error("Error al registrar en la lista de espera:", error);
+    return { success: false, message: "Ocurrió un error en el servidor. Inténtalo de nuevo." };
+  }
+}
+
+
+/**
+ * Notifica a todos los suscriptores de la lista de espera sobre una nueva rifa.
+ * @param raffleId El ID de la nueva rifa.
+ * @param raffleName El nombre de la nueva rifa.
+ * @param rafflePrice El precio del ticket de la nueva rifa.
+ */
+async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string, rafflePrice: string, raffleCurrency: 'USD' | 'VES') {
+  console.log(`Iniciando notificación a la lista de espera para la rifa: ${raffleName}`);
+  
+  try {
+    const subscribers = await db.query.waitlistSubscribers.findMany();
+
+    if (subscribers.length === 0) {
+      console.log("No hay suscriptores en la lista de espera para notificar.");
+      return;
+    }
+
+    const priceFormatted = raffleCurrency === 'USD' ? `$${rafflePrice}` : `Bs. ${rafflePrice}`;
+    const raffleUrl = `https://llevateloconjorvi.com/rifa/${raffleId}`; // <-- CAMBIA ESTO por tu dominio real
+
+    for (const subscriber of subscribers) {
+      // --- Preparar mensaje de Email ---
+      const emailSubject = `🎉 ¡Nueva Rifa Disponible: ${raffleName}!`;
+      const emailBody = `
+        <h1>¡Hola ${subscriber.name}!</h1>
+        <p>¡Tenemos una nueva y emocionante rifa para ti!</p>
+        <p><strong>${raffleName}</strong> ya está activa y puedes participar por tan solo <strong>${priceFormatted}</strong> por ticket.</p>
+        <p>No te pierdas la oportunidad de ganar. ¡Haz clic en el botón de abajo para participar ahora!</p>
+        <a href="${raffleUrl}" style="background-color: #f59e0b; color: white; padding: 15px 25px; text-decoration: none; border-radius: 8px; display: inline-block;">
+          Participar en la Rifa
+        </a>
+        <p>¡Mucha suerte!</p>
+        <p>El equipo de Jorvilaniña.</p>
+      `;
+
+      // --- Preparar mensaje de WhatsApp ---
+      const whatsappText = `¡Hola ${subscriber.name}! 👋\n\n🎉 ¡Ya está disponible nuestra nueva rifa: *${raffleName}*!\n\nPuedes ganar un premio increíble por solo *${priceFormatted}*.\n\n¡No te quedes fuera! Participa ahora mismo entrando a este enlace:\n${raffleUrl}\n\n¡Mucha suerte! 🍀`;
+
+      // --- Enviar notificaciones (con manejo de errores individual) ---
+      try {
+        await sendEmail({ to: subscriber.email, subject: emailSubject, body: emailBody });
+      } catch (e) {
+        console.error(`Error enviando email a ${subscriber.email}:`, e);
+      }
+      
+      try {
+        await sendWhatsappMessage(subscriber.whatsapp, whatsappText);
+      } catch (e) {
+        console.error(`Error enviando WhatsApp a ${subscriber.whatsapp}:`, e);
+      }
+    }
+    console.log(`Notificaciones enviadas a ${subscribers.length} suscriptores.`);
+  } catch (error) {
+    console.error("Error masivo al notificar a la lista de espera:", error);
   }
 }
