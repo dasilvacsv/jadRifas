@@ -12,8 +12,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'RifaSystem - Sistema de Rifas',
-  description: 'Sistema profesional de rifas con panel de administración',
+  title: 'Llevatelo con Jorvi - Rifas Exclusivas',
+  description: 'Tu suerte. con Jorvi. Participa en rifas exclusivas y sé el próximo afortunado. ¡La suerte te espera!',
 };
 
 export default function RootLayout({
