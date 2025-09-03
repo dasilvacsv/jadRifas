@@ -430,6 +430,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
   }
 }
 
+// --- MODIFICADO: El schema de compra ahora incluye el token de CAPTCHA ---
 const BuyTicketsSchema = z.object({
   name: z.string().min(3, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
@@ -439,16 +440,53 @@ const BuyTicketsSchema = z.object({
   paymentMethod: z.string().min(1, "Debe seleccionar un método de pago"),
   paymentScreenshot: z.instanceof(File).refine(file => file.size > 0, "La captura es requerida."),
   reservedTickets: z.string().min(1, "No hay tickets apartados para comprar."),
+  // --- AÑADIDO: Campo para el token del CAPTCHA ---
+  captchaToken: z.string().min(1, "Por favor, completa la verificación CAPTCHA."),
 });
+// --- FIN MODIFICADO ---
 
 export async function buyTicketsAction(formData: FormData): Promise<ActionState> {
   const data = Object.fromEntries(formData.entries());
   const paymentScreenshotFile = formData.get('paymentScreenshot') as File | null;
+  // --- AÑADIDO: Se extrae el captchaToken para la validación ---
+  const captchaToken = formData.get('captchaToken') as string;
+
+  // --- AÑADIDO: Verificación del CAPTCHA en el backend ---
+  try {
+    const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+    if (!recaptchaSecret) {
+        console.error("La clave secreta de reCAPTCHA no está configurada.");
+        return { success: false, message: "Error de configuración del servidor." };
+    }
+
+    const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `secret=${recaptchaSecret}&response=${captchaToken}`,
+    });
+
+    const captchaValidation = await response.json();
+
+    if (!captchaValidation.success) {
+        console.warn("Verificación de reCAPTCHA fallida:", captchaValidation['error-codes']);
+        return { success: false, message: "Falló la verificación CAPTCHA. Intenta de nuevo." };
+    }
+  } catch (error) {
+    console.error("Error al verificar CAPTCHA:", error);
+    return { success: false, message: "No se pudo verificar el CAPTCHA. Revisa tu conexión." };
+  }
+  // --- FIN AÑADIDO ---
+  
+  // Se pasa el 'data' completo al schema para la validación normal
   const validatedFields = BuyTicketsSchema.safeParse({ ...data, paymentScreenshot: paymentScreenshotFile });
 
   if (!validatedFields.success) {
     return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
   }
+
+  // Se omite 'captchaToken' aquí porque ya fue usado
   const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets } = validatedFields.data;
   const ticketNumbers = reservedTickets.split(',');
   let paymentScreenshotUrl = '';
@@ -478,7 +516,6 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
       console.log({ amount: amountToSend, bank_reference: referenceToSend });
 
       try {
-        // --- INICIO DE MEJORA: Añadir AbortController para timeout ---
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 65000); // Timeout de 65 segundos
 
@@ -492,11 +529,10 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             amount: amountToSend,
             bank_reference: referenceToSend,
           }),
-          signal: controller.signal, // <-- Asociar la señal
+          signal: controller.signal,
         });
         
-        clearTimeout(timeoutId); // Limpiar el timeout si la respuesta llega a tiempo
-        // --- FIN DE MEJORA ---
+        clearTimeout(timeoutId);
 
         const pabiloData = await pabiloResponse.json();
         if (pabiloResponse.ok && pabiloData.data?.user_bank_payment?.status === 'paid') {
@@ -507,13 +543,11 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
           console.warn("⚠️ Pabilo NO encontró el pago. Pasando a verificación manual.");
         }
       } catch (apiError: any) {
-        // --- MEJORA: Manejar el error de timeout ---
         if (apiError.name === 'AbortError') {
             console.error("⛔ La API de Pabilo tardó demasiado en responder (timeout). Pasando a verificación manual.");
         } else {
             console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
         }
-        // En ambos casos, el proceso continúa para verificación manual, no se detiene la compra.
       }
     }
 
@@ -538,12 +572,9 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     revalidatePath(`/rifas/${raffleId}`);
     revalidatePath("/dashboard");
 
-    // ✅ --- LÓGICA DE NOTIFICACIÓN MODIFICADA ---
     if (purchaseStatus === 'confirmed') {
-      // Si el pago es automático, envía tickets por ambos medios.
       await sendTicketsEmailAndWhatsapp(newPurchase.id);
     } else {
-      // Si el pago queda pendiente, envía notificación de confirmación por ambos medios.
       await sendConfirmationEmail(newPurchase.id);
       await sendConfirmationWhatsapp(newPurchase.id);
     }
