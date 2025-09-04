@@ -5,36 +5,40 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from './providers';
 
+// Configuración de la fuente 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
 });
 
-// --- 👇 INICIO DE LA MEJORA SEO ---
+// --- 👇 INICIO DE LA MEJORA SEO COMPLETA ---
 
-const siteUrl = 'https://www.llevateloconjorvi.com';
+const siteUrl = 'https://www.llevateloconjorvi.com'; 
 
 export const metadata: Metadata = {
-  // Título base y plantilla para páginas internas
+  // Título base y plantilla para que las demás páginas lo hereden
+  // Ejemplo: "Rifa del iPhone 15 | Llevatelo con Jorvi"
   title: {
     default: 'Llevatelo con Jorvi - Rifas Exclusivas y Premios Increíbles',
     template: '%s | Llevatelo con Jorvi',
   },
+  
+  // Descripción optimizada para motores de búsqueda
   description: 'Participa en rifas exclusivas con Jorvi y gana premios asombrosos. Compra tu ticket y sé el próximo afortunado. ¡La suerte te espera en Venezuela!',
   
   // Palabras clave relevantes para tu negocio
   keywords: ['rifas online', 'sorteos', 'premios', 'ganar', 'suerte', 'Llevatelo con Jorvi', 'Venezuela'],
   
-  // Íconos para diferentes dispositivos
+  // Íconos para navegadores y dispositivos Apple
   icons: {
-    icon: '/jorvi.png',
+    icon: '/jorvi.png', 
     apple: '/jorvi.png', 
   },
 
-  // URL canónica base del sitio
+  // Establece la URL canónica base para todo el sitio
   metadataBase: new URL(siteUrl),
 
-  // Metadatos para Robots de Búsqueda
+  // Metadatos para Robots de Búsqueda (Google, Bing, etc.)
   robots: {
     index: true,
     follow: true,
@@ -47,7 +51,7 @@ export const metadata: Metadata = {
     },
   },
 
-  // Open Graph (para Facebook, WhatsApp, etc.)
+  // Metadatos de Open Graph para compartir en redes (Facebook, WhatsApp)
   openGraph: {
     title: 'Llevatelo con Jorvi - Rifas Exclusivas y Premios Increíbles',
     description: '¡Tu oportunidad de ganar está aquí! Participa en nuestras rifas y llévate premios fantásticos.',
@@ -55,26 +59,27 @@ export const metadata: Metadata = {
     siteName: 'Llevatelo con Jorvi',
     images: [
       {
-        url: `${siteUrl}/jorvi.png`, // Crea una imagen de vista previa (1200x630px)
+        url: `${siteUrl}/jorvi.png`, 
         width: 1200,
         height: 630,
         alt: 'Logo de Llevatelo con Jorvi con premios de fondo',
       },
     ],
-    locale: 'es_VE',
+    locale: 'es_VE', 
     type: 'website',
   },
 
-  // Twitter Card (para cuando se comparte en Twitter)
+  // Metadatos de Twitter Card para compartir en Twitter
   twitter: {
     card: 'summary_large_image',
     title: 'Llevatelo con Jorvi - Rifas Exclusivas y Premios Increíbles',
     description: '¡No dejes pasar la suerte! Participa en rifas exclusivas y gana premios asombrosos con Jorvi.',
     images: [`${siteUrl}/jorvi.png`], // Reutilizamos la imagen de Open Graph
+    // creator: '@tuUsuarioDeTwitter', // ❗️
   },
 };
 
-// --- 🔼 FIN DE LA MEJORA SEO ---
+// --- 🔼 FIN DE LA MEJORA SEO COMPLETA ---
 
 
 export default function RootLayout({
@@ -82,9 +87,36 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Objeto JSON-LD para los datos estructurados de la organización
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Llevatelo con Jorvi',
+    url: siteUrl,
+    logo: `${siteUrl}/jorvi.png`, // URL completa y absoluta a tu logo
+    description: 'Sitio de rifas exclusivas en Venezuela para ganar premios increíbles.',
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'Customer Service',
+      // email: 'contacto@llevateloconjorvi.com', // ❗️ 
+      // telephone: '+58-XXX-XXXXXXX', // ❗️
+    },
+    sameAs: [
+      // ❗️ 
+      // 'https://www.instagram.com/tu_usuario',
+      // 'https://www.facebook.com/tu_pagina'
+    ]
+  };
+
   return (
     <html lang="es" className={inter.variable}>
       <body>
+        {/* --- Script de Datos Estructurados (JSON-LD) --- */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        
         <Providers>{children}</Providers>
       </body>
     </html>

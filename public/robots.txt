@@ -1,0 +1,6 @@
+# Permitir a todos los bots rastrear todo el sitio
+User-agent: *
+Disallow:
+
+# Ubicación del Sitemap
+Sitemap: https://www.llevateloconjorvi.com/sitemap.xml
