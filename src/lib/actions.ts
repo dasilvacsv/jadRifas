@@ -23,12 +23,21 @@ import { uploadToS3, deleteFromS3 } from "./s3";
 import crypto from "crypto";
 import { Resend } from "resend";
 import { sendWhatsappMessage } from "@/features/whatsapp/actions";
+import { auth } from "./auth";
 
 const resend = new Resend(process.env.RESEND_API_KEY); 
 
 // --- Credenciales de Pabilo
-const PABILO_API_KEY = "af757c4f-507e-48ef-8309-4a1eae692f59";
-const PABILO_API_URL = "https://api.pabilo.app/userbankpayment/68aa8cc1cfe77b8f17bfbfdd/betaserio";
+const PABILO_API_KEY = process.env.PABILO_API_KEY;
+const PABILO_API_URL = process.env.PABILO_API_URL;
+
+async function requireAdmin() {
+    const session = await auth();
+    if (session?.user?.role !== 'admin') {
+        throw new Error("Acceso denegado. Permisos de administrador requeridos.");
+    }
+    return session;
+}
 
 // --- TIPOS DE RESPUESTA
 export type ActionState = {
@@ -41,31 +50,36 @@ export type ActionState = {
 // ACTIONS PARA AUTENTICACIÓN
 // ----------------------------------------------------------------
 
+// --- SEGURIDAD: Se elimina el campo 'role' del schema de registro ---
 const RegisterSchema = z.object({
   name: z.string().min(2, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  role: z.enum(["admin", "user"]).default("user"),
 });
 
 export async function registerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
+  // --- SEGURIDAD: Solo un administrador puede registrar nuevos usuarios ---
+  try {
+    await requireAdmin();
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+ 
   const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) return { success: false, message: "Error de validación" };
   
-  const { name, email, password, role } = validatedFields.data;
+  const { name, email, password } = validatedFields.data;
 
   try {
     const existingUser = await db.query.users.findFirst({ where: eq(users.email, email) });
     if (existingUser) return { success: false, message: "El email ya está registrado" };
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role }).returning({ id: users.id });
     
-    // ✅ ¡ESTE ES EL CAMBIO CLAVE!
-    // Le decimos a Next.js que los datos de la página de usuarios están desactualizados
-    // y que debe volver a cargarlos para mostrar el nuevo registro.
+    // --- SEGURIDAD: Se asigna el rol 'user' por defecto en el servidor ---
+    const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role: 'user' }).returning({ id: users.id });
+    
     revalidatePath("/usuarios");
-
     return { success: true, message: "Usuario registrado exitosamente", data: newUser[0] };
 
   } catch (error) {
@@ -479,13 +493,19 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     return { success: false, message: "No se pudo verificar el CAPTCHA. Revisa tu conexión." };
   }
   // --- FIN AÑADIDO ---
+
+  if (!PABILO_API_URL || !PABILO_API_KEY) {
+        console.error("Error: Las variables de entorno PABILO_API_URL o PABILO_API_KEY no están configuradas.");
+        return { success: false, message: "Error de configuración del servidor. Contacte al administrador." };
+    }
   
   // Se pasa el 'data' completo al schema para la validación normal
   const validatedFields = BuyTicketsSchema.safeParse({ ...data, paymentScreenshot: paymentScreenshotFile });
 
   if (!validatedFields.success) {
-    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
-  }
+    console.error("Validation Error:", validatedFields.error.flatten().fieldErrors);
+    return { success: false, message: "Los datos proporcionados son inválidos. Por favor, revisa el formulario." };
+  }
 
   // Se omite 'captchaToken' aquí porque ya fue usado
   const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets } = validatedFields.data;
@@ -599,6 +619,13 @@ export async function updatePurchaseStatusAction(
   prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  // --- SEGURIDAD: Solo los administradores pueden cambiar el estado de una compra ---
+  try {
+    await requireAdmin();
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+
   const validatedFields = UpdatePurchaseStatusSchema.safeParse(
     Object.fromEntries(formData.entries())
   );
