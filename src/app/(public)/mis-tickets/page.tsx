@@ -1,16 +1,25 @@
+// En la página para buscar tickets, por ejemplo app/mis-tickets/page.tsx
+
 import { FindMyTicketsForm } from '@/components/forms/FindMyTicketsForm';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import type { Metadata } from 'next'; // 👈 1. Importa Metadata
+
+// 👇 2. Añade el objeto de metadatos
+export const metadata: Metadata = {
+  title: 'Busca Tus Tickets', // El layout añadirá "| Llevatelo con Jorvi"
+  description: 'Encuentra fácilmente los tickets de rifa que has comprado. Ingresa tu información para ver tus números de la suerte.',
+  // Le decimos a Google que no indexe esta página en los resultados de búsqueda.
+  robots: {
+    index: false, 
+    follow: true,
+  },
+};
 
 export default function MyTicketsPage() {
   return (
     <div>
-      {/* El componente FindMyTicketsForm ahora controla todo el estilo de la página, 
-        incluyendo el fondo oscuro y los efectos animados.
-        Simplemente lo renderizamos aquí.
-      */}
-
       {/* Botón para volver al inicio, estilizado para el nuevo tema */}
       <Link href="/" passHref>
         <Button
@@ -21,7 +30,6 @@ export default function MyTicketsPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
       </Link>
-
       <FindMyTicketsForm />
     </div>
   );
