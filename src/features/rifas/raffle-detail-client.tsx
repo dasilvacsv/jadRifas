@@ -60,6 +60,7 @@ interface RaffleDetailClientProps {
     raffle: Raffle;
     paymentMethods: PaymentMethod[];
     ticketsTakenCount: number;
+    exchangeRate: number | null;
 }
 
 // --- UTILIDADES (Sin cambios) ---
@@ -288,7 +289,7 @@ const getStatusBadge = (status: Raffle['status']) => {
 
 
 // --- COMPONENTE PRINCIPAL ---
-export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount }: RaffleDetailClientProps) {
+export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount,  exchangeRate }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
 
@@ -353,7 +354,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                                     <p className="text-4xl font-extrabold text-white">{formatCurrency(raffle.price, raffle.currency)}</p>
                                                 </div>
                                             </CardHeader>
-                                            <BuyTicketsForm raffle={raffle} paymentMethods={paymentMethods} />
+                                            <BuyTicketsForm raffle={raffle} paymentMethods={paymentMethods} exchangeRate={exchangeRate} />
                                         </Card>
                                     </div>
                                 ) : (

@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Wallet, UserCircle, Landmark, Fingerprint, Phone, CreditCard, DollarSign, Globe, AtSign, QrCode, Info, Loader2 } from 'lucide-react';
+import { Copy, Check, Wallet, UserCircle, Landmark, Fingerprint, Phone, CreditCard, DollarSign, Globe, AtSign, QrCode, Info } from 'lucide-react';
 
-// Importa la función para obtener la tasa de cambio del BCV
-import { getBCVRates } from '@/lib/exchangeRates';
-
+// La interfaz ahora espera la tasa de cambio como una prop
 interface PaymentDetailsProps {
   method: {
     title: string;
@@ -22,6 +20,7 @@ interface PaymentDetailsProps {
   };
   amount?: number | null;
   currency?: 'USD' | 'VES' | 'USDT';
+  exchangeRate: number | null; // <-- PROP AÑADIDA
 }
 
 const formatAmount = (amount: number, currency: 'USD' | 'VES' | 'USDT') => {
@@ -69,34 +68,18 @@ function CopyableDetail({ label, value, icon, className = '' }: { label: string;
   );
 }
 
-export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetailsProps) {
+export function PaymentDetailsDisplay({ method, amount, currency, exchangeRate }: PaymentDetailsProps) {
   const [allCopied, setAllCopied] = useState(false);
-  const [bcvRate, setBcvRate] = useState<number | null>(null);
-  const [isLoadingRate, setIsLoadingRate] = useState(true);
+
+  // Se eliminaron los estados y el useEffect para buscar la tasa de cambio
 
   const isPagoMovil = method.phoneNumber && method.rif && method.bankName;
   const isBinancePay = !!method.binancePayId;
   const isBinanceCrypto = method.walletAddress && method.network;
   const isZinli = method.phoneNumber && method.email;
 
-  // Nuevo useEffect para obtener la tasa del BCV
-  useEffect(() => {
-    const fetchBcvRate = async () => {
-      setIsLoadingRate(true);
-      try {
-        const rates = await getBCVRates();
-        setBcvRate(rates.usd.rate);
-      } catch (error) {
-        console.error("Error fetching BCV rate:", error);
-        setBcvRate(null);
-      } finally {
-        setIsLoadingRate(false);
-      }
-    };
-    fetchBcvRate();
-  }, []);
-
-  const convertedAmountInVes = (amount && currency === 'USD' && bcvRate) ? (amount * bcvRate) : null;
+  // Los cálculos ahora usan la prop `exchangeRate` directamente
+  const convertedAmountInVes = (amount && currency === 'USD' && exchangeRate) ? (amount * exchangeRate) : null;
   const amountToDisplay = isPagoMovil && currency === 'USD' ? convertedAmountInVes : amount;
   const currencyToDisplay = isPagoMovil && currency === 'USD' ? 'VES' : currency;
 
@@ -108,7 +91,6 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
     if (isPagoMovil && amountValue) {
       const bankCode = method.bankName ? method.bankName.substring(0, 4) : '';
       const rifWithoutPrefix = method.rif ? method.rif.replace(/^[VJEG]-/, '') : '';
-      // Usa el monto convertido si existe, de lo contrario usa el valor original
       const amountInVes = convertedAmountInVes ? convertedAmountInVes.toFixed(2) : amountValue;
       const linesToCopy = [
         bankCode,
@@ -116,7 +98,7 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
         method.phoneNumber,
         amountInVes
       ];
-      textToCopy = linesToCopy.join('\n'); // Cambiado a salto de línea
+      textToCopy = linesToCopy.join('\n');
     } else if (isBinancePay && formattedAmount) {
       textToCopy = `Monto: ${formattedAmount}\nID de pago: ${method.binancePayId}`;
     } else if (isZinli && formattedAmount) {
@@ -156,7 +138,6 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
       </div>
       
       <div className="bg-black/20 p-3 sm:p-4 rounded-xl border border-white/10 max-h-[50vh] overflow-y-auto">
-        {/* Lógica condicional para mostrar el monto correcto */}
         {isPagoMovil && amount !== null && amount !== undefined && (
           <>
             <CopyableDetail
@@ -164,24 +145,20 @@ export function PaymentDetailsDisplay({ method, amount, currency }: PaymentDetai
               value={formatAmount(amountToDisplay || 0, currencyToDisplay || 'VES')}
               icon={<DollarSign size={20}/>}
             />
+            {/* El JSX se simplifica, ya no necesita el estado de carga */}
             {currency === 'USD' && (
               <div className="bg-white/5 border-l-4 border-amber-400 p-3 mt-2 text-sm text-zinc-300">
-                <p>Monto original: {formatAmount(amount, 'USD')}</p>
-                {isLoadingRate ? (
-                  <p className="flex items-center mt-1"><Loader2 className="animate-spin mr-2"/> Calculando monto en Bs...</p>
+                <p>Monto original: {formatAmount(amount || 0, 'USD')}</p>
+                {exchangeRate ? (
+                    <p className="mt-1">Tasa: 1 USD = {formatAmount(exchangeRate, 'VES')}</p>
                 ) : (
-                  bcvRate ? (
-                    <p className="mt-1">Tasa BCV: 1 USD = {formatAmount(bcvRate, 'VES')}</p>
-                  ) : (
                     <p className="text-red-400 mt-1">No se pudo obtener la tasa de cambio.</p>
-                  )
                 )}
               </div>
             )}
           </>
         )}
         
-        {/* Resto de los detalles (sin cambios) */}
         {method.accountHolderName && (
           <CopyableDetail
             label="Titular"

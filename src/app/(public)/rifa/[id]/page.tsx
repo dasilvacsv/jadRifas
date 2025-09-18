@@ -5,9 +5,12 @@ import RaffleDetailClient from '@/features/rifas/raffle-detail-client';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next'; // 👈 1. Importa Metadata
 
+
+
 // 👇 2. Añade la función generateMetadata
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const result = await getRaffleData(params.id);
+  
 
   if (!result.success || !result.data) {
     // Si la rifa no se encuentra, retornamos metadatos básicos o dejamos que notFound() lo maneje
@@ -54,7 +57,7 @@ export default async function RafflePage({ params }: { params: { id: string } })
     notFound();
   }
 
-  const { raffle, paymentMethods, ticketsTakenCount } = result.data;
+  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate } = result.data;
 
   
   const raffleJsonLd = {
@@ -89,6 +92,7 @@ export default async function RafflePage({ params }: { params: { id: string } })
         raffle={raffle}
         paymentMethods={paymentMethods}
         ticketsTakenCount={ticketsTakenCount}
+        exchangeRate={exchangeRate}
       />
     </>
   );

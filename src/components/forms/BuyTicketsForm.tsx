@@ -48,8 +48,10 @@ interface BuyTicketsFormProps {
     price: string;
     currency: 'USD' | 'VES';
     status: string;
+    
   };
   paymentMethods: PaymentMethod[];
+  exchangeRate: number | null;
 }
 
 // Constantes y Estado Inicial
@@ -67,7 +69,7 @@ const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string 
 };
 
 // Componente Principal del Formulario
-export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) {
+export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialExchangeRate }: BuyTicketsFormProps) {
   // Estados del componente
   const [apiState, setApiState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
@@ -82,8 +84,8 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
   const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [reservationError, setReservationError] = useState('');
-  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
-  const [isLoadingRates, setIsLoadingRates] = useState(true);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(initialExchangeRate);
+  const [isLoadingRates, setIsLoadingRates] = useState(!initialExchangeRate); // Inicia cargando solo si no hay tasa
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState(0);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -127,21 +129,35 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
 
   // Efecto para obtener la tasa de cambio al cargar
   useEffect(() => {
-    const fetchRates = async () => {
-      setIsLoadingRates(true);
-      try {
-        const rates = await getBCVRates();
-        if (raffle.currency === 'USD') setExchangeRate(rates.usd.rate);
-        else if (raffle.currency === 'VES') setExchangeRate(1 / rates.usd.rate);
-      } catch (error) {
-        console.error("Error al obtener las tasas de cambio:", error);
-        setExchangeRate(null);
-      } finally {
-        setIsLoadingRates(false);
-      }
-    };
-    fetchRates();
-  }, [raffle.currency]);
+    // 1. Si se recibió una tasa desde el servidor, úsala y termina.
+    if (initialExchangeRate) {
+      setExchangeRate(initialExchangeRate);
+      setIsLoadingRates(false);
+      return;
+    }
+    
+    // 2. Si NO se recibió una tasa, búscala en la API como método de respaldo.
+    const fetchRates = async () => {
+      setIsLoadingRates(true);
+      try {
+        const rates = await getBCVRates();
+        if (raffle.currency === 'USD') {
+            setExchangeRate(rates.usd.rate);
+        } else if (raffle.currency === 'VES') {
+            setExchangeRate(1 / rates.usd.rate);
+        }
+      } catch (error) {
+        console.error("Error al obtener las tasas de cambio:", error);
+        setExchangeRate(null);
+      } finally {
+        setIsLoadingRates(false);
+      }
+    };
+
+    fetchRates();
+
+    // 3. Este efecto se ejecuta solo si cambia la tasa inicial o la moneda de la rifa.
+  }, [initialExchangeRate, raffle.currency]);
 
   // Manejadores de eventos
   const resetForm = () => {
@@ -319,7 +335,7 @@ export function BuyTicketsForm({ raffle, paymentMethods }: BuyTicketsFormProps) 
                 </div>
                 ))}
             </div>
-            {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency}/>}
+            {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency} exchangeRate={exchangeRate} />}
         </div>
         <hr className="border-t border-zinc-700" />
 
