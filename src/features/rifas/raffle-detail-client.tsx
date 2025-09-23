@@ -1,5 +1,3 @@
-// src/components/RaffleDetailClient.tsx (Diseño "Stardust")
-
 'use client'
 
 import { useState, memo, useEffect } from 'react';
@@ -10,11 +8,15 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import Image from 'next/image';
+// Se usa la etiqueta <img> estándar
 import { 
     ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
-    Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star
+    Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star,
 } from 'lucide-react';
+
+// Se importa el nuevo modal
+import { TermsModal } from '@/components/TermsModal';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // --- INTERFACES (Sin cambios) ---
 interface PaymentMethod {
@@ -72,7 +74,7 @@ const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
         : `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
 };
 
-// --- ESTILOS GLOBALES PARA ANIMACIONES ---
+// --- ESTILOS GLOBALES PARA ANIMACIONES (Sin cambios) ---
 const GlobalStyles = memo(function GlobalStyles() {
     return (
       <style jsx global>{`
@@ -123,6 +125,61 @@ const GlobalStyles = memo(function GlobalStyles() {
 });
 
 
+// --- NUEVO: Modal de Términos y Condiciones que aparece automáticamente ---
+const AutoTermsModal = ({ isVisible, onClose }: { isVisible: boolean, onClose: () => void }) => {
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        if (isVisible) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isVisible, onClose]);
+
+    return (
+        <AnimatePresence>
+            {isVisible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", stiffness: 200, damping: 25 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative w-full max-w-2xl max-h-[90vh]"
+                    >
+                        <Card className="relative bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-2xl overflow-hidden shadow-2xl shadow-black/40">
+                            <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={onClose}>
+                                <X className="h-5 w-5" />
+                            </Button>
+                            <div className="max-h-[80vh] overflow-y-auto">
+                                <TermsModal>
+                                    <div className="p-8">
+                                        <div className="text-center mb-6">
+                                            <Sparkles className="h-12 w-12 mx-auto text-amber-400 mb-4" />
+                                            <h2 className="text-2xl font-bold text-white mb-2">¡Bienvenido a Llevatelo con Jorvi!</h2>
+                                            <p className="text-zinc-400">Antes de participar, es importante que conozcas nuestros términos y condiciones.</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <Button onClick={onClose} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-8 py-3">
+                                                Ver Términos y Condiciones
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </TermsModal>
+                            </div>
+                        </Card>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
 // --- COMPONENTES AUXILIARES REFACTORIZADOS ---
 
 const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffleName }: { images: RaffleImage[], raffleName: string }) {
@@ -135,11 +192,16 @@ const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffle
     }
 
     return (
-        <div className="relative group/carousel aspect-video w-full overflow-hidden rounded-xl shadow-lg">
+        <div className="relative group/carousel w-full overflow-hidden rounded-xl shadow-lg">
             <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
                 {images.map(image => (
-                    <div key={image.id} className="relative w-full flex-shrink-0 aspect-video">
-                        <Image src={image.url} alt={raffleName} fill className="object-cover transition-transform duration-500 group-hover/carousel:scale-110"/>
+                    <div key={image.id} className="relative w-full flex-shrink-0">
+                        <img 
+                            src={image.url} 
+                            alt={raffleName} 
+                            className="w-full h-auto transition-transform duration-500 group-hover:scale-110" 
+                            loading="lazy"
+                        />
                     </div>
                 ))}
             </div>
@@ -164,7 +226,7 @@ const ProofOfWinModal = memo(function ProofOfWinModal({ imageUrl, onClose }: { i
                 <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 z-10 border border-white/10" onClick={onClose}>
                     <X className="h-6 w-6" />
                 </Button>
-                <Image src={imageUrl} alt="Prueba del ganador" width={1600} height={1000} className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
+                <img src={imageUrl} alt="Prueba del ganador" className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
             </div>
         </div>
     );
@@ -205,7 +267,6 @@ const WinnerDisplayCard = memo(function WinnerDisplayCard({ raffle, onShowProof 
 const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate: Date }) {
     const [hasMounted, setHasMounted] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-    // ✅ CAMBIO: Nuevo estado para controlar si el contador ha llegado a 0.
     const [isFinished, setIsFinished] = useState(false);
 
     useEffect(() => { setHasMounted(true); }, []);
@@ -222,7 +283,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
                         seconds: Math.floor((difference / 1000) % 60),
                     });
                 } else {
-                    // ✅ CAMBIO: Si el contador llega a 0, establece isFinished a true.
                     setIsFinished(true);
                     setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
                 }
@@ -234,7 +294,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
     }, [hasMounted, targetDate]);
 
     const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    // ✅ CAMBIO: Usa el estado isFinished para determinar qué renderizar.
     const hasEnded = isFinished;
 
     return (
@@ -242,7 +301,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
             <Clock className="h-6 w-6 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] text-zinc-400">
                 {hasEnded ? (
-                    // ✅ CAMBIO: Contenedor para el mensaje con el mismo tamaño que los números para evitar saltos.
                     <div className="flex-grow flex items-center justify-center h-[36px]">
                         <p className="text-lg font-bold text-amber-400 animate-pulse">¡El sorteo está por iniciar!</p>
                     </div>
@@ -289,9 +347,18 @@ const getStatusBadge = (status: Raffle['status']) => {
 
 
 // --- COMPONENTE PRINCIPAL ---
-export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount,  exchangeRate }: RaffleDetailClientProps) {
+export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
+    const [autoTermsModalOpen, setAutoTermsModalOpen] = useState(false); // Estado para el modal de términos
+
+    useEffect(() => {
+        const hasSeenTerms = localStorage.getItem('hasSeenTermsModal');
+        if (!hasSeenTerms) {
+            setAutoTermsModalOpen(true);
+            localStorage.setItem('hasSeenTermsModal', 'true');
+        }
+    }, []);
 
     return (
         <>
@@ -375,6 +442,9 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                 </main>
             </div>
             {proofModalUrl && <ProofOfWinModal imageUrl={proofModalUrl} onClose={() => setProofModalUrl(null)} />}
+            
+            {/* NUEVO: Modal de términos automático */}
+            <AutoTermsModal isVisible={autoTermsModalOpen} onClose={() => setAutoTermsModalOpen(false)} />
         </>
     );
 }

@@ -11,14 +11,15 @@ import { Badge } from '@/components/ui/badge';
 import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton';
+import { TermsModal } from '@/components/TermsModal';
 
 
 // --- INTERFACES DE DATOS ---
 export interface RaffleImage { id: string; url: string; raffleId: string; }
 export interface Purchase { id: string; buyerName: string | null; buyerEmail: string; buyerPhone: string | null; amount: string; status: "pending" | "confirmed" | "rejected"; paymentReference: string | null; paymentScreenshotUrl: string | null; paymentMethod: string | null; ticketCount: number; createdAt: Date; raffleId: string; }
 export interface WinnerTicket { id:string; ticketNumber: string; raffleId: string; purchaseId: string | null; status: "available" | "reserved" | "sold"; reservedUntil: Date | null; purchase: Purchase | null; }
-export interface ActiveRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; images: RaffleImage[]; tickets: Array<{ id: string }>; }
-export interface FinishedRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; winnerProofUrl: string | null; images: RaffleImage[]; winnerTicket: WinnerTicket | null; }
+export interface ActiveRaffle { id: string; slug: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; images: RaffleImage[]; tickets: Array<{ id: string }>; }
+export interface FinishedRaffle { id: string; slug: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; winnerProofUrl: string | null; images: RaffleImage[]; winnerTicket: WinnerTicket | null; }
 export interface PaymentMethod { id: string; title: string; iconUrl: string | null; }
 interface HomePageProps { activeRaffles: ActiveRaffle[]; finishedRaffles: FinishedRaffle[]; paymentMethods: PaymentMethod[]; }
 
@@ -204,21 +205,15 @@ const RaffleImagesCarousel = ({ images, raffleName }: { images: RaffleImage[], r
     const handlePrev = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); };
 
     if (!images || images.length === 0) {
-        // Mantenemos un aspect-ratio aquí como fallback si no hay imagen
         return <div className="aspect-video w-full bg-black/20 flex items-center justify-center rounded-t-xl"><Gift className="h-12 w-12 text-white/10 sm:h-16 sm:w-16"/></div>;
     }
 
     return (
-        // CAMBIO 1: Se eliminó 'aspect-video' para que el contenedor se adapte a la altura de la imagen.
         <div className="relative group/carousel w-full overflow-hidden rounded-t-xl">
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10"></div>
             <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
                 {images.map(image => (
-                    // CAMBIO 2: Se eliminó 'aspect-video' de aquí también.
                     <div key={image.id} className="relative w-full flex-shrink-0">
-                        {/* CAMBIO 3: Se reemplazó 'h-full object-cover' por 'h-auto'. 
-                            Esto hace que la imagen mantenga su proporción original,
-                            y el navegador calculará la altura automáticamente. */}
                         <img src={image.url} alt={raffleName} className="w-full h-auto transition-transform duration-500 group-hover:scale-110" loading="lazy" />
                     </div>
                 ))}
@@ -253,7 +248,8 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
 
     return (
         <div className={`group relative rounded-2xl p-px overflow-hidden animated-border ${isFeatured ? 'sm:col-span-full' : ''}`}>
-            <Link href={`/rifa/${raffle.id}`} className="block h-full">
+            {/* CAMBIO AQUÍ: Usar slug en lugar de id */}
+            <Link href={`/rifa/${raffle.slug}`} className="block h-full">
                 <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden h-full flex flex-col shadow-2xl shadow-black/40 transition-all duration-300">
                     <CardHeader className="p-0 relative">
                         {isTimerFinished && (
@@ -566,12 +562,69 @@ const HelpModal = ({ raffle, isVisible, onClose }: { raffle: ActiveRaffle, isVis
     );
 };
 
+// NUEVO: Modal de Términos y Condiciones que aparece automáticamente
+const AutoTermsModal = ({ isVisible, onClose }: { isVisible: boolean, onClose: () => void }) => {
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        if (isVisible) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isVisible, onClose]);
+
+    return (
+        <AnimatePresence>
+            {isVisible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", stiffness: 200, damping: 25 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative w-full max-w-2xl max-h-[90vh]"
+                    >
+                        <Card className="relative bg-zinc-900/95 backdrop-blur-md border border-zinc-700 rounded-2xl overflow-hidden shadow-2xl shadow-black/40">
+                            <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={onClose}>
+                                <X className="h-5 w-5" />
+                            </Button>
+                            <div className="max-h-[80vh] overflow-y-auto">
+                                <TermsModal>
+                                    <div className="p-8">
+                                        <div className="text-center mb-6">
+                                            <Sparkles className="h-12 w-12 mx-auto text-amber-400 mb-4" />
+                                            <h2 className="text-2xl font-bold text-white mb-2">¡Bienvenido a Llevatelo con Jorvi!</h2>
+                                            <p className="text-zinc-400">Antes de participar, es importante que conozcas nuestros términos y condiciones.</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-8 py-3">
+                                                Ver Términos y Condiciones
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </TermsModal>
+                            </div>
+                        </Card>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
+
 
 // --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function HomePage({ activeRaffles, finishedRaffles, paymentMethods }: HomePageProps) {
     const [proofModalOpen, setProofModalOpen] = useState(false);
     const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
     const [helpModalOpen, setHelpModalOpen] = useState(false);
+    const [autoTermsModalOpen, setAutoTermsModalOpen] = useState(false); // NUEVO: Estado para modal de términos automático
 
     const handleShowProof = (url: string) => { setProofImageUrl(url); setProofModalOpen(true); };
     const handleCloseProof = () => { setProofModalOpen(false); setProofImageUrl(null); };
@@ -581,6 +634,23 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
         window.addEventListener('keydown', handleKeyDown);
         return () => { window.removeEventListener('keydown', handleKeyDown); };
     }, []);
+    
+    // NUEVO: Modal de términos aparece automáticamente después de 3 segundos
+    useEffect(() => {
+        const hasSeenTerms = localStorage.getItem('hasSeenTermsModal');
+        if (!hasSeenTerms) {
+            const timer = setTimeout(() => {
+                setAutoTermsModalOpen(true);
+            }, 3000); // Se mostrará después de 3 segundos
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    // NUEVO: Manejar cierre del modal de términos
+    const handleCloseAutoTerms = () => {
+        setAutoTermsModalOpen(false);
+        localStorage.setItem('hasSeenTermsModal', 'true'); // Marcar que ya vio los términos
+    };
     
     useEffect(() => {
         if (activeRaffles.length > 0) {
@@ -642,6 +712,9 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
             {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
             
             {latestRaffle && <HelpModal raffle={latestRaffle} isVisible={helpModalOpen} onClose={() => setHelpModalOpen(false)} />}
+            
+            {/* NUEVO: Modal de términos automático */}
+            <AutoTermsModal isVisible={autoTermsModalOpen} onClose={handleCloseAutoTerms} />
             
             <FloatingWhatsAppButton />
         </>

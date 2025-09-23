@@ -1,14 +1,14 @@
 // lib/db/schema.ts
 import {
-  pgTable,
-  text,
-  varchar,
-  decimal,
-  integer,
-  timestamp,
-  boolean,
-  pgEnum,
-  uniqueIndex,
+  pgTable,
+  text,
+  varchar,
+  decimal,
+  integer,
+  timestamp,
+  boolean,
+  pgEnum,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createId } from "@paralleldrive/cuid2";
 import { relations } from 'drizzle-orm';
@@ -28,45 +28,46 @@ export const rejectionReasonEnum = pgEnum("rejection_reason", ["invalid_payment"
 // ----------------------------------------------------------------
 
 export const users = pgTable("users", {
-    id: text("id").primaryKey().$defaultFn(() => createId()),
-    name: varchar("name", { length: 256 }),
-    email: varchar("email", { length: 256 }).notNull().unique(),
-    password: text("password"),
-    role: text("role", { enum: ["admin", "user"] }).default("user").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey().$defaultFn(() => createId()),
+    name: varchar("name", { length: 256 }),
+    email: varchar("email", { length: 256 }).notNull().unique(),
+    password: text("password"),
+    role: text("role", { enum: ["admin", "user"] }).default("user").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const raffles = pgTable("raffles", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  name: varchar("name", { length: 256 }).notNull(),
-  description: text("description"),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  minimumTickets: integer("minimum_tickets").notNull().default(10000),
-  status: raffleStatusEnum("status").default("draft").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  winnerTicketId: text("winner_ticket_id").references(() => tickets.id),
-currency: currencyEnum("currency").default("USD").notNull(),
-  // NUEVO: Fecha límite de la rifa
-  limitDate: timestamp("limit_date").notNull(),
-  // NUEVO: Datos del sorteo manual
-  winnerLotteryNumber: varchar("winner_lottery_number", { length: 10 }),
-  winnerProofUrl: text("winner_proof_url"),
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  name: varchar("name", { length: 256 }).notNull(),
+  slug: varchar("slug", { length: 256 }).notNull().unique(), // NUEVO: Campo slug único
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  minimumTickets: integer("minimum_tickets").notNull().default(10000),
+  status: raffleStatusEnum("status").default("draft").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  winnerTicketId: text("winner_ticket_id").references(() => tickets.id),
+  currency: currencyEnum("currency").default("USD").notNull(),
+  // NUEVO: Fecha límite de la rifa
+  limitDate: timestamp("limit_date").notNull(),
+  // NUEVO: Datos del sorteo manual
+  winnerLotteryNumber: varchar("winner_lottery_number", { length: 10 }),
+  winnerProofUrl: text("winner_proof_url"),
 });
 
 export const purchases = pgTable("purchases", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: purchaseStatusEnum("status").default("pending").notNull(),
-  buyerName: varchar("buyer_name", { length: 256 }),
-  buyerEmail: varchar("buyer_email", { length: 256 }).notNull(),
-  buyerPhone: varchar("buyer_phone", { length: 50 }),
-  paymentReference: text("payment_reference"),
-  paymentScreenshotUrl: text("payment_screenshot_url"),
-  paymentMethod: varchar("payment_method", { length: 256 }),
-  ticketCount: integer("ticket_count").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: purchaseStatusEnum("status").default("pending").notNull(),
+  buyerName: varchar("buyer_name", { length: 256 }),
+  buyerEmail: varchar("buyer_email", { length: 256 }).notNull(),
+  buyerPhone: varchar("buyer_phone", { length: 50 }),
+  paymentReference: text("payment_reference"),
+  paymentScreenshotUrl: text("payment_screenshot_url"),
+  paymentMethod: varchar("payment_method", { length: 256 }),
+  ticketCount: integer("ticket_count").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
   // --- INICIO DE CAMBIOS: Nuevos campos para el rechazo ---
   rejectionReason: rejectionReasonEnum("rejection_reason"), // Campo para el motivo (opcional)
   rejectionComment: text("rejection_comment"), // Campo para el comentario (opcional)
@@ -74,16 +75,16 @@ export const purchases = pgTable("purchases", {
 });
 
 export const tickets = pgTable("tickets", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  ticketNumber: varchar("ticket_number", { length: 4 }).notNull(),
-  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
-  purchaseId: text("purchase_id").references(() => purchases.id, { onDelete: "set null" }),
-  status: ticketStatusEnum("status").default("available").notNull(),
-  reservedUntil: timestamp("reserved_until"),
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  ticketNumber: varchar("ticket_number", { length: 4 }).notNull(),
+  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
+  purchaseId: text("purchase_id").references(() => purchases.id, { onDelete: "set null" }),
+  status: ticketStatusEnum("status").default("available").notNull(),
+  reservedUntil: timestamp("reserved_until"),
 }, (table) => {
-    return {
-      raffleTicketUnq: uniqueIndex("raffle_ticket_unq").on(table.raffleId, table.ticketNumber),
-    };
+    return {
+      raffleTicketUnq: uniqueIndex("raffle_ticket_unq").on(table.raffleId, table.ticketNumber),
+    };
 });
 
 export const systemSettings = pgTable("system_settings", {
@@ -109,9 +110,9 @@ export const raffleExchangeRates = pgTable("raffle_exchange_rates", {
 // ----------------------------------------------------------------
 
 export const raffleImages = pgTable("raffle_images", {
-  id: text("id").primaryKey().$defaultFn(() => createId()),
-  url: text("url").notNull(),
-  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey().$defaultFn(() => createId()),
+  url: text("url").notNull(),
+  raffleId: text("raffle_id").notNull().references(() => raffles.id, { onDelete: "cascade" }),
 });
 
 export const paymentMethods = pgTable("payment_methods", {
@@ -171,27 +172,27 @@ export const raffleRelations = relations(raffles, ({ many, one }) => ({
 }));
 
 export const purchaseRelations = relations(purchases, ({ one, many }) => ({
-  raffle: one(raffles, {
-    fields: [purchases.raffleId],
-    references: [raffles.id],
-  }),
-  tickets: many(tickets),
+  raffle: one(raffles, {
+    fields: [purchases.raffleId],
+    references: [raffles.id],
+  }),
+  tickets: many(tickets),
 }));
 
 export const ticketRelations = relations(tickets, ({ one }) => ({
-  raffle: one(raffles, {
-    fields: [tickets.raffleId],
-    references: [raffles.id],
-  }),
-  purchase: one(purchases, {
-    fields: [tickets.purchaseId],
-    references: [purchases.id],
-  }),
+  raffle: one(raffles, {
+    fields: [tickets.raffleId],
+    references: [raffles.id],
+  }),
+  purchase: one(purchases, {
+    fields: [tickets.purchaseId],
+    references: [purchases.id],
+  }),
 }));
 
 export const raffleImagesRelations = relations(raffleImages, ({ one }) => ({
-  raffle: one(raffles, {
-    fields: [raffleImages.raffleId],
-    references: [raffles.id],
-  }),
+  raffle: one(raffles, {
+    fields: [raffleImages.raffleId],
+    references: [raffles.id],
+  }),
 }));
