@@ -454,7 +454,7 @@ const BuyTicketsSchema = z.object({
   paymentReference: z.string().min(1, "La referencia es requerida"),
   paymentMethod: z.string().min(1, "Debe seleccionar un método de pago"),
   // AHORA ES OPCIONAL: usa .optional() y .refine para validar si existe
-  paymentScreenshot: z.instanceof(File).optional().refine(file => !file || file.size > 0, "La captura es requerida si se envía."),
+  paymentScreenshot: z.instanceof(File).optional(),
   reservedTickets: z.string().min(1, "No hay tickets apartados para comprar."),
 });
 // --- FIN MODIFICADO ---
