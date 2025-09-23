@@ -1,19 +1,16 @@
 // En app/rifa/[slug]/page.tsx
 
-import { getRaffleDataBySlug } from '@/features/rifas/actions';
+import { getRaffleDataBySlug, getSystemSettings } from '@/features/rifas/actions'; // 👈 Agrega getSystemSettings
 import RaffleDetailClient from '@/features/rifas/raffle-detail-client';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
+// Nota: No es necesario modificar `generateMetadata` ya que no usa el tipo de cambio.
 
-
-// 👇 2. Función generateMetadata actualizada para usar slug
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const result = await getRaffleDataBySlug(params.slug);
   
-
   if (!result.success || !result.data) {
-    // Si la rifa no se encuentra, retornamos metadatos básicos o dejamos que notFound() lo maneje
     return {
       title: 'Rifa no encontrada',
     };
@@ -23,10 +20,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   const siteUrl = 'https://www.llevateloconjorvi.com';
 
   return {
-    title: raffle.name, // Título dinámico basado en el nombre de la rifa
+    title: raffle.name,
     description: `Participa en la rifa de ${raffle.name} y gana. ¡Compra tu ticket por solo ${raffle.price} ${raffle.currency}! La suerte te espera con Jorvi.`,
     
-    // Metadatos para redes sociales con la imagen de la rifa
     openGraph: {
       title: raffle.name,
       description: `¡Tu oportunidad de ganar un(a) ${raffle.name} está aquí!`,
@@ -38,7 +34,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
           alt: `Imagen de la rifa: ${raffle.name}`,
         },
       ],
-      type: 'article', // O 'product'
+      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
@@ -51,28 +47,36 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 
 
 export default async function RafflePage({ params }: { params: { slug: string } }) {
-  const result = await getRaffleDataBySlug(params.slug);
+  const [raffleResult, settingsResult] = await Promise.all([ // 👈 Carga ambos datos en paralelo
+    getRaffleDataBySlug(params.slug),
+    getSystemSettings()
+  ]);
   
-  if (!result.success || !result.data) {
+  if (!raffleResult.success || !raffleResult.data) {
     notFound();
   }
 
-  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate } = result.data;
-
+  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate: raffleExchangeRate } = raffleResult.data;
   
+  // 1. Obtén la tasa de cambio global del resultado de `getSystemSettings`
+  const globalExchangeRate = settingsResult.success ? parseFloat(settingsResult.data.exchangeRate) : null;
+
+  // 2. Define la tasa de cambio final: usa la de la rifa si existe, de lo contrario, usa la global.
+  const finalExchangeRate = raffleExchangeRate !== null ? parseFloat(raffleExchangeRate) : globalExchangeRate;
+
   const raffleJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Event', // Una rifa es un tipo de evento
+    '@type': 'Event',
     name: raffle.name,
     description: raffle.description || `Participa para ganar un(a) ${raffle.name}`,
     image: raffle.images.map((img: { url: string }) => img.url),
     startDate: raffle.createdAt.toISOString(),
-    endDate: raffle.limitDate.toISOString(), // La fecha del sorteo
+    endDate: raffle.limitDate.toISOString(),
     offers: {
       '@type': 'Offer',
       price: raffle.price,
       priceCurrency: raffle.currency,
-      url: `https://www.llevateloconjorvi.com/rifa/${raffle.slug}`, // Cambio a slug
+      url: `https://www.llevateloconjorvi.com/rifa/${raffle.slug}`,
       validFrom: raffle.createdAt.toISOString(),
     },
     organizer: {
@@ -92,7 +96,7 @@ export default async function RafflePage({ params }: { params: { slug: string } 
         raffle={raffle}
         paymentMethods={paymentMethods}
         ticketsTakenCount={ticketsTakenCount}
-        exchangeRate={exchangeRate}
+        exchangeRate={finalExchangeRate} // 👈 Pasa la tasa de cambio final
       />
     </>
   );

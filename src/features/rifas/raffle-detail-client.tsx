@@ -8,14 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-// Se usa la etiqueta <img> estándar
 import { 
     ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
     Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star,
 } from 'lucide-react';
-
-// Se importa el nuevo modal
-import { TermsModal } from '@/components/TermsModal';
+// Se eliminó la importación de TermsModal, ya que el contenido está integrado.
 import { AnimatePresence, motion } from 'framer-motion';
 
 // --- INTERFACES (Sin cambios) ---
@@ -90,12 +87,12 @@ const GlobalStyles = memo(function GlobalStyles() {
             from { transform: translate(-50%, -50%) rotate(0deg); }
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
-    
+      
         .fade-in-anim { animation: fade-in 0.3s ease-out forwards; }
         .scale-in-anim { animation: scale-in 0.3s ease-out forwards; }
         .blob-anim { animation: blob 7s infinite; }
         .animation-delay-4000 { animation-delay: 4s; }
-    
+      
         .animated-border::before {
             content: '';
             position: absolute;
@@ -125,7 +122,7 @@ const GlobalStyles = memo(function GlobalStyles() {
 });
 
 
-// --- NUEVO: Modal de Términos y Condiciones que aparece automáticamente ---
+// --- Modal de Términos y Condiciones que aparece automáticamente ---
 const AutoTermsModal = ({ isVisible, onClose }: { isVisible: boolean, onClose: () => void }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -157,21 +154,51 @@ const AutoTermsModal = ({ isVisible, onClose }: { isVisible: boolean, onClose: (
                             <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={onClose}>
                                 <X className="h-5 w-5" />
                             </Button>
-                            <div className="max-h-[80vh] overflow-y-auto">
-                                <TermsModal>
-                                    <div className="p-8">
-                                        <div className="text-center mb-6">
-                                            <Sparkles className="h-12 w-12 mx-auto text-amber-400 mb-4" />
-                                            <h2 className="text-2xl font-bold text-white mb-2">¡Bienvenido a Llevatelo con Jorvi!</h2>
-                                            <p className="text-zinc-400">Antes de participar, es importante que conozcas nuestros términos y condiciones.</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <Button onClick={onClose} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-8 py-3">
-                                                Ver Términos y Condiciones
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </TermsModal>
+                            <div className="max-h-[80vh] overflow-y-auto p-8">
+                                {/* Contenido directo de los términos y condiciones */}
+                                <div className="text-center mb-6">
+                                    <Sparkles className="h-12 w-12 mx-auto text-amber-400 mb-4" />
+                                    <h2 className="text-2xl font-bold text-white mb-2">Términos y Condiciones</h2>
+                                </div>
+                                <div className="prose prose-invert max-w-none text-zinc-300">
+                                    <h3 id="introducción" className="text-xl font-bold text-white mt-4">1. Introducción</h3>
+                                    <p>Bienvenido a Llevatelo con Jorvi. Al participar en nuestras rifas, usted acepta los siguientes términos y condiciones. Por favor, lea detenidamente antes de proceder con su compra.</p>
+                                    
+                                    <h3 id="elegibilidad" className="text-xl font-bold text-white mt-4">2. Elegibilidad</h3>
+                                    <p>Las rifas están abiertas a personas mayores de 18 años. Al comprar un ticket, usted certifica que cumple con este requisito de edad. Empleados de Llevatelo con Jorvi y sus familiares directos no son elegibles para participar.</p>
+                                    
+                                    <h3 id="proceso-de-participación" className="text-xl font-bold text-white mt-4">3. Proceso de Participación</h3>
+                                    <ul>
+                                        <li>Los tickets de la rifa se compran a través de nuestra página web.</li>
+                                        <li>Cada ticket tiene un número único que se asigna automáticamente al momento de la compra.</li>
+                                        <li>El número de tickets que puede comprar por rifa puede estar limitado.</li>
+                                    </ul>
+                                    
+                                    <h3 id="pagos" className="text-xl font-bold text-white mt-4">4. Pagos</h3>
+                                    <p>Aceptamos múltiples métodos de pago, los cuales se detallan en el formulario de compra. El pago debe ser verificado antes de que sus tickets sean confirmados y enviados.</p>
+                                    
+                                    <h3 id="el-sorteo" className="text-xl font-bold text-white mt-4">5. El Sorteo</h3>
+                                    <p>El sorteo se realizará en la fecha y hora indicadas en la página de la rifa. El ganador será seleccionado a través de un proceso de sorteo transparente y aleatorio, utilizando el último número de la lotería del Táchira o un método similar, lo cual será anunciado previamente.</p>
+                                    
+                                    <h3 id="notificación-del-ganador" className="text-xl font-bold text-white mt-4">6. Notificación del Ganador</h3>
+                                    <p>El ganador será contactado por correo electrónico o WhatsApp. Se anunciará públicamente en nuestro sitio web y redes sociales. El ganador tendrá un plazo de 72 horas para reclamar su premio, de lo contrario, se podría seleccionar un ganador alternativo.</p>
+                                    
+                                    <h3 id="entrega-del-premio" className="text-xl font-bold text-white mt-4">7. Entrega del Premio</h3>
+                                    <p>Los detalles de la entrega del premio se coordinarán directamente con el ganador. Cualquier costo asociado con la entrega o impuestos locales es responsabilidad del ganador.</p>
+                                    
+                                    <h3 id="limitación-de-responsabilidad" className="text-xl font-bold text-white mt-4">8. Limitación de Responsabilidad</h3>
+                                    <p>Llevatelo con Jorvi no se hace responsable por fallas técnicas, interrupciones del servicio o cualquier problema que pueda afectar la participación o el sorteo de la rifa.</p>
+                                    
+                                    <h3 id="privacidad" className="text-xl font-bold text-white mt-4">9. Privacidad</h3>
+                                    <p>Los datos personales recopilados se utilizarán únicamente para el propósito de la rifa y no serán compartidos con terceros sin su consentimiento, excepto para el anuncio público del ganador.</p>
+                                    
+                                    <p className="mt-8 text-sm text-zinc-500">Última actualización: 20 de septiembre de 2025.</p>
+                                </div>
+                                <div className="text-center mt-6">
+                                    <Button onClick={onClose} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-8 py-3">
+                                        Entendido
+                                    </Button>
+                                </div>
                             </div>
                         </Card>
                     </motion.div>
@@ -180,7 +207,7 @@ const AutoTermsModal = ({ isVisible, onClose }: { isVisible: boolean, onClose: (
         </AnimatePresence>
     );
 };
-// --- COMPONENTES AUXILIARES REFACTORIZADOS ---
+// --- COMPONENTES AUXILIARES REFACTORIZADOS (Sin cambios) ---
 
 const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffleName }: { images: RaffleImage[], raffleName: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -346,19 +373,11 @@ const getStatusBadge = (status: Raffle['status']) => {
 }
 
 
-// --- COMPONENTE PRINCIPAL ---
+// --- COMPONENTE PRINCIPAL (Sin cambios en la lógica de visibilidad) ---
 export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
-    const [autoTermsModalOpen, setAutoTermsModalOpen] = useState(false); // Estado para el modal de términos
-
-    useEffect(() => {
-        const hasSeenTerms = localStorage.getItem('hasSeenTermsModal');
-        if (!hasSeenTerms) {
-            setAutoTermsModalOpen(true);
-            localStorage.setItem('hasSeenTermsModal', 'true');
-        }
-    }, []);
+    const [autoTermsModalOpen, setAutoTermsModalOpen] = useState(true);
 
     return (
         <>
@@ -443,7 +462,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
             </div>
             {proofModalUrl && <ProofOfWinModal imageUrl={proofModalUrl} onClose={() => setProofModalUrl(null)} />}
             
-            {/* NUEVO: Modal de términos automático */}
+            {/* Modal de términos automático */}
             <AutoTermsModal isVisible={autoTermsModalOpen} onClose={() => setAutoTermsModalOpen(false)} />
         </>
     );
