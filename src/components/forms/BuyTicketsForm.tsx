@@ -119,7 +119,8 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
                     <Check className="h-4 w-4 text-green-400 animate-in zoom-in-50" />
                 )}
             </div>
-            {method.iconUrl && <Image src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10"/>}
+            {/* ✅ Se cambia `Image` por `img` para el icono del método de pago */}
+            {method.iconUrl && <img src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10"/>}
             <span className="text-xs font-semibold text-white text-center mt-2">{method.title}</span>
         </label>
     );
