@@ -4,87 +4,25 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, Star } from 'lucide-react';
-import Image from 'next/image';
+import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, Star, MessageSquare } from 'lucide-react';
+// Se usa la etiqueta <img> estándar en todo el componente, no se necesita next/image.
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import React, { useState, useEffect } from 'react';
-import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
-import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton'; // Asegúrate de que la ruta sea correcta
+import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
+import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton';
 
 
 // --- INTERFACES DE DATOS ---
-export interface RaffleImage {
-    id: string;
-    url: string;
-    raffleId: string;
-}
-export interface Purchase {
-    id: string;
-    buyerName: string | null;
-    buyerEmail: string;
-    buyerPhone: string | null;
-    amount: string;
-    status: "pending" | "confirmed" | "rejected";
-    paymentReference: string | null;
-    paymentScreenshotUrl: string | null;
-    paymentMethod: string | null;
-    ticketCount: number;
-    createdAt: Date;
-    raffleId: string;
-}
-export interface WinnerTicket {
-    id:string;
-    ticketNumber: string;
-    raffleId: string;
-    purchaseId: string | null;
-    status: "available" | "reserved" | "sold";
-    reservedUntil: Date | null;
-    purchase: Purchase | null;
-}
-export interface ActiveRaffle {
-    id: string;
-    name: string;
-    description: string | null;
-    price: string;
-    currency: 'USD' | 'VES';
-    minimumTickets: number;
-    status: "active" | "finished" | "cancelled" | "draft" | "postponed";
-    createdAt: Date;
-    updatedAt: Date;
-    limitDate: Date;
-    winnerTicketId: string | null;
-    winnerLotteryNumber: string | null;
-    images: RaffleImage[];
-    tickets: Array<{ id: string }>;
-}
-export interface FinishedRaffle {
-    id: string;
-    name: string;
-    description: string | null;
-    price: string;
-    currency: 'USD' | 'VES';
-    minimumTickets: number;
-    status: "active" | "finished" | "cancelled" | "draft" | "postponed";
-    createdAt: Date;
-    updatedAt: Date;
-    limitDate: Date;
-    winnerTicketId: string | null;
-    winnerLotteryNumber: string | null;
-    winnerProofUrl: string | null;
-    images: RaffleImage[];
-    winnerTicket: WinnerTicket | null;
-}
-export interface PaymentMethod {
-    id: string;
-    title: string;
-    iconUrl: string | null;
-}
-interface HomePageProps {
-    activeRaffles: ActiveRaffle[];
-    finishedRaffles: FinishedRaffle[];
-    paymentMethods: PaymentMethod[];
-}
+export interface RaffleImage { id: string; url: string; raffleId: string; }
+export interface Purchase { id: string; buyerName: string | null; buyerEmail: string; buyerPhone: string | null; amount: string; status: "pending" | "confirmed" | "rejected"; paymentReference: string | null; paymentScreenshotUrl: string | null; paymentMethod: string | null; ticketCount: number; createdAt: Date; raffleId: string; }
+export interface WinnerTicket { id:string; ticketNumber: string; raffleId: string; purchaseId: string | null; status: "available" | "reserved" | "sold"; reservedUntil: Date | null; purchase: Purchase | null; }
+export interface ActiveRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; images: RaffleImage[]; tickets: Array<{ id: string }>; }
+export interface FinishedRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; winnerProofUrl: string | null; images: RaffleImage[]; winnerTicket: WinnerTicket | null; }
+export interface PaymentMethod { id: string; title: string; iconUrl: string | null; }
+interface HomePageProps { activeRaffles: ActiveRaffle[]; finishedRaffles: FinishedRaffle[]; paymentMethods: PaymentMethod[]; }
+
+const whatsappUrl = `https://wa.me/584248027082?text=${encodeURIComponent("¡Hola! Tengo una duda sobre una de las rifas.")}`;
 
 // --- UTILITIES ---
 const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
@@ -275,7 +213,7 @@ const RaffleImagesCarousel = ({ images, raffleName }: { images: RaffleImage[], r
             <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
                 {images.map(image => (
                     <div key={image.id} className="relative w-full flex-shrink-0 aspect-video">
-                        <Image src={image.url} alt={raffleName} fill className="object-cover transition-transform duration-500 group-hover:scale-110"/>
+                        <img src={image.url} alt={raffleName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
                     </div>
                 ))}
             </div>
@@ -373,7 +311,7 @@ const PaymentIcon = ({ method, index }: { method: PaymentMethod, index: number }
         whileHover={{ scale: 1.15, boxShadow: '0 0 20px rgba(251, 191, 36, 0.7)' }}
         whileTap={{ scale: 0.95 }}
     >
-        <Image src={method.iconUrl || ''} alt={method.title} width={24} height={24} className="object-contain sm:w-[28px] sm:h-[28px]" />
+        <img src={method.iconUrl || ''} alt={method.title} width={24} height={24} className="object-contain sm:w-[28px] sm:h-[28px]" />
     </motion.div>
 );
 
@@ -449,7 +387,7 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                         transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 1.5 + pos.delay }}
                         whileHover={{ scale: 1.1, rotate: pos.rotate + (i % 2 === 0 ? 5 : -5) }}
                         style={{ left: pos.x, top: pos.y, transform: `translate(-${pos.size / 2}px, -${pos.size / 2}px) rotate(${pos.rotate}deg)` }} >
-                        <Image src="/tickets.png" alt="Tickets de Rifa" width={pos.size} height={pos.size * 0.6} priority/>
+                        <img src="/tickets.png" alt="Tickets de Rifa" width={pos.size} height={pos.size * 0.6} />
                     </motion.div>
                 ))}
             </div>
@@ -468,11 +406,9 @@ const JorviHeroCard = ({ paymentMethods }: { paymentMethods: PaymentMethod[] }) 
                             transition={{ type: "spring", stiffness: 120, damping: 15, delay: 0.2 }}
                             whileHover={{ scale: 1.05 }} >
                             <div className="relative w-full h-full rounded-xl overflow-hidden bg-black/70 border border-amber-500/20 ring-1 ring-inset ring-black/40">
-                                {/* ✅ --- INICIO DE CAMBIO: Lógica unificada para la posición de la imagen --- */}
                                <div style={{ transform: isMobile ? 'translateY(30%)' : 'translateY(8%) translateX(6.8%)', width: '100%', height: '100%' }}>
-                                    <Image src="/jorvi5.png" alt="Jorvi, dueña de la página" layout="fill" quality={100} className="object-cover drop-shadow-xl" priority />
+                                    <img src="/jorvi5.png" alt="Jorvi, dueña de la página" className="w-full h-full object-cover drop-shadow-xl" />
                                 </div>
-                                {/* ✅ --- FIN DE CAMBIO --- */}
                             </div>
                         </motion.div>
                     </div>
@@ -506,7 +442,7 @@ const WinnerCard = ({ raffle, onShowProof }: { raffle: FinishedRaffle, onShowPro
     <div className="group relative rounded-2xl p-px overflow-hidden animated-border-winner">
         <div className="relative bg-zinc-900/80 backdrop-blur-md rounded-[15px] overflow-hidden flex flex-col h-full border-t border-white/5 shadow-2xl shadow-black/40">
             <div className="relative aspect-video">
-                <Image src={raffle.images[0]?.url || '/placeholder.png'} alt={raffle.name} fill className="object-cover brightness-50 group-hover:brightness-75 transition-all duration-300"/>
+                <img src={raffle.images[0]?.url || '/placeholder.png'} alt={raffle.name} className="w-full h-full object-cover brightness-50 group-hover:brightness-75 transition-all duration-300" loading="lazy" />
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent"></div>
                 <div className="absolute bottom-2 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4">
                     <h3 className="font-bold text-base sm:text-lg text-white line-clamp-1">{raffle.name}</h3>
@@ -546,9 +482,81 @@ const ProofOfWinModal = ({ imageUrl, onClose }: { imageUrl: string | null, onClo
                 <Button variant="ghost" size="icon" className="absolute -top-3 -right-3 h-9 w-9 rounded-full bg-white/10 text-white hover:bg-white/20 z-10 border border-white/10 sm:-top-4 sm:-right-4 sm:h-10 sm:w-10" onClick={onClose}>
                     <X className="h-5 w-5 sm:h-6 sm:w-6" />
                 </Button>
-                <Image src={imageUrl} alt="Prueba del ganador" width={1600} height={1000} className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
+                <img src={imageUrl} alt="Prueba del ganador" className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
             </div>
         </div>
+    );
+};
+
+const HelpModal = ({ raffle, isVisible, onClose }: { raffle: ActiveRaffle, isVisible: boolean, onClose: () => void }) => {
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        if (isVisible) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isVisible, onClose]);
+
+    return (
+        <AnimatePresence>
+            {isVisible && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", stiffness: 200, damping: 25 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative w-full max-w-md"
+                    >
+                        <Card className="relative bg-zinc-900/80 backdrop-blur-md border border-zinc-700 rounded-2xl overflow-hidden shadow-2xl shadow-black/40">
+                            <Button variant="ghost" size="icon" className="absolute top-3 right-3 h-8 w-8 rounded-full bg-white/10 text-white hover:bg-white/20 z-10" onClick={onClose}>
+                                <X className="h-5 w-5" />
+                            </Button>
+                            <CardHeader className="p-6 text-center border-b border-zinc-800">
+                                <MessageSquare className="h-8 w-8 mx-auto text-green-400 mb-3" />
+                                <h3 className="text-xl font-bold text-white">¿Tienes dudas con esta rifa?</h3>
+                                <p className="text-sm text-zinc-400 mt-1">Estamos aquí para ayudarte. ¡Contáctanos!</p>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="flex items-center gap-4 bg-black/30 p-3 rounded-lg">
+                                    <div className="relative w-20 h-20 flex-shrink-0">
+                                        <img 
+                                            src={raffle.images[0]?.url || '/placeholder.png'} 
+                                            alt={raffle.name}
+                                            className="w-full h-full rounded-md object-cover"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-xs text-zinc-500">Nuestra última rifa activa:</p>
+                                        <h4 className="font-bold text-white leading-tight">{raffle.name}</h4>
+                                    </div>
+                                </div>
+                            </CardContent>
+                            <CardFooter className="p-6 pt-0">
+                                <a 
+                                    href={whatsappUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="w-full"
+                                >
+                                    <Button className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold rounded-lg py-5 text-base shadow-lg shadow-black/40 flex items-center justify-center gap-2">
+                                        <img src="/whatsapp.png" alt="WhatsApp" width={20} height={20} className="filter brightness-0 invert" />
+                                        Contactar por WhatsApp
+                                    </Button>
+                                </a>
+                            </CardFooter>
+                        </Card>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
     );
 };
 
@@ -557,6 +565,8 @@ const ProofOfWinModal = ({ imageUrl, onClose }: { imageUrl: string | null, onClo
 export default function HomePage({ activeRaffles, finishedRaffles, paymentMethods }: HomePageProps) {
     const [proofModalOpen, setProofModalOpen] = useState(false);
     const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
+    const [helpModalOpen, setHelpModalOpen] = useState(false);
+
     const handleShowProof = (url: string) => { setProofImageUrl(url); setProofModalOpen(true); };
     const handleCloseProof = () => { setProofModalOpen(false); setProofImageUrl(null); };
 
@@ -565,8 +575,18 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
         window.addEventListener('keydown', handleKeyDown);
         return () => { window.removeEventListener('keydown', handleKeyDown); };
     }, []);
+    
+    useEffect(() => {
+        if (activeRaffles.length > 0) {
+            const timer = setTimeout(() => {
+                setHelpModalOpen(true);
+            }, 7000); // Se mostrará después de 7 segundos
+            return () => clearTimeout(timer);
+        }
+    }, [activeRaffles]);
 
     const isSingleFeatured = activeRaffles.length === 1;
+    const latestRaffle = activeRaffles.length > 0 ? activeRaffles[0] : null;
 
     return (
         <>
@@ -614,6 +634,9 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 </main>
             </div>
             {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
+            
+            {latestRaffle && <HelpModal raffle={latestRaffle} isVisible={helpModalOpen} onClose={() => setHelpModalOpen(false)} />}
+            
             <FloatingWhatsAppButton />
         </>
     );
