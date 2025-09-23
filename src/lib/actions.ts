@@ -25,18 +25,18 @@ import { Resend } from "resend";
 import { sendWhatsappMessage } from "@/features/whatsapp/actions";
 import { auth } from "./auth";
 
-const resend = new Resend(process.env.RESEND_API_KEY); 
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // --- Credenciales de Pabilo
 const PABILO_API_KEY = process.env.PABILO_API_KEY;
 const PABILO_API_URL = process.env.PABILO_API_URL;
 
 async function requireAdmin() {
-    const session = await auth();
-    if (session?.user?.role !== 'admin') {
-        throw new Error("Acceso denegado. Permisos de administrador requeridos.");
-    }
-    return session;
+  const session = await auth();
+  if (session?.user?.role !== 'admin') {
+    throw new Error("Acceso denegado. Permisos de administrador requeridos.");
+  }
+  return session;
 }
 
 // --- TIPOS DE RESPUESTA
@@ -64,10 +64,10 @@ export async function registerAction(prevState: ActionState, formData: FormData)
   } catch (error: any) {
     return { success: false, message: error.message };
   }
- 
+
   const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) return { success: false, message: "Error de validación" };
-  
+
   const { name, email, password } = validatedFields.data;
 
   try {
@@ -75,10 +75,10 @@ export async function registerAction(prevState: ActionState, formData: FormData)
     if (existingUser) return { success: false, message: "El email ya está registrado" };
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    
+
     // --- SEGURIDAD: Se asigna el rol 'user' por defecto en el servidor ---
     const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role: 'user' }).returning({ id: users.id });
-    
+
     revalidatePath("/usuarios");
     return { success: true, message: "Usuario registrado exitosamente", data: newUser[0] };
 
@@ -103,7 +103,7 @@ async function sendRejectionNotification(
     console.error(`No se encontró la compra con ID: ${purchaseId} para notificar rechazo.`);
     return;
   }
-  
+
   // --- Construcción de mensajes dinámicos ---
   let subject = `Problema con tu compra para la rifa ${purchase.raffle.name}`;
   let mainMessage: string;
@@ -129,7 +129,7 @@ async function sendRejectionNotification(
   // --- Texto de WhatsApp ---
   // Reemplaza <br> y <p> por saltos de línea para WhatsApp
   const whatsappText = `Hola, ${purchase.buyerName} 👋\n\n${mainMessage.replace(/<br\s*\/?>/gi, '\n')}\n\n${comment ? `*Motivo adicional:* ${comment}\n\n` : ''}El equipo de Llevateloconjorvi.`;
-  
+
   // 1. Envío de Correo
   await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
 
@@ -238,7 +238,7 @@ async function sendWinnerNotification(raffleId: string, winnerTicketId: string):
 
   // 3. Construir los mensajes
   const subject = `¡Felicidades! Eres el ganador de la rifa "${raffle.name}" 🎉`;
-  
+
   const emailBody = `
     <h1>¡Felicidades, ${buyerName}!</h1>
     <p>¡Tenemos noticias increíbles! Has resultado ser el afortunado ganador de la rifa <strong>${raffle.name}</strong> con tu ticket número:</p>
@@ -322,13 +322,13 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
     <p>¡Mucha suerte en el sorteo! El ganador será anunciado en nuestra página web y redes sociales.</p>
     <p>El equipo de Llevateloconjorvi.</p>
   `;
-  
+
   // 1. Envío del correo (esto ya funcionaba)
   await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
 
   // 2. Envío del mensaje de WhatsApp con verificación y manejo de errores
   const whatsappText = `¡Hola, ${purchase.buyerName}! 🎉\n\nTu compra para la rifa *${purchase.raffle.name}* ha sido confirmada.\n\nAquí están tus tickets de la suerte:\n\n*${ticketNumbers}*\n\n¡Mucha suerte! Revisa tu email para más detalles. 😉`;
-  
+
   // --- MEJORA CLAVE ---
   // Verificamos si existe el número de teléfono antes de intentar enviar.
   if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
@@ -358,7 +358,7 @@ async function sendConfirmationWhatsapp(purchaseId: string): Promise<void> {
     console.warn(`No se envió WhatsApp de confirmación para la compra #${purchaseId} por falta de número.`);
     return;
   }
-  
+
   const text = `¡Hola, ${purchase.buyerName}! 👋\n\nRecibimos tu solicitud de compra para la rifa *${purchase.raffle.name}*. \n\nTu pago está siendo verificado. Te notificaremos por aquí y por correo una vez que sea aprobado. ¡Gracias por participar!`;
 
   try {
@@ -386,7 +386,7 @@ const ReserveTicketsSchema = z.object({
 export async function reserveTicketsAction(formData: FormData): Promise<ActionState> {
   const validatedFields = ReserveTicketsSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
-  
+
   const { raffleId, ticketCount } = validatedFields.data;
   const RESERVATION_MINUTES = 10;
 
@@ -401,7 +401,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
       const existingTicketsCount = await tx.select({ count: sql`count(*)` })
         .from(tickets)
         .where(eq(tickets.raffleId, raffleId));
-      
+
       // If no tickets exist, generate them
       if (Number(existingTicketsCount[0].count) === 0) {
         console.log(`Generando tickets para la rifa ${raffleId}...`);
@@ -426,16 +426,16 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
 
       // Clean up expired reservations
       await tx.update(tickets).set({ status: 'available', reservedUntil: null, purchaseId: null }).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'reserved'), lt(tickets.reservedUntil, new Date())));
-      
+
       // Find available tickets
       const availableTickets = await tx.select({ id: tickets.id, ticketNumber: tickets.ticketNumber }).from(tickets).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'available'))).orderBy(sql`RANDOM()`).limit(ticketCount).for("update", { skipLocked: true });
-      
+
       if (availableTickets.length < ticketCount) throw new Error("No hay suficientes tickets disponibles para apartar.");
-      
+
       const ticketIdsToReserve = availableTickets.map(t => t.id);
       const reservationTime = new Date(Date.now() + RESERVATION_MINUTES * 60 * 1000);
       await tx.update(tickets).set({ status: 'reserved', reservedUntil: reservationTime }).where(inArray(tickets.id, ticketIdsToReserve));
-      
+
       return { reservedTickets: availableTickets.map(t => t.ticketNumber), reservedUntil: reservationTime.toISOString() };
     });
     return { success: true, message: `${ticketCount} tickets apartados por ${RESERVATION_MINUTES} minutos.`, data: reservedData };
@@ -445,7 +445,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
   }
 }
 
-// --- MODIFICADO: El schema de compra ahora incluye el token de CAPTCHA ---
+// --- MODIFICADO: El schema ahora tiene el screenshot como opcional y se eliminó el captcha ---
 const BuyTicketsSchema = z.object({
   name: z.string().min(3, "El nombre es requerido"),
   email: z.string().email("Email inválido"),
@@ -453,73 +453,50 @@ const BuyTicketsSchema = z.object({
   raffleId: z.string(),
   paymentReference: z.string().min(1, "La referencia es requerida"),
   paymentMethod: z.string().min(1, "Debe seleccionar un método de pago"),
-  paymentScreenshot: z.instanceof(File).refine(file => file.size > 0, "La captura es requerida."),
+  // AHORA ES OPCIONAL: usa .optional() y .refine para validar si existe
+  paymentScreenshot: z.instanceof(File).optional().refine(file => !file || file.size > 0, "La captura es requerida si se envía."),
   reservedTickets: z.string().min(1, "No hay tickets apartados para comprar."),
-  // --- AÑADIDO: Campo para el token del CAPTCHA ---
-  captchaToken: z.string().min(1, "Por favor, completa la verificación CAPTCHA."),
 });
 // --- FIN MODIFICADO ---
 
 export async function buyTicketsAction(formData: FormData): Promise<ActionState> {
   const data = Object.fromEntries(formData.entries());
   const paymentScreenshotFile = formData.get('paymentScreenshot') as File | null;
-  // --- AÑADIDO: Se extrae el captchaToken para la validación ---
-  const captchaToken = formData.get('captchaToken') as string;
-
-  // --- AÑADIDO: Verificación del CAPTCHA en el backend ---
-  try {
-    const recaptchaSecret = process.env.RECAPTCHA_SECRET_KEY;
-    if (!recaptchaSecret) {
-        console.error("La clave secreta de reCAPTCHA no está configurada.");
-        return { success: false, message: "Error de configuración del servidor." };
-    }
-
-    const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `secret=${recaptchaSecret}&response=${captchaToken}`,
-    });
-
-    const captchaValidation = await response.json();
-
-    if (!captchaValidation.success) {
-        console.warn("Verificación de reCAPTCHA fallida:", captchaValidation['error-codes']);
-        return { success: false, message: "Falló la verificación CAPTCHA. Intenta de nuevo." };
-    }
-  } catch (error) {
-    console.error("Error al verificar CAPTCHA:", error);
-    return { success: false, message: "No se pudo verificar el CAPTCHA. Revisa tu conexión." };
-  }
-  // --- FIN AÑADIDO ---
+  // --- ELIMINADO: Se quita la verificación del CAPTCHA ---
+  // const captchaToken = formData.get('captchaToken') as string;
+  // try { ... }
+  // --- FIN ELIMINADO ---
 
   if (!PABILO_API_URL || !PABILO_API_KEY) {
-        console.error("Error: Las variables de entorno PABILO_API_URL o PABILO_API_KEY no están configuradas.");
-        return { success: false, message: "Error de configuración del servidor. Contacte al administrador." };
-    }
-  
+    console.error("Error: Las variables de entorno PABILO_API_URL o PABILO_API_KEY no están configuradas.");
+    return { success: false, message: "Error de configuración del servidor. Contacte al administrador." };
+  }
+
   // Se pasa el 'data' completo al schema para la validación normal
   const validatedFields = BuyTicketsSchema.safeParse({ ...data, paymentScreenshot: paymentScreenshotFile });
 
   if (!validatedFields.success) {
     console.error("Validation Error:", validatedFields.error.flatten().fieldErrors);
-    return { success: false, message: "Los datos proporcionados son inválidos. Por favor, revisa el formulario." };
-  }
+    return { success: false, message: "Los datos proporcionados son inválidos. Por favor, revisa el formulario." };
+  }
 
   // Se omite 'captchaToken' aquí porque ya fue usado
   const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets } = validatedFields.data;
   const ticketNumbers = reservedTickets.split(',');
   let paymentScreenshotUrl = '';
 
-  try {
-    const buffer = Buffer.from(await validatedFields.data.paymentScreenshot.arrayBuffer());
-    const key = `purchases/${crypto.randomUUID()}-${validatedFields.data.paymentScreenshot.name}`;
-    paymentScreenshotUrl = await uploadToS3(buffer, key, validatedFields.data.paymentScreenshot.type);
-  } catch (error) {
-    console.error("Error al subir captura:", error);
-    return { success: false, message: "Error al subir la imagen del pago." };
+  // --- MODIFICADO: Se envuelve la subida del screenshot en un condicional ---
+  if (validatedFields.data.paymentScreenshot) {
+    try {
+      const buffer = Buffer.from(await validatedFields.data.paymentScreenshot.arrayBuffer());
+      const key = `purchases/${crypto.randomUUID()}-${validatedFields.data.paymentScreenshot.name}`;
+      paymentScreenshotUrl = await uploadToS3(buffer, key, validatedFields.data.paymentScreenshot.type);
+    } catch (error) {
+      console.error("Error al subir captura:", error);
+      return { success: false, message: "Error al subir la imagen del pago." };
+    }
   }
+  // --- FIN MODIFICADO ---
 
   try {
     const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
@@ -552,7 +529,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
           }),
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
 
         const pabiloData = await pabiloResponse.json();
@@ -561,13 +538,13 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
           purchaseStatus = "confirmed";
           responseMessage = "¡Pago confirmado automáticamente! Tus tickets ya han sido generados.";
         } else {
-          console.warn("⚠️ Pabilo NO encontró el pago. Pasando a verificación manual.");
+          console.error("⚠️ Pabilo NO encontró el pago. Pasando a verificación manual.");
         }
       } catch (apiError: any) {
         if (apiError.name === 'AbortError') {
-            console.error("⛔ La API de Pabilo tardó demasiado en responder (timeout). Pasando a verificación manual.");
+          console.error("⛔ La API de Pabilo tardó demasiado en responder (timeout). Pasando a verificación manual.");
         } else {
-            console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
+          console.error("⛔ Error de conexión con la API de Pabilo.", apiError);
         }
       }
     }
@@ -608,16 +585,16 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
 }
 
 const UpdatePurchaseStatusSchema = z.object({
-  purchaseId: z.string(),
-  newStatus: z.enum(purchaseStatusEnum.enumValues),
+  purchaseId: z.string(),
+  newStatus: z.enum(purchaseStatusEnum.enumValues),
   // Campos opcionales para el rechazo
   rejectionReason: z.enum(rejectionReasonEnum.enumValues).optional(),
   rejectionComment: z.string().optional(),
 });
 
 export async function updatePurchaseStatusAction(
-  prevState: ActionState,
-  formData: FormData
+  prevState: ActionState,
+  formData: FormData
 ): Promise<ActionState> {
   // --- SEGURIDAD: Solo los administradores pueden cambiar el estado de una compra ---
   try {
@@ -626,71 +603,71 @@ export async function updatePurchaseStatusAction(
     return { success: false, message: error.message };
   }
 
-  const validatedFields = UpdatePurchaseStatusSchema.safeParse(
-    Object.fromEntries(formData.entries())
-  );
+  const validatedFields = UpdatePurchaseStatusSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
 
-  if (!validatedFields.success)
-    return { success: false, message: "Datos inválidos." };
-  
+  if (!validatedFields.success)
+    return { success: false, message: "Datos inválidos." };
+
   // Extrae los nuevos campos
-  const { purchaseId, newStatus, rejectionReason, rejectionComment } = validatedFields.data;
+  const { purchaseId, newStatus, rejectionReason, rejectionComment } = validatedFields.data;
 
   // Validación extra: si se rechaza, debe haber un motivo
   if (newStatus === 'rejected' && !rejectionReason) {
     return { success: false, message: "Debe seleccionar un motivo para el rechazo." };
   }
 
-  try {
-    const purchase = await db.query.purchases.findFirst({
-        where: eq(purchases.id, purchaseId),
-    });
+  try {
+    const purchase = await db.query.purchases.findFirst({
+      where: eq(purchases.id, purchaseId),
+    });
 
-    if (!purchase) {
-        throw new Error("Compra no encontrada.");
-    }
-    if (purchase.status !== "pending") {
-        return { success: false, message: "Esta compra ya ha sido procesada."};
-    }
+    if (!purchase) {
+      throw new Error("Compra no encontrada.");
+    }
+    if (purchase.status !== "pending") {
+      return { success: false, message: "Esta compra ya ha sido procesada." };
+    }
 
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       // Modifica la actualización para incluir los nuevos campos
-      await tx.update(purchases).set({ 
+      await tx.update(purchases).set({
         status: newStatus,
         // Guarda los datos del rechazo si el estado es 'rejected'
         ...(newStatus === 'rejected' && {
-            rejectionReason: rejectionReason,
-            rejectionComment: rejectionComment
+          rejectionReason: rejectionReason,
+          rejectionComment: rejectionComment
         })
       }).where(eq(purchases.id, purchaseId));
-      
-      if (newStatus === "confirmed") {
-        await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
-        await sendTicketsEmailAndWhatsapp(purchaseId);
-      } else if (newStatus === "rejected") {
-        await tx.update(tickets).set({ status: "available", purchaseId: null, reservedUntil: null }).where(eq(tickets.purchaseId, purchaseId));
+
+      if (newStatus === "confirmed") {
+        await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
+        await sendTicketsEmailAndWhatsapp(purchaseId);
+      } else if (newStatus === "rejected") {
+        await tx.update(tickets).set({ status: "available", purchaseId: null, reservedUntil: null }).where(eq(tickets.purchaseId, purchaseId));
         // Llama a la nueva función de notificación de rechazo
         if (rejectionReason) { // Asegura que rejectionReason no sea undefined
-            await sendRejectionNotification(purchaseId, rejectionReason, rejectionComment);
+          await sendRejectionNotification(purchaseId, rejectionReason, rejectionComment);
         }
-      }
-    });
+      }
+    });
 
-    revalidatePath("/dashboard");
-    revalidatePath("/mis-tickets");
-    revalidatePath(`/rifas`);
+    revalidatePath("/dashboard");
+    revalidatePath("/mis-tickets");
+    revalidatePath(`/rifas`);
 
-    return {
-      success: true,
-      message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada y notificada"}.`,
-    };
-  } catch (error: any) {
-    console.error("Error al actualizar compra:", error);
-    return {
-      success: false,
-      message: error.message || "Ocurrió un error en el servidor.",
-    };
-  }
+    return {
+      success: true,
+      message: `La compra ha sido ${newStatus === "confirmed" ? "confirmada" : "rechazada y notificada"}.`,
+    };
+  } catch (error: any) {
+    console.error("Error al actualizar compra:", error);
+    return {
+      success: false,
+      message: error.message || "Ocurrió un error en el servidor.",
+    };
+  }
 }
 
 export async function findMyTicketsAction(formData: FormData): Promise<ActionState> {
@@ -731,11 +708,11 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
   const validatedFields = CreateRaffleSchema.safeParse(data);
 
   if (!validatedFields.success) {
-      // Devolvemos el primer error para una mejor retroalimentación al usuario
-      const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
-      return { success: false, message: firstError || "Error de validación en los campos." };
+    // Devolvemos el primer error para una mejor retroalimentación al usuario
+    const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
+    return { success: false, message: firstError || "Error de validación en los campos." };
   }
-  
+
   const { name, description, price, minimumTickets, limitDate, currency } = validatedFields.data;
 
   for (const file of images) {
@@ -746,11 +723,11 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
   try {
     const newRaffle = await db.transaction(async (tx) => {
       const [createdRaffle] = await tx.insert(raffles).values({
-        name, 
-        description, 
-        price: price.toString(), 
-        minimumTickets, 
-        status: "draft", 
+        name,
+        description,
+        price: price.toString(),
+        minimumTickets,
+        status: "draft",
         limitDate: new Date(limitDate),
         currency,
       }).returning({ id: raffles.id });
@@ -767,7 +744,7 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
     });
 
     revalidatePath("/rifas");
-    
+
     // ▼▼▼ ¡AQUÍ ESTÁ LA MAGIA! ▼▼▼
     // Después de crear la rifa, llamamos a la función de notificación.
     // Lo hacemos en un try/catch para que, si falla la notificación, no afecte la creación de la rifa.
@@ -806,7 +783,7 @@ export async function updateRaffleStatusAction(prevState: ActionState, formData:
       // If activating a draft raffle, generate tickets
       if (currentRaffle.status === 'draft' && status === 'active') {
         const ticketsToGenerate = [];
-        
+
         // Generate tickets from 0000 to 9999 (10,000 tickets)
         for (let i = 0; i < 10000; i++) {
           const ticketNumber = i.toString().padStart(4, '0');
@@ -852,11 +829,11 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
   const newImages = formData.getAll("images") as File[];
   const imagesToDeleteString = formData.get('imagesToDelete') as string | null;
   const validatedFields = UpdateRaffleSchema.safeParse(data);
-  
+
   if (!validatedFields.success) {
     return { success: false, message: "Error de validación en los campos." };
   }
-  
+
   // --- MODIFICADO: Extraemos 'currency' de los datos validados ---
   const { raffleId, name, description, price, minimumTickets, limitDate, currency } = validatedFields.data;
   const imageIdsToDelete = imagesToDeleteString?.split(',').filter(id => id.trim() !== '') || [];
@@ -864,12 +841,12 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
   try {
     await db.transaction(async (tx) => {
       // --- MODIFICADO: Pasamos 'currency' al actualizar la base de datos ---
-      await tx.update(raffles).set({ 
-        name, 
-        description, 
-        price: price.toString(), 
-        minimumTickets, 
-        limitDate: new Date(limitDate), 
+      await tx.update(raffles).set({
+        name,
+        description,
+        price: price.toString(),
+        minimumTickets,
+        limitDate: new Date(limitDate),
         updatedAt: new Date(),
         currency, // <-- Campo añadido
       }).where(eq(raffles.id, raffleId));
@@ -904,75 +881,75 @@ export async function updateRaffleAction(formData: FormData): Promise<ActionStat
 }
 
 const DrawWinnerSchema = z.object({
-  raffleId: z.string(),
-  lotteryNumber: z.string().min(4, "El número debe tener 4 dígitos.").max(4, "El número debe tener 4 dígitos."),
-  winnerProof: z.instanceof(File, { message: "La captura de la lotería es requerida." })
-    .refine((file) => file.size > 0, "La captura no puede estar vacía.")
-    .refine((file) => file.size < 5 * 1024 * 1024, "La imagen no debe pesar más de 5MB.")
-    .refine((file) => file.type.startsWith("image/"), "El archivo debe ser una imagen."),
+  raffleId: z.string(),
+  lotteryNumber: z.string().min(4, "El número debe tener 4 dígitos.").max(4, "El número debe tener 4 dígitos."),
+  winnerProof: z.instanceof(File, { message: "La captura de la lotería es requerida." })
+    .refine((file) => file.size > 0, "La captura no puede estar vacía.")
+    .refine((file) => file.size < 5 * 1024 * 1024, "La imagen no debe pesar más de 5MB.")
+    .refine((file) => file.type.startsWith("image/"), "El archivo debe ser una imagen."),
 });
 
 export async function drawWinnerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const data = Object.fromEntries(formData.entries());
-  const winnerProofFile = formData.get('winnerProof') as File | null;
-  const validatedFields = DrawWinnerSchema.safeParse({ ...data, winnerProof: winnerProofFile });
+  const data = Object.fromEntries(formData.entries());
+  const winnerProofFile = formData.get('winnerProof') as File | null;
+  const validatedFields = DrawWinnerSchema.safeParse({ ...data, winnerProof: winnerProofFile });
 
-  if (!validatedFields.success) {
-    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
-  }
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación: " + JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+  }
 
-  const { raffleId, lotteryNumber, winnerProof } = validatedFields.data;
+  const { raffleId, lotteryNumber, winnerProof } = validatedFields.data;
 
-  try {
-    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
-    if (!raffle || raffle.status !== 'finished') {
-      return { success: false, message: "La rifa no está en estado finalizado." };
-    }
+  try {
+    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+    if (!raffle || raffle.status !== 'finished') {
+      return { success: false, message: "La rifa no está en estado finalizado." };
+    }
 
-    const winningTicket = await db.query.tickets.findFirst({
-      where: and(
-        eq(tickets.raffleId, raffleId), 
-        eq(tickets.ticketNumber, lotteryNumber),
-        eq(tickets.status, 'sold')
-      ),
-      with: { purchase: true }
-    });
+    const winningTicket = await db.query.tickets.findFirst({
+      where: and(
+        eq(tickets.raffleId, raffleId),
+        eq(tickets.ticketNumber, lotteryNumber),
+        eq(tickets.status, 'sold')
+      ),
+      with: { purchase: true }
+    });
 
-    if (!winningTicket || !winningTicket.purchase) {
-      return { success: false, message: `El ticket #${lotteryNumber} no fue vendido o no existe. La rifa puede ser pospuesta.` };
-    }
+    if (!winningTicket || !winningTicket.purchase) {
+      return { success: false, message: `El ticket #${lotteryNumber} no fue vendido o no existe. La rifa puede ser pospuesta.` };
+    }
 
-    const buffer = Buffer.from(await winnerProof.arrayBuffer());
-    const key = `winners/${raffleId}/${crypto.randomUUID()}-${winnerProof.name}`;
-    const winnerProofUrl = await uploadToS3(buffer, key, winnerProof.type);
+    const buffer = Buffer.from(await winnerProof.arrayBuffer());
+    const key = `winners/${raffleId}/${crypto.randomUUID()}-${winnerProof.name}`;
+    const winnerProofUrl = await uploadToS3(buffer, key, winnerProof.type);
 
-    await db.update(raffles).set({
-      winnerTicketId: winningTicket.id,
-      winnerLotteryNumber: lotteryNumber,
-      winnerProofUrl,
-    }).where(eq(raffles.id, raffleId));
+    await db.update(raffles).set({
+      winnerTicketId: winningTicket.id,
+      winnerLotteryNumber: lotteryNumber,
+      winnerProofUrl,
+    }).where(eq(raffles.id, raffleId));
 
     // ✅ --- INICIO DE CAMBIOS: LLAMAR A LA FUNCIÓN DE NOTIFICACIÓN ---
     await sendWinnerNotification(raffleId, winningTicket.id);
     // --- FIN DE CAMBIOS ---
 
-    revalidatePath("/rifas");
-    revalidatePath(`/rifas/${raffleId}`);
+    revalidatePath("/rifas");
+    revalidatePath(`/rifas/${raffleId}`);
 
-    return {
-      success: true,
-      message: "¡Ganador registrado y notificado con éxito!",
-      data: {
-        winnerTicketNumber: winningTicket.ticketNumber,
-        winnerName: winningTicket.purchase.buyerName,
-        winnerEmail: winningTicket.purchase.buyerEmail,
-        winnerProofUrl,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error al registrar ganador:", error);
-    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
-  }
+    return {
+      success: true,
+      message: "¡Ganador registrado y notificado con éxito!",
+      data: {
+        winnerTicketNumber: winningTicket.ticketNumber,
+        winnerName: winningTicket.purchase.buyerName,
+        winnerEmail: winningTicket.purchase.buyerEmail,
+        winnerProofUrl,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error al registrar ganador:", error);
+    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+  }
 }
 
 const PostponeRaffleSchema = z.object({
@@ -981,29 +958,29 @@ const PostponeRaffleSchema = z.object({
 });
 
 export async function postponeRaffleAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
-  const validatedFields = PostponeRaffleSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
-  const { raffleId, newLimitDate } = validatedFields.data;
-  try {
-    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
-    // La rifa debe estar en 'finished' para poder posponerse
-    if (!raffle || raffle.status !== 'finished') return { success: false, message: "La rifa no puede ser pospuesta en su estado actual." };
+  const validatedFields = PostponeRaffleSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
+  const { raffleId, newLimitDate } = validatedFields.data;
+  try {
+    const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
+    // La rifa debe estar en 'finished' para poder posponerse
+    if (!raffle || raffle.status !== 'finished') return { success: false, message: "La rifa no puede ser pospuesta en su estado actual." };
 
     // --- MEJORA DE LÓGICA AQUÍ ---
-    // En lugar de 'postponed', la cambiamos a 'active' con la nueva fecha.
+    // En lugar de 'postponed', la cambiamos a 'active' con la nueva fecha.
     // Esto la "reactiva" para el futuro sorteo.
-    await db.update(raffles).set({
+    await db.update(raffles).set({
       status: 'active',
       limitDate: new Date(newLimitDate)
     }).where(eq(raffles.id, raffleId));
 
-    revalidatePath(`/rifas/${raffleId}`);
+    revalidatePath(`/rifas/${raffleId}`);
     revalidatePath("/rifas");
-    return { success: true, message: "Rifa pospuesta con éxito. Se ha reactivado con la nueva fecha." };
-  } catch (error: any) {
-    console.error("Error al posponer rifa:", error);
-    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
-  }
+    return { success: true, message: "Rifa pospuesta con éxito. Se ha reactivado con la nueva fecha." };
+  } catch (error: any) {
+    console.error("Error al posponer rifa:", error);
+    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+  }
 }
 
 // --- NUEVA FUNCIÓN PARA GENERAR TICKETS EN RIFAS EXISTENTES ---
@@ -1020,11 +997,11 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
       }
 
       // Check if tickets already exist
-      const existingTickets = await tx.query.tickets.findMany({ 
+      const existingTickets = await tx.query.tickets.findMany({
         where: eq(tickets.raffleId, raffleId),
-        limit: 1 
+        limit: 1
       });
-      
+
       if (existingTickets.length > 0) {
         throw new Error("Esta rifa ya tiene tickets generados.");
       }
@@ -1052,10 +1029,10 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
 
     revalidatePath("/rifas");
     revalidatePath(`/rifas/${raffleId}`);
-    return { 
-      success: true, 
-      message: `Se generaron ${result.ticketsGenerated} tickets exitosamente.`, 
-      data: result 
+    return {
+      success: true,
+      message: `Se generaron ${result.ticketsGenerated} tickets exitosamente.`,
+      data: result
     };
   } catch (error: any) {
     console.error("Error al generar tickets:", error);
@@ -1084,26 +1061,26 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
   const data = Object.fromEntries(formData.entries());
   const iconFile = formData.get('icon') as File | null;
   const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
-  
+
   if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { success: false, message: firstError || "Datos inválidos." };
   }
-  
-  const { 
-    icon, 
-    title, 
-    accountHolderName, 
-    rif, 
-    phoneNumber, 
-    bankName, 
-    accountNumber, 
-    email, 
-    walletAddress, 
-    network, 
+
+  const {
+    icon,
+    title,
+    accountHolderName,
+    rif,
+    phoneNumber,
+    bankName,
+    accountNumber,
+    email,
+    walletAddress,
+    network,
     binancePayId, // +++ NEW: Extract binancePayId +++
-    isActive, 
-    triggersApiVerification 
+    isActive,
+    triggersApiVerification
   } = validatedFields.data;
 
   let iconUrl: string | undefined = undefined;
@@ -1115,22 +1092,22 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
       iconUrl = await uploadToS3(buffer, key, icon.type);
     }
 
-    await db.insert(paymentMethods).values({ 
-      title, 
-      iconUrl, 
-      accountHolderName, 
-      rif, 
-      phoneNumber, 
-      bankName, 
-      accountNumber, 
-      email, 
-      walletAddress, 
-      network, 
+    await db.insert(paymentMethods).values({
+      title,
+      iconUrl,
+      accountHolderName,
+      rif,
+      phoneNumber,
+      bankName,
+      accountNumber,
+      email,
+      walletAddress,
+      network,
       binancePayId, // +++ NEW: Add to values +++
-      isActive, 
-      triggersApiVerification 
+      isActive,
+      triggersApiVerification
     });
-    
+
     revalidatePath("/admin/metodos-pago");
     return { success: true, message: "Método de pago creado con éxito." };
   } catch (error) {
@@ -1142,30 +1119,30 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
 export async function updatePaymentMethodAction(prevState: any, formData: FormData): Promise<ActionState> {
   const id = formData.get('id') as string;
   if (!id) return { success: false, message: "ID del método no encontrado." };
-  
+
   const data = Object.fromEntries(formData.entries());
   const iconFile = formData.get('icon') as File | null;
-  
+
   const validatedFields = PaymentMethodSchema.safeParse({ ...data, icon: iconFile });
   if (!validatedFields.success) {
     const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
     return { success: false, message: firstError || "Datos inválidos." };
   }
 
-  const { 
-    icon, 
-    title, 
-    accountHolderName, 
-    rif, 
-    phoneNumber, 
-    bankName, 
-    accountNumber, 
-    email, 
-    walletAddress, 
-    network, 
+  const {
+    icon,
+    title,
+    accountHolderName,
+    rif,
+    phoneNumber,
+    bankName,
+    accountNumber,
+    email,
+    walletAddress,
+    network,
     binancePayId, // +++ NEW: Extract binancePayId +++
-    isActive, 
-    triggersApiVerification 
+    isActive,
+    triggersApiVerification
   } = validatedFields.data;
 
   let iconUrl: string | undefined = undefined;
@@ -1177,30 +1154,30 @@ export async function updatePaymentMethodAction(prevState: any, formData: FormDa
         const oldKey = oldMethod.iconUrl.substring(oldMethod.iconUrl.indexOf('payment-methods/'));
         await deleteFromS3(oldKey);
       }
-      
+
       const buffer = Buffer.from(await icon.arrayBuffer());
       const key = `payment-methods/${crypto.randomUUID()}-${icon.name}`;
       iconUrl = await uploadToS3(buffer, key, icon.type);
     }
-    
-    await db.update(paymentMethods).set({ 
-      title, 
-      accountHolderName, 
-      rif, 
-      phoneNumber, 
-      bankName, 
-      accountNumber, 
-      email, 
-      walletAddress, 
-      network, 
+
+    await db.update(paymentMethods).set({
+      title,
+      accountHolderName,
+      rif,
+      phoneNumber,
+      bankName,
+      accountNumber,
+      email,
+      walletAddress,
+      network,
       binancePayId, // +++ NEW: Add to set object +++
-      isActive, 
+      isActive,
       triggersApiVerification,
       ...(iconUrl && { iconUrl })
     }).where(eq(paymentMethods.id, id));
-    
+
     revalidatePath("/admin/metodos-pago");
-    revalidatePath("/rifa"); 
+    revalidatePath("/rifa");
     return { success: true, message: "Método de pago actualizado." };
   } catch (error) {
     console.error("Error al actualizar método de pago:", error);
@@ -1214,10 +1191,10 @@ export async function deletePaymentMethodAction(prevState: any, formData: FormDa
     // --- LÓGICA PARA BORRAR IMAGEN DE S3 AL ELIMINAR ---
     const methodToDelete = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.id, id) });
     if (methodToDelete?.iconUrl) {
-        const key = methodToDelete.iconUrl.substring(methodToDelete.iconUrl.indexOf('payment-methods/'));
-        await deleteFromS3(key);
+      const key = methodToDelete.iconUrl.substring(methodToDelete.iconUrl.indexOf('payment-methods/'));
+      await deleteFromS3(key);
     }
-    
+
     await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
     revalidatePath("/admin/metodos-pago");
     return { success: true, message: "Método de pago eliminado." };
@@ -1253,7 +1230,7 @@ export async function deleteUserAction(prevState: ActionState, formData: FormDat
     console.error("Error al eliminar usuario:", error);
     // Maneja el caso en que el usuario no se puede borrar por tener datos asociados
     if (error.code === '23503') {
-        return { success: false, message: "No se puede eliminar el usuario porque tiene registros asociados." };
+      return { success: false, message: "No se puede eliminar el usuario porque tiene registros asociados." };
     }
     return { success: false, message: "Error del servidor al intentar eliminar el usuario." };
   }
@@ -1308,7 +1285,7 @@ export async function addToWaitlistAction(prevState: ActionState, formData: Form
  */
 async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string, rafflePrice: string, raffleCurrency: 'USD' | 'VES') {
   console.log(`Iniciando notificación a la lista de espera para la rifa: ${raffleName}`);
-  
+
   try {
     const subscribers = await db.query.waitlistSubscribers.findMany();
 
@@ -1344,7 +1321,7 @@ async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string
       } catch (e) {
         console.error(`Error enviando email a ${subscriber.email}:`, e);
       }
-      
+
       try {
         await sendWhatsappMessage(subscriber.whatsapp, whatsappText);
       } catch (e) {
