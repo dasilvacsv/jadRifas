@@ -17,31 +17,10 @@ import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppBu
 export interface RaffleImage { id: string; url: string; raffleId: string; }
 export interface Purchase { id: string; buyerName: string | null; buyerEmail: string; buyerPhone: string | null; amount: string; status: "pending" | "confirmed" | "rejected"; paymentReference: string | null; paymentScreenshotUrl: string | null; paymentMethod: string | null; ticketCount: number; createdAt: Date; raffleId: string; }
 export interface WinnerTicket { id:string; ticketNumber: string; raffleId: string; purchaseId: string | null; status: "available" | "reserved" | "sold"; reservedUntil: Date | null; purchase: Purchase | null; }
-export interface ActiveRaffle { 
-  id: string; 
-  name: string; 
-  description: string | null; 
-  price: string; 
-  currency: 'USD' | 'VES'; 
-  usdToVesRate: number; // 👈 Cambia 'priceVES: number | null' por esta línea.
-  minimumTickets: number; 
-  status: "active" | "finished" | "cancelled" | "draft" | "postponed"; 
-  createdAt: Date; 
-  updatedAt: Date; 
-  limitDate: Date; 
-  winnerTicketId: string | null; 
-  winnerLotteryNumber: string | null; 
-  images: RaffleImage[]; 
-  tickets: Array<{ id: string }>; 
-}
+export interface ActiveRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; images: RaffleImage[]; tickets: Array<{ id: string }>; }
 export interface FinishedRaffle { id: string; name: string; description: string | null; price: string; currency: 'USD' | 'VES'; minimumTickets: number; status: "active" | "finished" | "cancelled" | "draft" | "postponed"; createdAt: Date; updatedAt: Date; limitDate: Date; winnerTicketId: string | null; winnerLotteryNumber: string | null; winnerProofUrl: string | null; images: RaffleImage[]; winnerTicket: WinnerTicket | null; }
 export interface PaymentMethod { id: string; title: string; iconUrl: string | null; }
-interface HomePageProps { 
-    activeRaffles: ActiveRaffle[]; 
-    finishedRaffles: FinishedRaffle[]; 
-    paymentMethods: PaymentMethod[]; 
-    exchangeRate: number; 
-}
+interface HomePageProps { activeRaffles: ActiveRaffle[]; finishedRaffles: FinishedRaffle[]; paymentMethods: PaymentMethod[]; }
 
 const whatsappUrl = `https://wa.me/584142939088?text=${encodeURIComponent("¡Hola! Tengo una duda sobre una de las rifas.")}`;
 
@@ -272,8 +251,6 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
         return () => clearInterval(intervalId);
     }, [raffle.limitDate]);
 
-    const priceVES = raffle.currency === 'USD' ? parseFloat(raffle.price) * raffle.usdToVesRate : null;
-
     return (
         <div className={`group relative rounded-2xl p-px overflow-hidden animated-border ${isFeatured ? 'sm:col-span-full' : ''}`}>
             <Link href={`/rifa/${raffle.id}`} className="block h-full">
@@ -315,14 +292,10 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                         </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-3 flex flex-wrap gap-3 justify-between items-center bg-black/20 border-t border-white/10 sm:p-5 sm:pt-4 sm:gap-4">
-    <div className='flex flex-col'>
-        <p className="text-xs text-zinc-400">Precio</p>
-        {priceVES !== null && (
-            <p className="text-2xl font-extrabold text-white leading-none sm:text-3xl">
-                Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(priceVES)}
-            </p>
-        )}
-    </div>
+                        <div className='flex flex-col'>
+                            <p className="text-xs text-zinc-400">Precio</p>
+                            <p className="text-2xl font-extrabold text-white leading-none sm:text-3xl">{formatCurrency(raffle.price, raffle.currency)}</p>
+                        </div>
                         <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-6 py-4 text-sm shadow-lg shadow-black/40 transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] sm:rounded-xl sm:px-8 sm:py-6 sm:text-base">
                            <Ticket className="h-4 w-4 mr-2 sm:h-5 sm:w-5 sm:mr-2.5"/>
                            Participar

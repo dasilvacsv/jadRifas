@@ -56,21 +56,16 @@ interface BuyTicketsFormProps {
 
 // Constantes y Estado Inicial
 const initialState = { success: false, message: '' };
-const TICKET_AMOUNTS = [2, 5, 10, 15, 20, 25];
+const TICKET_AMOUNTS = [1, 5, 10, 25, 50, 100];
 
-// --- CAMBIO 1: Se actualiza formatCurrency para aceptar un 'locale' ---
 // Función de utilidad para formatear moneda
 const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string = 'es-VE') => {
-  const isUSD = currency === 'USD';
-  const options: Intl.NumberFormatOptions = {
+  const formattedNumber = new Intl.NumberFormat(locale, {
     style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  };
-  
-  const formattedNumber = new Intl.NumberFormat(locale, options).format(amount);
-  
-  return isUSD ? `$${formattedNumber}` : `${formattedNumber} Bs`;
+  }).format(amount);
+  return currency === 'USD' ? `$${formattedNumber}` : `${formattedNumber} Bs`;
 };
 
 // Componente Principal del Formulario
@@ -90,7 +85,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
   const [preview, setPreview] = useState<string | null>(null);
   const [reservationError, setReservationError] = useState('');
   const [exchangeRate, setExchangeRate] = useState<number | null>(initialExchangeRate);
-  const [isLoadingRates, setIsLoadingRates] = useState(!initialExchangeRate); // Inicia cargando solo si no hay tasa
+  const [isLoadingRates, setIsLoadingRates] = useState(!initialExchangeRate); // Inicia cargando solo si no hay tasa
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState(0);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -109,72 +104,60 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
   , [paymentMethodId, paymentMethods]);
 
   const totalAmount = useMemo(() => ticketCount * parseFloat(raffle.price), [ticketCount, raffle.price]);
-  
-  // --- CAMBIO 2: Lógica de moneda reestructurada para mostrar siempre Bs como primario ---
+
   const currencyData = useMemo(() => {
     const price = parseFloat(raffle.price);
     const numTickets = reservedTickets.length > 0 ? reservedTickets.length : ticketCount;
     const total = numTickets * price;
+    let totalSecondary = '';
+    let secondaryCurrencySymbol = '';
 
-    let totalInVes: number;
-    let totalInUsd: number;
-    let pricePerTicketInVes: number;
-
-    // Calcular totales en ambas monedas, independientemente de la moneda base de la rifa
-    if (raffle.currency === 'USD' && exchangeRate) {
-        totalInUsd = total;
-        totalInVes = total * exchangeRate;
-        pricePerTicketInVes = price * exchangeRate;
-    } else if (raffle.currency === 'VES' && exchangeRate) {
-        totalInVes = total;
-        totalInUsd = total / exchangeRate;
-        pricePerTicketInVes = price;
-    } else {
-        // Fallback si la tasa de cambio no está disponible
-        totalInVes = raffle.currency === 'VES' ? total : 0;
-        totalInUsd = raffle.currency === 'USD' ? total : 0;
-        pricePerTicketInVes = raffle.currency === 'VES' ? price : 0;
+    if (exchangeRate !== null) {
+      const convertedTotal = raffle.currency === 'USD' ? total * exchangeRate : total / exchangeRate;
+      const convertedCurrency = raffle.currency === 'USD' ? 'VES' : 'USD';
+      totalSecondary = new Intl.NumberFormat('es-VE', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(convertedTotal);
+      secondaryCurrencySymbol = convertedCurrency === 'USD' ? '$' : 'Bs';
     }
 
     return {
-        pricePerTicket: formatCurrency(pricePerTicketInVes, 'VES'),
-        totalPrimary: formatCurrency(totalInVes, 'VES'),      // El primario ahora es siempre VES
-        totalSecondary: formatCurrency(totalInUsd, 'USD', 'en-US'), // El secundario es siempre USD
-        secondaryCurrencySymbol: '$',
+      pricePerTicket: formatCurrency(price, raffle.currency),
+      totalPrimary: formatCurrency(total, raffle.currency),
+      totalSecondary,
+      secondaryCurrencySymbol,
     };
   }, [ticketCount, reservedTickets, raffle.price, raffle.currency, exchangeRate]);
 
   // Efecto para obtener la tasa de cambio al cargar
   useEffect(() => {
     // 1. Si se recibió una tasa desde el servidor, úsala y termina.
-    if (initialExchangeRate) {
-      setExchangeRate(initialExchangeRate);
-      setIsLoadingRates(false);
-      return;
-    }
+    if (initialExchangeRate) {
+      setExchangeRate(initialExchangeRate);
+      setIsLoadingRates(false);
+      return;
+    }
     
     // 2. Si NO se recibió una tasa, búscala en la API como método de respaldo.
-    const fetchRates = async () => {
-      setIsLoadingRates(true);
-      try {
-        const rates = await getBCVRates();
-        if (raffle.currency === 'USD') {
+    const fetchRates = async () => {
+      setIsLoadingRates(true);
+      try {
+        const rates = await getBCVRates();
+        if (raffle.currency === 'USD') {
             setExchangeRate(rates.usd.rate);
         } else if (raffle.currency === 'VES') {
             setExchangeRate(1 / rates.usd.rate);
         }
-      } catch (error) {
-        console.error("Error al obtener las tasas de cambio:", error);
-        setExchangeRate(null);
-      } finally {
-        setIsLoadingRates(false);
-      }
-    };
+      } catch (error) {
+        console.error("Error al obtener las tasas de cambio:", error);
+        setExchangeRate(null);
+      } finally {
+        setIsLoadingRates(false);
+      }
+    };
 
-    fetchRates();
+    fetchRates();
 
     // 3. Este efecto se ejecuta solo si cambia la tasa inicial o la moneda de la rifa.
-  }, [initialExchangeRate, raffle.currency]);
+  }, [initialExchangeRate, raffle.currency]);
 
   // Manejadores de eventos
   const resetForm = () => {
@@ -281,13 +264,6 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     );
   }
 
-  // --- CAMBIO 3: Determinar si se debe mostrar el precio en USD ---
-  const shouldShowUsd = useMemo(() => {
-    if (!selectedPaymentMethod) return false;
-    const title = selectedPaymentMethod.title.toLowerCase();
-    return title.includes('zinli') || title.includes('binance');
-  }, [selectedPaymentMethod]);
-
   // Renderizado del formulario principal
   return (
     <CardContent className="p-0">
@@ -333,21 +309,13 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                     <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
                 </div>
                 <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
-                {/* --- CAMBIO 4: El display primario siempre muestra el total en Bs --- */}
                 <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
-                
-                {isLoadingRates ? <p className="text-zinc-500 text-sm h-9 flex items-center justify-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa...</p> : (
-                    // --- CAMBIO 5: Mostrar el total en USD condicionalmente y agregar un placeholder ---
-                    shouldShowUsd && exchangeRate ? (
-                        <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center h-9">
-                            <span className="text-zinc-400 text-base mr-2">≈</span>
-                            <span className="text-green-400">{currencyData.totalSecondary}</span>
-                        </p>
-                    ) : (
-                        // Placeholder para evitar saltos en el layout
-                        <div className="h-9 mt-2"></div>
-                    )
-                )}
+                {isLoadingRates ? <p className="text-zinc-500 text-sm h-9 flex items-center justify-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa...</p> : (currencyData.totalSecondary && (
+                    <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center h-9">
+                        <span className="text-zinc-400 text-base mr-2">≈</span> 
+                        <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
+                    </p>
+                ))}
             </div>
         </div>
         <hr className="border-t border-zinc-700" />
