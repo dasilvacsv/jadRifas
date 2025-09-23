@@ -204,16 +204,22 @@ const RaffleImagesCarousel = ({ images, raffleName }: { images: RaffleImage[], r
     const handlePrev = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); };
 
     if (!images || images.length === 0) {
+        // Mantenemos un aspect-ratio aquí como fallback si no hay imagen
         return <div className="aspect-video w-full bg-black/20 flex items-center justify-center rounded-t-xl"><Gift className="h-12 w-12 text-white/10 sm:h-16 sm:w-16"/></div>;
     }
 
     return (
-        <div className="relative group/carousel aspect-video w-full overflow-hidden rounded-t-xl">
+        // CAMBIO 1: Se eliminó 'aspect-video' para que el contenedor se adapte a la altura de la imagen.
+        <div className="relative group/carousel w-full overflow-hidden rounded-t-xl">
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10"></div>
             <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
                 {images.map(image => (
-                    <div key={image.id} className="relative w-full flex-shrink-0 aspect-video">
-                        <img src={image.url} alt={raffleName} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                    // CAMBIO 2: Se eliminó 'aspect-video' de aquí también.
+                    <div key={image.id} className="relative w-full flex-shrink-0">
+                        {/* CAMBIO 3: Se reemplazó 'h-full object-cover' por 'h-auto'. 
+                            Esto hace que la imagen mantenga su proporción original,
+                            y el navegador calculará la altura automáticamente. */}
+                        <img src={image.url} alt={raffleName} className="w-full h-auto transition-transform duration-500 group-hover:scale-110" loading="lazy" />
                     </div>
                 ))}
             </div>
