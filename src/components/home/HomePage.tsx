@@ -22,7 +22,7 @@ export interface FinishedRaffle { id: string; name: string; description: string 
 export interface PaymentMethod { id: string; title: string; iconUrl: string | null; }
 interface HomePageProps { activeRaffles: ActiveRaffle[]; finishedRaffles: FinishedRaffle[]; paymentMethods: PaymentMethod[]; }
 
-const whatsappUrl = `https://wa.me/584248027082?text=${encodeURIComponent("¡Hola! Tengo una duda sobre una de las rifas.")}`;
+const whatsappUrl = `https://wa.me/584142939088?text=${encodeURIComponent("¡Hola! Tengo una duda sobre una de las rifas.")}`;
 
 // --- UTILITIES ---
 const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
