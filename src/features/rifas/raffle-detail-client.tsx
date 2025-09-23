@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, useMemo } from 'react';
 import { BuyTicketsForm } from '@/components/forms/BuyTicketsForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,9 +10,8 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import Image from 'next/image';
-import { 
-    ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
+import {
+    ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle,
     Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star
 } from 'lucide-react';
 
@@ -63,16 +62,8 @@ interface RaffleDetailClientProps {
     exchangeRate: number | null;
 }
 
-// --- UTILIDADES (Sin cambios) ---
-const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
-    const value = parseFloat(amount);
-    if (isNaN(value)) return currency === 'USD' ? '$0.00' : 'Bs. 0,00';
-    return currency === 'USD' 
-        ? `$${value.toFixed(2)}` 
-        : `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
-};
 
-// --- ESTILOS GLOBALES PARA ANIMACIONES ---
+// --- ESTILOS GLOBALES PARA ANIMACIONES (Sin cambios) ---
 const GlobalStyles = memo(function GlobalStyles() {
     return (
       <style jsx global>{`
@@ -88,12 +79,10 @@ const GlobalStyles = memo(function GlobalStyles() {
             from { transform: translate(-50%, -50%) rotate(0deg); }
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
-    
         .fade-in-anim { animation: fade-in 0.3s ease-out forwards; }
         .scale-in-anim { animation: scale-in 0.3s ease-out forwards; }
         .blob-anim { animation: blob 7s infinite; }
         .animation-delay-4000 { animation-delay: 4s; }
-    
         .animated-border::before {
             content: '';
             position: absolute;
@@ -125,6 +114,7 @@ const GlobalStyles = memo(function GlobalStyles() {
 
 // --- COMPONENTES AUXILIARES REFACTORIZADOS ---
 
+// ✅ CAMBIO: Carrusel modificado para imitar el comportamiento de HomePage.tsx
 const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffleName }: { images: RaffleImage[], raffleName: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const handleNext = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev + 1) % images.length); };
@@ -135,11 +125,19 @@ const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffle
     }
 
     return (
-        <div className="relative group/carousel aspect-video w-full overflow-hidden rounded-xl shadow-lg">
+        // Se elimina 'aspect-video' para que el contenedor se adapte a la altura de la imagen.
+        <div className="relative group/carousel w-full overflow-hidden rounded-xl shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-10"></div>
             <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
                 {images.map(image => (
-                    <div key={image.id} className="relative w-full flex-shrink-0 aspect-video">
-                        <Image src={image.url} alt={raffleName} fill className="object-cover transition-transform duration-500 group-hover/carousel:scale-110"/>
+                    <div key={image.id} className="relative w-full flex-shrink-0">
+                        {/* Se usa 'h-auto' para que la imagen mantenga su proporción original. */}
+                        <img
+                            src={image.url}
+                            alt={raffleName}
+                            className="w-full h-auto transition-transform duration-500 group-hover/carousel:scale-110"
+                            loading="lazy"
+                        />
                     </div>
                 ))}
             </div>
@@ -164,7 +162,11 @@ const ProofOfWinModal = memo(function ProofOfWinModal({ imageUrl, onClose }: { i
                 <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 z-10 border border-white/10" onClick={onClose}>
                     <X className="h-6 w-6" />
                 </Button>
-                <Image src={imageUrl} alt="Prueba del ganador" width={1600} height={1000} className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto" />
+                <img
+                    src={imageUrl}
+                    alt="Prueba del ganador"
+                    className="object-contain rounded-xl shadow-2xl shadow-black/70 border border-zinc-700 max-h-[90vh] w-auto"
+                />
             </div>
         </div>
     );
@@ -205,7 +207,6 @@ const WinnerDisplayCard = memo(function WinnerDisplayCard({ raffle, onShowProof 
 const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate: Date }) {
     const [hasMounted, setHasMounted] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-    // ✅ CAMBIO: Nuevo estado para controlar si el contador ha llegado a 0.
     const [isFinished, setIsFinished] = useState(false);
 
     useEffect(() => { setHasMounted(true); }, []);
@@ -222,7 +223,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
                         seconds: Math.floor((difference / 1000) % 60),
                     });
                 } else {
-                    // ✅ CAMBIO: Si el contador llega a 0, establece isFinished a true.
                     setIsFinished(true);
                     setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
                 }
@@ -234,7 +234,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
     }, [hasMounted, targetDate]);
 
     const timeUnits = hasMounted ? timeLeft : { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    // ✅ CAMBIO: Usa el estado isFinished para determinar qué renderizar.
     const hasEnded = isFinished;
 
     return (
@@ -242,7 +241,6 @@ const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate
             <Clock className="h-6 w-6 text-amber-400 flex-shrink-0" />
             <div className="flex items-end gap-3 min-h-[28px] text-zinc-400">
                 {hasEnded ? (
-                    // ✅ CAMBIO: Contenedor para el mensaje con el mismo tamaño que los números para evitar saltos.
                     <div className="flex-grow flex items-center justify-center h-[36px]">
                         <p className="text-lg font-bold text-amber-400 animate-pulse">¡El sorteo está por iniciar!</p>
                     </div>
@@ -288,10 +286,35 @@ const getStatusBadge = (status: Raffle['status']) => {
 }
 
 
-// --- COMPONENTE PRINCIPAL ---
+// --- COMPONENTE PRINCIPAL (Sin cambios en su lógica principal) ---
 export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount,  exchangeRate }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
+
+    const displayPrice = useMemo(() => {
+        const price = parseFloat(raffle.price);
+        if (isNaN(price)) {
+            return { main: 'Bs. 0,00', secondary: null };
+        }
+
+        if (raffle.currency === 'VES') {
+            return {
+                main: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price)}`,
+                secondary: null
+            };
+        }
+
+        if (raffle.currency === 'USD' && exchangeRate) {
+            const priceInVes = price * exchangeRate;
+            return {
+                main: `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(priceInVes)}`,
+                secondary: `$${price.toFixed(2)}`
+            };
+        }
+
+        return { main: 'Cargando...', secondary: null };
+
+    }, [raffle.price, raffle.currency, exchangeRate]);
 
     return (
         <>
@@ -351,7 +374,10 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                                 </CardTitle>
                                                 <div className="mt-4">
                                                     <p className="text-sm text-zinc-400">Precio por ticket</p>
-                                                    <p className="text-4xl font-extrabold text-white">{formatCurrency(raffle.price, raffle.currency)}</p>
+                                                    <p className="text-4xl font-extrabold text-white">{displayPrice.main}</p>
+                                                    {displayPrice.secondary && (
+                                                        <p className="text-sm text-zinc-400 mt-1">(Equivalente a {displayPrice.secondary})</p>
+                                                    )}
                                                 </div>
                                             </CardHeader>
                                             <BuyTicketsForm raffle={raffle} paymentMethods={paymentMethods} exchangeRate={exchangeRate} />
