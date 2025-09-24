@@ -238,8 +238,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                           <div>
                               <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Síguenos</h3>
                               <div className="flex items-center justify-center md:justify-start gap-4 mt-4">
-                                  <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Instagram className="h-5 w-5"/></a>
-                                  <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Facebook className="h-5 w-5"/></a>
+                                  <a href="https://www.instagram.com/llevateloconjorvi/" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Instagram className="h-5 w-5"/></a>
+                                  <a href="https://www.facebook.com/profile.php?id=61580658556320" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Facebook className="h-5 w-5"/></a>
                                   {/* ✅ NUEVO: Enlace de WhatsApp en el footer */}
                                   <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
                                       <img src="/whatsapp.png" alt="Contacto por WhatsApp" width="20" height="20"/>
