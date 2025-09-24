@@ -4,8 +4,9 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Providers } from './providers';
+import Script from 'next/script'; // Importa el componente Script de Next.js
 
-// Configuración de la fuente 
+// Configuración de la fuente
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
@@ -13,7 +14,7 @@ const inter = Inter({
 
 // --- 👇 INICIO DE LA MEJORA SEO COMPLETA ---
 
-const siteUrl = 'https://www.llevateloconjorvi.com'; 
+const siteUrl = 'https://www.llevateloconjorvi.com';
 
 export const metadata: Metadata = {
   // Título base y plantilla para que las demás páginas lo hereden
@@ -22,17 +23,17 @@ export const metadata: Metadata = {
     default: 'Llevatelo con Jorvi - Rifas Exclusivas y Premios Increíbles',
     template: '%s | Llevatelo con Jorvi',
   },
-  
+
   // Descripción optimizada para motores de búsqueda
   description: 'Participa en rifas exclusivas con Jorvi y gana premios asombrosos. Compra tu ticket y sé el próximo afortunado. ¡La suerte te espera en Venezuela!',
-  
+
   // Palabras clave relevantes para tu negocio
   keywords: ['rifas online', 'sorteos', 'premios', 'ganar', 'suerte', 'Llevatelo con Jorvi', 'Venezuela'],
-  
+
   // Íconos para navegadores y dispositivos Apple
   icons: {
-    icon: '/jorvi.png', 
-    apple: '/jorvi.png', 
+    icon: '/jorvi.png',
+    apple: '/jorvi.png',
   },
 
   // Establece la URL canónica base para todo el sitio
@@ -59,13 +60,13 @@ export const metadata: Metadata = {
     siteName: 'Llevatelo con Jorvi',
     images: [
       {
-        url: `${siteUrl}/jorvi.png`, 
+        url: `${siteUrl}/jorvi.png`,
         width: 1200,
         height: 630,
         alt: 'Logo de Llevatelo con Jorvi con premios de fondo',
       },
     ],
-    locale: 'es_VE', 
+    locale: 'es_VE',
     type: 'website',
   },
 
@@ -80,7 +81,6 @@ export const metadata: Metadata = {
 };
 
 // --- 🔼 FIN DE LA MEJORA SEO COMPLETA ---
-
 
 export default function RootLayout({
   children,
@@ -111,7 +111,21 @@ export default function RootLayout({
   return (
     <html lang="es" className={inter.variable}>
       <head>
-        {/* Meta Pixel Code */}
+        {/* --- Simple Analytics --- */}
+        <Script
+          strategy="afterInteractive"
+          src="https://scripts.simpleanalyticscdn.com/latest.js"
+        />
+        <noscript>
+          <img
+            src="https://queue.simpleanalyticscdn.com/noscript.gif"
+            alt=""
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </noscript>
+        {/* --- Fin de Simple Analytics --- */}
+
+        {/* --- Meta Pixel Code --- */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -129,15 +143,15 @@ export default function RootLayout({
           }}
         />
         <noscript>
-          <img 
-            height="1" 
-            width="1" 
-            style={{display:'none'}}
+          <img
+            height="1"
+            width="1"
+            style={{ display: 'none' }}
             src="https://www.facebook.com/tr?id=1146007377451309&ev=PageView&noscript=1"
             alt=""
           />
         </noscript>
-        {/* End Meta Pixel Code */}
+        {/* --- Fin de Meta Pixel Code --- */}
       </head>
       <body>
         {/* --- Script de Datos Estructurados (JSON-LD) --- */}
@@ -145,7 +159,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        
+
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -4,6 +4,9 @@
 // Importaciones de React y librerías externas
 import { useState, useMemo, ChangeEvent, useEffect, useRef, memo } from 'react';
 
+// 👇 1. Actualiza la importación al nuevo nombre del archivo
+import * as tracking from '@/lib/tracking'; 
+
 // Importaciones de componentes de UI y acciones del servidor
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
@@ -148,6 +151,25 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [verificationProgress, setVerificationProgress] = useState(0);
 
+    // --- IMPLEMENTACIÓN DE EVENTOS DE SEGUIMIENTO ---
+    const isFirstRender = useRef(true); 
+
+    useEffect(() => { 
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        // Evento para Meta Pixel
+        tracking.trackLead();
+
+        // 👇 2. Añade el evento para Simple Analytics
+        tracking.trackSimpleAnalyticsEvent('select_tickets');
+
+    }, [ticketCount]);
+
+    // --- FIN DE IMPLEMENTACIÓN DE EVENTOS ---
+
     // Referencias a elementos
     const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
         modalTimer: null,
@@ -236,6 +258,16 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
 
     const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        // Evento para Meta Pixel
+        tracking.trackPurchase({
+            value: totalAmount,
+            currency: raffle.currency,
+            num_items: ticketCount,
+        });
+
+        // 👇 3. Añade el evento para Simple Analytics
+        tracking.trackSimpleAnalyticsEvent('confirm_purchase');
 
         setIsPending(true);
         setReservationError('');
