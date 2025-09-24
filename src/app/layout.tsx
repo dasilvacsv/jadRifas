@@ -98,11 +98,11 @@ export default function RootLayout({
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'Customer Service',
-      // email: 'contacto@llevateloconjorvi.com', // ❗️ 
+      // email: 'contacto@llevateloconjorvi.com', // ❗️
       // telephone: '+58-XXX-XXXXXXX', // ❗️
     },
     sameAs: [
-      // ❗️ 
+      // ❗️
       // 'https://www.instagram.com/tu_usuario',
       // 'https://www.facebook.com/tu_pagina'
     ]
@@ -125,7 +125,7 @@ export default function RootLayout({
         </noscript>
         {/* --- Fin de Simple Analytics --- */}
 
-        {/* --- Meta Pixel Code --- */}
+        {/* --- Meta Pixel Code (ACTUALIZADO) --- */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -137,7 +137,7 @@ export default function RootLayout({
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '1146007377451309');
+              fbq('init', '1307727311140659');
               fbq('track', 'PageView');
             `
           }}
@@ -147,7 +147,7 @@ export default function RootLayout({
             height="1"
             width="1"
             style={{ display: 'none' }}
-            src="https://www.facebook.com/tr?id=1146007377451309&ev=PageView&noscript=1"
+            src="https://www.facebook.com/tr?id=1307727311140659&ev=PageView&noscript=1"
             alt=""
           />
         </noscript>
