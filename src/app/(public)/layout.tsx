@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, Sparkles, Users, MessageCircle } from 'lucide-react';
+// MODIFICADO: Se añade 'Users' y se quita 'Sparkles'
+import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, Users, MessageCircle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -10,12 +11,10 @@ import { TermsModal } from '@/components/TermsModal';
 import { WaitlistNavLink } from '@/components/ui/waitlist-nav-link';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ✅ NUEVO: Información de WhatsApp centralizada
 const phoneNumber = "584142939088";
-const message = "¡Hola! Necesito ayuda con mi compra en Jorvilaniña."; // Mensaje actualizado
+const message = "¡Hola! Necesito ayuda con mi compra en Jorvilaniña.";
 const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
-// Estilos globales (adaptados al tema ámbar)
 const GlobalStyles = () => (
     <style jsx global>{`
         @keyframes header-line-animation { from { width: 0%; } to { width: 100%; } }
@@ -26,7 +25,6 @@ const GlobalStyles = () => (
     `}</style>
 );
 
-// Componente NavLink (sin cambios)
 const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void }) => {
     const pathname = usePathname();
     const isActive = href === '/' ? pathname === href : pathname.startsWith(href);
@@ -37,7 +35,6 @@ const NavLink = ({ href, children, onClick }: { href: string; children: React.Re
     );
 };
 
-// ✅ NUEVO: Componente del Botón Flotante de WhatsApp
 const FloatingWhatsAppButton = () => {
   const [isHovered, setIsHovered] = useState(false);
   return (
@@ -71,7 +68,6 @@ const FloatingWhatsAppButton = () => {
   );
 };
 
-// ✅ NUEVO: Componente del Pop-up de WhatsApp (adaptado al tema)
 const WhatsAppPopup = ({ isVisible, onClose }: { isVisible: boolean; onClose: () => void; }) => {
     return (
         <AnimatePresence>
@@ -85,11 +81,11 @@ const WhatsAppPopup = ({ isVisible, onClose }: { isVisible: boolean; onClose: ()
                 >
                     <button onClick={onClose} className="absolute top-3 right-3 text-zinc-500 hover:text-white transition-colors" aria-label="Cerrar"><X size={18} /></button>
                     <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 text-amber-400 mt-1"><MessageCircle size={24} /></div> {/* 🎨 Color adaptado */}
+                        <div className="flex-shrink-0 text-amber-400 mt-1"><MessageCircle size={24} /></div>
                         <div className="flex-1">
                             <p className="font-bold text-white text-base leading-tight">¿Problemas con tu compra?</p>
                             <p className="text-zinc-400 text-sm mt-1 mb-4">Habla con un asesor para resolver tus dudas al instante.</p>
-                            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-sm transition-all transform hover:scale-105"> {/* 🎨 Color adaptado */}
+                            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-sm transition-all transform hover:scale-105">
                                 <img src="/whatsapp.png" alt="WhatsApp" width="20" height="20" className="mr-2" />
                                 Chatear Ahora
                             </a>
@@ -101,11 +97,9 @@ const WhatsAppPopup = ({ isVisible, onClose }: { isVisible: boolean; onClose: ()
     );
 };
 
-
-// Componente Principal del Layout Público
 export default function PublicLayout({ children }: { children: React.ReactNode; }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isPopupVisible, setIsPopupVisible] = useState(false); // ✅ NUEVO: Estado para el pop-up
+    const [isPopupVisible, setIsPopupVisible] = useState(false);
     const pathname = usePathname();
 
     useEffect(() => { setIsMenuOpen(false); }, [pathname]);
@@ -115,9 +109,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
         return () => { document.body.style.overflow = 'auto'; };
     }, [isMenuOpen]);
 
-    // ✅ MODIFICADO: useEffect para mostrar el pop-up después de 1 minuto
     useEffect(() => {
-        const timer = setTimeout(() => { setIsPopupVisible(true); }, 60000); // Cambiado de 5000 a 60000 (1 minuto)
+        const timer = setTimeout(() => { setIsPopupVisible(true); }, 60000);
         return () => clearTimeout(timer);
     }, []);
 
@@ -134,11 +127,13 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                             <span className="text-xl sm:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-100 to-zinc-400 group-hover:from-white group-hover:to-zinc-300 transition-colors duration-300">Jorvilaniña</span>
                         </Link>
 
+                        {/* --- NAVBAR DESKTOP MODIFICADA --- */}
                         <nav className="hidden md:flex items-center gap-2 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1.5 shadow-inner shadow-black/20">
                             <NavLink href="/"><LayoutGrid className="h-4 w-4" /> Inicio</NavLink>
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
-                            <WaitlistNavLink href="/unete"><Sparkles className="h-4 w-4" /> ¡Únete!</WaitlistNavLink>
-                            {/* ✅ NUEVO: Enlace de ayuda en la navegación de escritorio */}
+                            {/* ✅ NUEVO: Enlace a Top Compradores */}
+                            <NavLink href="/top-compradores"><Users className="h-4 w-4" /> Top Compradores</NavLink>
+                            {/* ❌ ELIMINADO: Enlace de ¡Únete! */}
                             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-zinc-400 hover:bg-zinc-800/60 hover:text-white">
                                 <img src="/whatsapp.png" alt="Ayuda por WhatsApp" width="16" height="16" />
                                 Ayuda
@@ -159,7 +154,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                                 </Button>
                             </Link>
 
-                            {/* ✅ NUEVO: Botón de WhatsApp para móvil */}
                             <a 
                                 href={whatsappUrl} 
                                 target="_blank" 
@@ -183,12 +177,15 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                 </div>
             </header>
 
+            {/* --- NAVBAR MOBILE MODIFICADA --- */}
             {isMenuOpen && (
                 <div className="md:hidden fixed inset-0 top-24 z-40 bg-zinc-950/95 backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-300">
                     <div className="flex flex-col items-center justify-center h-full gap-y-6 px-8">
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
                         <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
-                        <WaitlistNavLink href="/unete"><Sparkles className="h-4 w-4" /> <span className="text-lg">¡Únete!</span></WaitlistNavLink>
+                        {/* ✅ NUEVO: Enlace a Top Compradores para móvil */}
+                        <NavLink href="/top-compradores" onClick={() => setIsMenuOpen(false)}><Users className="h-5 w-5" /> <span className="text-lg">Top Compradores</span></NavLink>
+                        {/* ❌ ELIMINADO: Enlace de ¡Únete! para móvil */}
                         <div className="w-full max-w-xs pt-8 flex flex-col gap-4">
                             <Link href="/mis-tickets" className="w-full">
                                 <Button size="lg" className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-full py-6 text-base">
@@ -227,12 +224,15 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                                   </div>
                               </div>
                           </div>
+                          {/* --- FOOTER MODIFICADO --- */}
                           <div>
                               <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Navegación</h3>
                               <ul className="mt-4 space-y-3">
                                   <li><Link href="/" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Inicio</Link></li>
                                   <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
                                   <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
+                                  {/* ✅ NUEVO: Enlace a Top Compradores en el footer */}
+                                  <li><Link href="/top-compradores" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Top Compradores</Link></li>
                               </ul>
                           </div>
                           <div>
@@ -240,7 +240,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                               <div className="flex items-center justify-center md:justify-start gap-4 mt-4">
                                   <a href="https://www.instagram.com/llevateloconjorvi/" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Instagram className="h-5 w-5"/></a>
                                   <a href="https://www.facebook.com/profile.php?id=61580658556320" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors"><Facebook className="h-5 w-5"/></a>
-                                  {/* ✅ NUEVO: Enlace de WhatsApp en el footer */}
                                   <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
                                       <img src="/whatsapp.png" alt="Contacto por WhatsApp" width="20" height="20"/>
                                   </a>
@@ -257,7 +256,6 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                  </div>
             </footer>
 
-            {/* ✅ NUEVO: Componentes de WhatsApp renderizados aquí */}
             <WhatsAppPopup isVisible={isPopupVisible} onClose={() => setIsPopupVisible(false)} />
             <FloatingWhatsAppButton />
         </div>

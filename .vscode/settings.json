@@ -7,7 +7,7 @@
         "**/Thumbs.db": true,
         "**/CVS": true,
         "postcss.config.js": true,
-        "tailwind.config.ts": true,
+        "tailwind.config.ts": false,
         "README.md": true,
         "next-env.d.ts": true,
         ".gitignore": true,

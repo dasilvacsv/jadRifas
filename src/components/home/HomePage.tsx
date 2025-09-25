@@ -7,11 +7,9 @@ import Link from 'next/link';
 import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, Star, MessageSquare } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import { FloatingWhatsAppButton } from '@/components/whatsapp/FloatingWhatsAppButton';
-// Se eliminó la importación de TermsModal, ya que el contenido está integrado.
-
 
 // --- INTERFACES DE DATOS ---
 export interface RaffleImage { id: string; url: string; raffleId: string; }
@@ -488,11 +486,6 @@ const ProofOfWinModal = ({ imageUrl, onClose }: { imageUrl: string | null, onClo
     );
 };
 
-
-
-
-
-
 // --- COMPONENTE PRINCIPAL DE LA PÁGINA ---
 export default function HomePage({ activeRaffles, finishedRaffles, paymentMethods }: HomePageProps) {
     
@@ -500,8 +493,6 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
     const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
     const [helpModalOpen, setHelpModalOpen] = useState(false);
     
-    
-
     const handleShowProof = (url: string) => { setProofImageUrl(url); setProofModalOpen(true); };
     const handleCloseProof = () => { setProofModalOpen(false); setProofImageUrl(null); };
 
@@ -510,9 +501,6 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
         window.addEventListener('keydown', handleKeyDown);
         return () => { window.removeEventListener('keydown', handleKeyDown); };
     }, []);
-    
-   
-    
     
     useEffect(() => {
         if (activeRaffles.length > 0) {
@@ -524,7 +512,6 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
     }, [activeRaffles]);
 
     const isSingleFeatured = activeRaffles.length === 1;
-    const latestRaffle = activeRaffles.length > 0 ? activeRaffles[0] : null;
 
     return (
         <>
@@ -533,7 +520,23 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 <div className="absolute inset-0 -z-10 h-full w-full bg-zinc-950 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
                 <div className="absolute -top-40 -left-40 w-[30rem] h-[30rem] bg-gradient-to-br from-amber-600/40 to-orange-600/20 rounded-full blur-3xl blob-anim -z-10"></div>
                 <div className="absolute -bottom-40 -right-40 w-[30rem] h-[30rem] bg-gradient-to-br from-purple-600/30 to-indigo-600/20 rounded-full blur-3xl blob-anim animation-delay-4000 -z-10"></div>
-                <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-24">
+                <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+                    
+                    {/* ✅ NUEVO: Botón para ir al Top de Compradores */}
+                    <motion.div 
+                        className="flex justify-center mb-10 sm:mb-16"
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+                    >
+                        <Link href="/top-compradores">
+                            <Button variant="outline" className="group text-base sm:text-lg font-bold tracking-wide rounded-full border-2 border-amber-500/30 bg-zinc-900/50 text-amber-300 px-6 py-3 h-auto backdrop-blur-sm transition-all duration-300 hover:bg-amber-400/10 hover:border-amber-400 hover:text-white hover:shadow-lg hover:shadow-amber-500/20">
+                                <Trophy className="h-5 w-5 mr-2.5 text-amber-400 transition-transform duration-300 group-hover:scale-110" />
+                                TOP COMPRADORES
+                            </Button>
+                        </Link>
+                    </motion.div>
+
                     <section className="mb-10 sm:mb-28">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-12 items-center">
                             <div className="flex flex-col items-center lg:items-end justify-center pt-20 sm:pt-0 lg:order-first">
@@ -572,10 +575,6 @@ export default function HomePage({ activeRaffles, finishedRaffles, paymentMethod
                 </main>
             </div>
             {proofModalOpen && <ProofOfWinModal imageUrl={proofImageUrl} onClose={handleCloseProof} />}
-            
-            
-           
-            
             <FloatingWhatsAppButton />
         </>
     );
