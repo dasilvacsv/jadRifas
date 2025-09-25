@@ -4,6 +4,7 @@ import { getRaffleDataBySlug, getSystemSettings } from '@/features/rifas/actions
 import RaffleDetailClient from '@/features/rifas/raffle-detail-client';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { TopBuyersLeaderboard } from '@/components/TopBuyersLeaderBoard';
 
 // Nota: No es necesario modificar `generateMetadata` ya que no usa el tipo de cambio.
 
@@ -97,13 +98,14 @@ export default async function RafflePage({ params, searchParams }: { params: { s
         dangerouslySetInnerHTML={{ __html: JSON.stringify(raffleJsonLd) }}
       />
       <RaffleDetailClient
-        raffle={raffle}
-        paymentMethods={paymentMethods}
-        ticketsTakenCount={ticketsTakenCount}
-        exchangeRate={finalExchangeRate} // Pasa la tasa de cambio final
-        // --- ¡NUEVO! Pasar el código de referido al componente cliente ---
-        referralCode={referralCode}
-      />
+                raffle={raffle}
+                paymentMethods={paymentMethods}
+                ticketsTakenCount={ticketsTakenCount}
+                exchangeRate={finalExchangeRate}
+                referralCode={referralCode}
+               
+                leaderboardComponent={<TopBuyersLeaderboard />}
+            />
     </>
   );
 }

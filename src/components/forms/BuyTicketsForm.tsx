@@ -1,30 +1,25 @@
-// src/components/BuyTicketsForm.tsx
+// src/components/forms/BuyTicketsForm.tsx
 "use client";
 
-// Importaciones de React y librerías externas
-import { useState, useMemo, ChangeEvent, useEffect, useRef, memo } from 'react';
-
-// 👇 1. Actualiza la importación al nuevo nombre del archivo
-import * as tracking from '@/lib/tracking'; 
-
-// Importaciones de componentes de UI y acciones del servidor
+// --- Imports para el Formulario ---
+import { useState, useMemo, ChangeEvent, useEffect, useRef, memo, ReactNode } from 'react';
+import * as tracking from '@/lib/tracking';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 import { CountryCodeSelector } from '@/components/ui/CountryCodeSelector';
-
-// Importaciones de utilidades e íconos
 import { getBCVRates } from '@/lib/exchangeRates';
 import Image from 'next/image';
-import { Loader2, X, Ticket, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Minus, Plus, Banknote, Check } from 'lucide-react';
+import { Loader2, X, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Minus, Plus, Check, Ticket } from 'lucide-react';
 
-// Definición de Interfaces
+
+// --- INICIO: LÓGICA DEL FORMULARIO ---
 interface PaymentMethod {
     id: string;
     title: string;
@@ -80,6 +75,14 @@ const GlobalStyles = memo(function GlobalStyles() {
             .pulse-green-anim {
                 animation: pulse-green 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
             }
+            /* Animación para el botón de compra anterior */
+            @keyframes pulse-bright { 
+                0%, 100% { box-shadow: 0 0 15px 0px rgba(23, 224, 122, 0.4); } 
+                50% { box-shadow: 0 0 25px 5px rgba(23, 224, 122, 0.7); } 
+            }
+            .pulse-bright-anim { 
+                animation: pulse-bright 2.5s infinite ease-in-out; 
+            }
         `}</style>
     );
 });
@@ -103,7 +106,7 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
                 cursor-pointer transition-all duration-300 transform 
                 ${isSelected 
                     ? 'border-green-500/50 bg-green-900/10 text-white shadow-lg pulse-green-anim'
-                    : 'border-white/10 bg-black/20 hover:bg-white/5 text-zinc-400 hover:text-white'
+                    : 'border-white/10 bg-white/[.07] hover:bg-white/10 text-zinc-400 hover:text-white'
                 }
             `}
         >
@@ -126,6 +129,7 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
         </label>
     );
 });
+
 
 // Componente Principal del Formulario
 export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialExchangeRate, referralCode }: BuyTicketsFormProps) {
@@ -308,181 +312,173 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
             setIsPending(false);
         }
     };
+    
+    // --- Renderizado del Formulario y Layout ---
 
-    // Renderizado condicional para la pantalla de éxito/error
-    if (apiState.success || (apiState.message && apiState.message.trim() !== '')) {
-        return (
-            <CardContent className="p-0">
-                <div className="p-5">
-                    <div className="text-center space-y-6 py-6 animate-fade-in">
-                        {apiState.success ? (
-                            <div className="p-4 rounded-lg bg-green-950/50 border border-green-400/30">
-                                <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
-                                <AlertDescription className="text-xl font-bold text-green-300">¡Solicitud recibida!</AlertDescription>
-                                <p className="text-base text-green-400/80 mt-2">
-                                    Tus tickets están pendientes por confirmar. Te avisaremos por correo y WhatsApp cuando validemos el pago. ¡Mucha suerte!
+    return (
+        <Card className="bg-transparent border-none shadow-none">
+            {apiState.success || (apiState.message && apiState.message.trim() !== '') ? (
+                <CardContent className="p-0">
+                    <div className="p-5">
+                        <div className="text-center space-y-6 py-6 animate-fade-in">
+                            {apiState.success ? (
+                                <div className="p-4 rounded-lg bg-green-950/50 border border-green-400/30">
+                                    <CheckCircle className="h-16 w-16 text-green-400 mx-auto mb-4" />
+                                    <AlertDescription className="text-xl font-bold text-green-300">¡Solicitud recibida!</AlertDescription>
+                                    <p className="text-base text-green-400/80 mt-2">Tus tickets están pendientes por confirmar. Te avisaremos por correo y WhatsApp cuando validemos el pago. ¡Mucha suerte!</p>
+                                </div>
+                            ) : (
+                                <div className="p-4 rounded-lg bg-red-950/50 border border-red-400/30">
+                                    <X className="h-16 w-16 text-red-400 mx-auto mb-4" />
+                                    <AlertDescription className="text-xl font-bold text-red-300">{apiState.message}</AlertDescription>
+                                    <p className="text-base text-red-400/80 mt-2">Por favor, verifica los datos e inténtalo de nuevo.</p>
+                                </div>
+                            )}
+                            <Button onClick={resetForm} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">
+                                {apiState.success ? 'Comprar más tickets' : 'Intentar de nuevo'}
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            ) : (
+                <CardContent className="p-0">
+                    <GlobalStyles />
+                    <Dialog open={isVerifyingPayment}>
+                        <DialogContent className="bg-zinc-900 border-zinc-700 text-white" hideCloseButton>
+                            <DialogHeader>
+                                <DialogTitle className="text-center text-2xl font-bold text-amber-400">Verificando tu Pago</DialogTitle>
+                                <DialogDescription className="text-center text-zinc-400 pt-2">
+                                    Estamos confirmando tu pago. <strong>No cierres ni recargues esta página.</strong>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4">
+                                <Progress value={verificationProgress} className="w-full [&>div]:bg-amber-500" />
+                                <p className="text-center text-sm text-zinc-500 mt-3">
+                                    {verificationProgress < 90 ? 'Esperando...' : 'Casi listo...'}
                                 </p>
                             </div>
-                        ) : (
-                            <div className="p-4 rounded-lg bg-red-950/50 border border-red-400/30">
-                                <X className="h-16 w-16 text-red-400 mx-auto mb-4" />
-                                <AlertDescription className="text-xl font-bold text-red-300">{apiState.message}</AlertDescription>
-                                <p className="text-base text-red-400/80 mt-2">Por favor, verifica los datos e inténtalo de nuevo.</p>
-                            </div>
-                        )}
-                        <Button onClick={resetForm} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-lg py-6 text-base">
-                            {apiState.success ? 'Comprar más tickets' : 'Intentar de nuevo'}
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        );
-    }
-
-    // Renderizado del formulario principal
-    return (
-        <CardContent className="p-0">
-            <GlobalStyles />
-            <Dialog open={isVerifyingPayment}>
-                <DialogContent className="bg-zinc-900 border-zinc-700 text-white" hideCloseButton>
-                    <DialogHeader>
-                        <DialogTitle className="text-center text-2xl font-bold text-amber-400">Verificando tu Pago</DialogTitle>
-                        <DialogDescription className="text-center text-zinc-400 pt-2">
-                            Estamos confirmando tu pago. Esto puede tardar hasta un minuto.<br/>
-                            <strong>Por favor, no cierres ni recargues esta página.</strong>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Progress value={verificationProgress} className="w-full [&>div]:bg-amber-500" />
-                        <p className="text-center text-sm text-zinc-500 mt-3">
-                            {verificationProgress < 90 ? 'Esperando respuesta...' : 'Casi listo...'}
-                        </p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-            
-            <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
-                
-                {/* Sección 1: Cantidad de Tickets */}
-                <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-center text-white">1. Elige la cantidad de tickets</h3>
-                    {reservationError && <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300"><AlertDescription>{reservationError}</AlertDescription></Alert>}
-                    <div className="grid grid-cols-3 gap-3">
-                        {TICKET_AMOUNTS.map((q) => (
-                            <div key={q} className="relative">
-                                <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending}/>
-                                <label htmlFor={`quantity-${q}`} className="flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-black/20 cursor-pointer transition-all hover:bg-white/5 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
-                                    <span className="text-2xl font-bold text-white">{q}</span>
-                                    <span className="text-xs text-zinc-400 uppercase">tickets</span>
-                                </label>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="bg-black/20 p-4 rounded-lg border border-white/10 text-center">
-                        <div className="flex items-center justify-center space-x-3 mb-4">
-                            <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
-                            <Input type="number" value={ticketCount} onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 1)} min="1" className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
-                        </div>
-                        <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
-                        <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
-                        {isLoadingRates ? <p className="text-zinc-500 text-sm h-9 flex items-center justify-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa...</p> : (currencyData.totalSecondary && (
-                            <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center h-9">
-                                <span className="text-zinc-400 text-base mr-2">≈</span> 
-                                <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
-                            </p>
-                        ))}
-                    </div>
-                </div>
-                <hr className="border-t border-zinc-700" />
-                
-                {/* Sección 2: Método de Pago */}
-                <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-center text-white">2. Selecciona tu método de pago</h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {paymentMethods.map(method => (
-                            <PaymentMethodItem
-                                key={method.id}
-                                method={method}
-                                isSelected={paymentMethodId === method.id}
-                                onSelect={() => setPaymentMethodId(method.id)}
-                            />
-                        ))}
-                    </div>
-                    {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency} exchangeRate={exchangeRate} />}
-                </div>
-                <hr className="border-t border-zinc-700" />
-
-                {/* Sección 3: Datos de Contacto */}
-                <div className="space-y-6">
-                    <h3 className="text-xl font-bold text-center text-white">3. Completa tus datos</h3>
-                    <div className="space-y-4">
-                        
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label>
-                            <div className="relative flex items-center">
-                                <User className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                <Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white rounded-lg"/>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-zinc-400">Email*</Label>
-                            <div className="relative flex items-center">
-                                <AtSign className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                <Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white rounded-lg"/>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)*</Label>
-                            <div className="flex items-center">
-                                <CountryCodeSelector value={countryCode} onChange={setCountryCode} disabled={isPending} />
-                                <Input id="phone" type="tel" placeholder="412 1234567" value={buyerPhone} onChange={handlePhoneChange} required className="h-12 bg-black/30 border-white/10 text-white rounded-l-none focus-visible:ring-offset-0 focus-visible:ring-1" />
-                            </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago*</Label>
-                            <div className="relative flex items-center">
-                                <FileText className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white rounded-lg"/>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-                <hr className="border-t border-zinc-700" />
-
-                {/* Sección 4: Subir Comprobante (OPCIONAL) */}
-                <div className="space-y-6">
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-white mb-2">4. Sube el comprobante de pago</h3>
-                        <div className="bg-amber-950/30 border border-amber-500/30 rounded-lg p-3 mb-4">
-                            <p className="text-amber-300 text-sm font-medium">¿No pudiste subir tu foto?</p>
-                            <p className="text-amber-200/80 text-xs mt-1">
-                                Es opcional. Solo envía el número de referencia para confirmar el pago.
-                            </p>
-                        </div>
-                    </div>
+                        </DialogContent>
+                    </Dialog>
                     
-                    <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-black/20 hover:bg-black/40 p-4">
-                        <div className="text-center text-zinc-400"><UploadCloud className="w-10 h-10 mb-3 text-amber-500 mx-auto" /><p className="font-semibold"><span className="text-amber-400">Click para subir</span> o arrastra</p><p className="text-xs mt-1">PNG, JPG, GIF (MAX. 5MB) - Opcional</p></div>
-                        <Input id="paymentScreenshot" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                    </label>
-                    {preview && (<div className="relative mt-2 w-28 h-28 mx-auto"><Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" /><button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button></div>)}
-                </div>
-                
-                {/* Botón de Envío Final */}
-                <Button 
-                    type="submit" 
-                    disabled={isPending || !paymentMethodId} 
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none"
-                >
-                    {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
-                    Confirmar Compra
-                </Button>
-            </form>
-        </CardContent>
+                    <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
+                        
+                        {/* Sección 1: Cantidad de Tickets */}
+                        <div className="space-y-6">
+                            <h3 className="text-xl font-bold text-center text-white">1. Elige la cantidad de tickets</h3>
+                            {reservationError && <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300"><AlertDescription>{reservationError}</AlertDescription></Alert>}
+                            <div className="grid grid-cols-3 gap-3">
+                                {TICKET_AMOUNTS.map((q) => (
+                                    <div key={q} className="relative">
+                                        <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending}/>
+                                        <label htmlFor={`quantity-${q}`} className="flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-white/[.07] cursor-pointer transition-all hover:bg-white/10 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
+                                            <span className="text-2xl font-bold text-white">{q}</span>
+                                            <span className="text-xs text-zinc-400 uppercase">tickets</span>
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
+                                <div className="flex items-center justify-center space-x-3 mb-4">
+                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
+                                    <Input type="number" value={ticketCount} onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 1)} min="1" className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
+                                </div>
+                                <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
+                                <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
+                                {isLoadingRates ? <p className="text-zinc-500 text-sm h-9 flex items-center justify-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa...</p> : (currencyData.totalSecondary && (
+                                    <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center h-9">
+                                        <span className="text-zinc-400 text-base mr-2">≈</span> 
+                                        <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                        <hr className="border-t border-zinc-700/50" />
+                        
+                        {/* Sección 2: Método de Pago */}
+                        <div className="space-y-6">
+                            <h3 className="text-xl font-bold text-center text-white">2. Selecciona tu método de pago</h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {paymentMethods.map(method => (
+                                    <PaymentMethodItem
+                                        key={method.id}
+                                        method={method}
+                                        isSelected={paymentMethodId === method.id}
+                                        onSelect={() => setPaymentMethodId(method.id)}
+                                    />
+                                ))}
+                            </div>
+                            {selectedPaymentMethod && <PaymentDetailsDisplay method={selectedPaymentMethod} amount={totalAmount} currency={raffle.currency} exchangeRate={exchangeRate} />}
+                        </div>
+                        <hr className="border-t border-zinc-700/50" />
+
+                        {/* Sección 3: Datos de Contacto */}
+                        <div className="space-y-6">
+                            <h3 className="text-xl font-bold text-center text-white">3. Completa tus datos</h3>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label>
+                                    <div className="relative flex items-center">
+                                        <User className="absolute left-3 h-5 w-5 text-zinc-500"/>
+                                        <Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="email" className="text-zinc-400">Email*</Label>
+                                    <div className="relative flex items-center">
+                                        <AtSign className="absolute left-3 h-5 w-5 text-zinc-500"/>
+                                        <Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="phone" className="text-zinc-400">Teléfono (WhatsApp)*</Label>
+                                    <div className="flex items-center">
+                                        <CountryCodeSelector value={countryCode} onChange={setCountryCode} disabled={isPending} />
+                                        <Input id="phone" type="tel" placeholder="412 1234567" value={buyerPhone} onChange={handlePhoneChange} required className="h-12 bg-white/[.07] border-white/10 text-white rounded-l-none focus-visible:ring-offset-0 focus-visible:ring-1" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago*</Label>
+                                    <div className="relative flex items-center">
+                                        <FileText className="absolute left-3 h-5 w-5 text-zinc-500"/>
+                                        <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr className="border-t border-zinc-700/50" />
+
+                        {/* Sección 4: Subir Comprobante (OPCIONAL) */}
+                        <div className="space-y-6">
+                            <div className="text-center">
+                                <h3 className="text-xl font-bold text-white mb-2">4. Sube el comprobante de pago</h3>
+                                <div className="bg-amber-950/30 border border-amber-500/30 rounded-lg p-3 mb-4">
+                                    <p className="text-amber-300 text-sm font-medium">¿No pudiste subir tu foto?</p>
+                                    <p className="text-amber-200/80 text-xs mt-1">
+                                        Es opcional. Solo envía el número de referencia para confirmar el pago.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-white/[.07] hover:bg-white/10 p-4">
+                                <div className="text-center text-zinc-400"><UploadCloud className="w-10 h-10 mb-3 text-amber-500 mx-auto" /><p className="font-semibold"><span className="text-amber-400">Click para subir</span> o arrastra</p><p className="text-xs mt-1">PNG, JPG, GIF (MAX. 5MB) - Opcional</p></div>
+                                <Input id="paymentScreenshot" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                            </label>
+                            {preview && (<div className="relative mt-2 w-28 h-28 mx-auto"><Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" /><button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button></div>)}
+                        </div>
+                        
+                        {/* ✅ Botón de Envío Final Actualizado */}
+                        <Button 
+                            type="submit" 
+                            disabled={isPending || !paymentMethodId} 
+                            className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none"
+                        >
+                            {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
+                            Confirmar Compra
+                        </Button>
+                    </form>
+                </CardContent>
+            )}
+        </Card>
     );
 }

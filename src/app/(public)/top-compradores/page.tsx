@@ -27,9 +27,9 @@ type Rank = {
 
 // Paleta de colores original restaurada con el nuevo sistema de rangos
 const RANKS: Rank[] = [
-    { name: 'Diamante', icon: <Diamond className="h-full w-full" />, color: 'text-yellow-300', bgColor: 'bg-yellow-300', borderColor: 'border-yellow-300', glowColor: 'shadow-yellow-300/60' },
+    { name: 'Diamante', icon: <Diamond className="h-full w-full" />, color: 'text-cyan-300', bgColor: 'bg-cyan-300', borderColor: 'border-cyan-300', glowColor: 'shadow-cyan-300/60' },
     { name: 'Platino', icon: <Shield className="h-full w-full" />, color: 'text-slate-300', bgColor: 'bg-slate-300', borderColor: 'border-slate-300', glowColor: 'shadow-slate-300/60' },
-    { name: 'Oro', icon: <Star className="h-full w-full" />, color: 'text-amber-400', bgColor: 'bg-amber-400', borderColor: 'border-amber-400', glowColor: 'shadow-amber-400/60' },
+    { name: 'Oro', icon: <Star className="h-full w-full" />, color: 'text-yellow-400', bgColor: 'bg-yellow-400', borderColor: 'border-yellow-400', glowColor: 'shadow-yellow-400/60' },
     { name: 'Plata', icon: <Medal className="h-full w-full" />, color: 'text-gray-400', bgColor: 'bg-gray-400', borderColor: 'border-gray-400', glowColor: 'shadow-gray-400/60' },
     { name: 'Bronce', icon: <Trophy className="h-full w-full" />, color: 'text-orange-400', bgColor: 'bg-orange-400', borderColor: 'border-orange-400', glowColor: 'shadow-orange-400/60' },
 ];

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, ReactNode } from 'react';
+// ✅ 1. Importa los dos componentes del archivo del formulario
 import { BuyTicketsForm } from '@/components/forms/BuyTicketsForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,9 +12,12 @@ import Link from 'next/link';
 import { 
     ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
     Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star,
+    Gamepad2 // <-- ICONO NUEVO AÑADIDO
 } from 'lucide-react';
-// Se eliminó la importación de TermsModal, ya que el contenido está integrado.
 import { AnimatePresence, motion } from 'framer-motion';
+// ✅ Importa los componentes para el Sheet
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+
 
 // --- INTERFACES ---
 interface PaymentMethod {
@@ -60,7 +64,8 @@ interface RaffleDetailClientProps {
     paymentMethods: PaymentMethod[];
     ticketsTakenCount: number;
     exchangeRate: number | null;
-    referralCode?: string; // <-- Prop opcional añadida
+    referralCode?: string;
+    leaderboardComponent: ReactNode;
 }
 
 // --- UTILIDADES ---
@@ -122,9 +127,7 @@ const GlobalStyles = memo(function GlobalStyles() {
     );
 });
 
-
-
-// --- COMPONENTES AUXILIARES REFACTORIZADOS ---
+// --- COMPONENTES AUXILIARES (Sin Cambios) ---
 
 const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffleName }: { images: RaffleImage[], raffleName: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -289,12 +292,11 @@ const getStatusBadge = (status: Raffle['status']) => {
     }
 }
 
-
-// --- COMPONENTE PRINCIPAL ---
-export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate, referralCode }: RaffleDetailClientProps) {
+// --- COMPONENTE PRINCIPAL (ACTUALIZADO) ---
+export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate, referralCode, leaderboardComponent }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
-    
+    // ❌ El estado para la sidebar ya no es necesario.
 
     return (
         <>
@@ -317,14 +319,10 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                             
                             <div className="space-y-6">
                                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                                    <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">
-                                        {raffle.name}
-                                    </h1>
+                                    <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">{raffle.name}</h1>
                                     <div className="flex-shrink-0 mt-1">{getStatusBadge(raffle.status)}</div>
                                 </div>
-                                {raffle.description && (
-                                    <p className="text-zinc-300 text-lg leading-relaxed max-w-prose">{raffle.description}</p>
-                                )}
+                                {raffle.description && <p className="text-zinc-300 text-lg leading-relaxed max-w-prose">{raffle.description}</p>}
                             </div>
                             
                             <div className="bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-xl p-6 space-y-5">
@@ -339,7 +337,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                             </div>
                         </div>
 
-                        {/* --- Columna Derecha: Formulario o Ganador --- */}
+                        {/* --- Columna Derecha: Formulario --- */}
                         <aside className="lg:col-span-2">
                             <div className="lg:sticky lg:top-8 space-y-8">
                                 {raffle.status === 'finished' && raffle.winnerTicketId ? (
@@ -348,20 +346,41 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                     <div className="group relative rounded-2xl p-px overflow-hidden animated-border">
                                         <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden">
                                             <CardHeader className="p-6 border-b border-white/10">
-                                                <CardTitle className="text-2xl font-bold flex items-center gap-3 text-white">
-                                                    <Ticket className="h-7 w-7 text-amber-400"/>
-                                                    ¡Participa Ahora!
-                                                </CardTitle>
-                                                <div className="mt-4">
-                                                    <p className="text-sm text-zinc-400">Precio por ticket</p>
-                                                    <p className="text-4xl font-extrabold text-white">{formatCurrency(raffle.price, raffle.currency)}</p>
+                                                <div className="flex justify-between items-center">
+                                                    {/* ✅ Título "JUEGA AQUÍ" */}
+                                                    <CardTitle className="text-2xl font-bold flex items-center gap-3 text-white">
+                                                        <Gamepad2 className="h-7 w-7 text-green-400"/>
+                                                        JUEGA AQUÍ
+                                                    </CardTitle>
+                                                    
+                                                    {/* ✅ Botón que activa el Sheet en PC */}
+                                                    <div className="hidden lg:block">
+                                                        <Sheet>
+                                                            <SheetTrigger asChild>
+                                                                <Button
+    size="sm"
+    variant="outline"
+    className="h-9 border-amber-500/30 bg-black/30 text-amber-400 hover:bg-amber-500 hover:text-black font-semibold transition-colors"
+>
+    <Trophy className="h-4 w-4 mr-2" />
+    Mostrar Top
+</Button>
+                                                            </SheetTrigger>
+                                                            <SheetContent className="bg-zinc-950/95 backdrop-blur-sm border-zinc-800 text-white w-[90vw] max-w-md p-4">
+                                                                <SheetHeader className="mb-4">
+                                                                    <SheetTitle className="text-2xl font-bold text-center text-white tracking-wider">TOP COMPRADORES</SheetTitle>
+                                                                </SheetHeader>
+                                                                {leaderboardComponent}
+                                                            </SheetContent>
+                                                        </Sheet>
+                                                    </div>
                                                 </div>
                                             </CardHeader>
                                             <BuyTicketsForm 
-                                                raffle={raffle} 
-                                                paymentMethods={paymentMethods} 
+                                                raffle={raffle}
+                                                paymentMethods={paymentMethods}
                                                 exchangeRate={exchangeRate}
-                                                referralCode={referralCode} // <-- Prop pasada al formulario
+                                                referralCode={referralCode}
                                             />
                                         </Card>
                                     </div>
@@ -379,12 +398,19 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                 )}
                             </div>
                         </aside>
+
+                        {/* ✅ Leaderboard para MÓVIL (oculto en PC) */}
+                        <div className="lg:hidden lg:col-span-5 mt-8">
+                             <h3 className="text-2xl font-bold text-center text-white mb-4 tracking-wider">TOP COMPRADORES</h3>
+                             <div className="p-4 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">
+                                 {leaderboardComponent}
+                             </div>
+                        </div>
+
                     </div>
                 </main>
             </div>
             {proofModalUrl && <ProofOfWinModal imageUrl={proofModalUrl} onClose={() => setProofModalUrl(null)} />}
-            
-            
         </>
     );
 }
