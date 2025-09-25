@@ -115,9 +115,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
         return () => { document.body.style.overflow = 'auto'; };
     }, [isMenuOpen]);
 
-    // ✅ NUEVO: useEffect para mostrar el pop-up después de 5 segundos
+    // ✅ MODIFICADO: useEffect para mostrar el pop-up después de 1 minuto
     useEffect(() => {
-        const timer = setTimeout(() => { setIsPopupVisible(true); }, 5000);
+        const timer = setTimeout(() => { setIsPopupVisible(true); }, 60000); // Cambiado de 5000 a 60000 (1 minuto)
         return () => clearTimeout(timer);
     }, []);
 
