@@ -15,7 +15,7 @@ import {
 // Se eliminó la importación de TermsModal, ya que el contenido está integrado.
 import { AnimatePresence, motion } from 'framer-motion';
 
-// --- INTERFACES (Sin cambios) ---
+// --- INTERFACES ---
 interface PaymentMethod {
     id: string;
     title: string;
@@ -60,9 +60,10 @@ interface RaffleDetailClientProps {
     paymentMethods: PaymentMethod[];
     ticketsTakenCount: number;
     exchangeRate: number | null;
+    referralCode?: string; // <-- Prop opcional añadida
 }
 
-// --- UTILIDADES (Sin cambios) ---
+// --- UTILIDADES ---
 const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
     const value = parseFloat(amount);
     if (isNaN(value)) return currency === 'USD' ? '$0.00' : 'Bs. 0,00';
@@ -71,7 +72,7 @@ const formatCurrency = (amount: string, currency: 'USD' | 'VES') => {
         : `Bs. ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
 };
 
-// --- ESTILOS GLOBALES PARA ANIMACIONES (Sin cambios) ---
+// --- ESTILOS GLOBALES PARA ANIMACIONES ---
 const GlobalStyles = memo(function GlobalStyles() {
     return (
       <style jsx global>{`
@@ -123,7 +124,7 @@ const GlobalStyles = memo(function GlobalStyles() {
 
 
 
-// --- COMPONENTES AUXILIARES REFACTORIZADOS (Sin cambios) ---
+// --- COMPONENTES AUXILIARES REFACTORIZADOS ---
 
 const RaffleImagesCarousel = memo(function RaffleImagesCarousel({ images, raffleName }: { images: RaffleImage[], raffleName: string }) {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -289,8 +290,8 @@ const getStatusBadge = (status: Raffle['status']) => {
 }
 
 
-// --- COMPONENTE PRINCIPAL (Sin cambios en la lógica de visibilidad) ---
-export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate }: RaffleDetailClientProps) {
+// --- COMPONENTE PRINCIPAL ---
+export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate, referralCode }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
     
@@ -356,7 +357,12 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                                     <p className="text-4xl font-extrabold text-white">{formatCurrency(raffle.price, raffle.currency)}</p>
                                                 </div>
                                             </CardHeader>
-                                            <BuyTicketsForm raffle={raffle} paymentMethods={paymentMethods} exchangeRate={exchangeRate} />
+                                            <BuyTicketsForm 
+                                                raffle={raffle} 
+                                                paymentMethods={paymentMethods} 
+                                                exchangeRate={exchangeRate}
+                                                referralCode={referralCode} // <-- Prop pasada al formulario
+                                            />
                                         </Card>
                                     </div>
                                 ) : (
@@ -378,7 +384,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
             </div>
             {proofModalUrl && <ProofOfWinModal imageUrl={proofModalUrl} onClose={() => setProofModalUrl(null)} />}
             
-           
+            
         </>
     );
 }

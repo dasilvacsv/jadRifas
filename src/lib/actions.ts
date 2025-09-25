@@ -15,6 +15,7 @@ import {
   currencyEnum,
   rejectionReasonEnum,
   waitlistSubscribers,
+  referralLinks,
 } from "./db/schema";
 import { revalidatePath } from "next/cache";
 import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
@@ -459,52 +460,83 @@ const BuyTicketsSchema = z.object({
 });
 // --- FIN MODIFICADO ---
 
+const BuyTicketsSchema = z.object({
+  name: z.string().min(3, "El nombre es requerido"),
+  email: z.string().email("Email inválido"),
+  phone: z.string().min(10, "Teléfono inválido"),
+  raffleId: z.string(),
+  paymentReference: z.string().min(1, "La referencia es requerida"),
+  paymentMethod: z.string().min(1, "Debe seleccionar un método de pago"),
+  paymentScreenshot: z.instanceof(File).optional().nullable(),
+  reservedTickets: z.string().min(1, "No hay tickets apartados para comprar."),
+  // Campo opcional para el código de referido.
+  referralCode: z.string().optional(),
+});
+
+
 export async function buyTicketsAction(formData: FormData): Promise<ActionState> {
   const data = Object.fromEntries(formData.entries());
   const paymentScreenshotFile = formData.get('paymentScreenshot') as File | null;
-  // --- ELIMINADO: Se quita la verificación del CAPTCHA ---
-  // const captchaToken = formData.get('captchaToken') as string;
-  // try { ... }
-  // --- FIN ELIMINADO ---
 
   if (!PABILO_API_URL || !PABILO_API_KEY) {
     console.error("Error: Las variables de entorno PABILO_API_URL o PABILO_API_KEY no están configuradas.");
     return { success: false, message: "Error de configuración del servidor. Contacte al administrador." };
   }
-
-  // Se pasa el 'data' completo al schema para la validación normal
-  const validatedFields = BuyTicketsSchema.safeParse({ ...data, paymentScreenshot: paymentScreenshotFile });
+  
+  // 2. Validar los datos del formulario con el schema actualizado.
+  const validatedFields = BuyTicketsSchema.safeParse({
+    ...data,
+    paymentScreenshot: paymentScreenshotFile
+  });
 
   if (!validatedFields.success) {
-    console.error("Validation Error:", validatedFields.error.flatten().fieldErrors);
+    console.error("Error de Validación:", validatedFields.error.flatten().fieldErrors);
     return { success: false, message: "Los datos proporcionados son inválidos. Por favor, revisa el formulario." };
   }
-
-  // Se omite 'captchaToken' aquí porque ya fue usado
-  const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets } = validatedFields.data;
+  
+  // Destructuramos todos los campos, incluyendo referralCode.
+  const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets, referralCode } = validatedFields.data;
   const ticketNumbers = reservedTickets.split(',');
   let paymentScreenshotUrl = '';
 
-  // --- MODIFICADO: Se envuelve la subida del screenshot en un condicional ---
-  if (validatedFields.data.paymentScreenshot) {
+  // 3. Subir el comprobante de pago a S3 (si existe).
+  // Se usa la condición mejorada que verifica el tamaño del archivo.
+  if (validatedFields.data.paymentScreenshot && validatedFields.data.paymentScreenshot.size > 0) {
     try {
       const buffer = Buffer.from(await validatedFields.data.paymentScreenshot.arrayBuffer());
       const key = `purchases/${crypto.randomUUID()}-${validatedFields.data.paymentScreenshot.name}`;
       paymentScreenshotUrl = await uploadToS3(buffer, key, validatedFields.data.paymentScreenshot.type);
     } catch (error) {
-      console.error("Error al subir captura:", error);
+      console.error("Error al subir captura de pantalla:", error);
       return { success: false, message: "Error al subir la imagen del pago." };
     }
   }
-  // --- FIN MODIFICADO ---
 
   try {
     const raffle = await db.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
-    if (!raffle) return { success: false, message: "La rifa no existe." };
+    if (!raffle) {
+        return { success: false, message: "La rifa seleccionada no existe." };
+    }
+    
+    // 4. Lógica para encontrar el ID del referido a partir del código.
+    let referralLinkId: string | null = null;
+    if (referralCode) {
+        const link = await db.query.referralLinks.findFirst({
+            where: eq(referralLinks.code, referralCode),
+        });
+        if (link) {
+            referralLinkId = link.id;
+        } else {
+            console.warn(`Código de referido "${referralCode}" no fue encontrado.`);
+        }
+    }
+
     const amount = ticketNumbers.length * parseFloat(raffle.price);
     let purchaseStatus: "pending" | "confirmed" = "pending";
-    let responseMessage = "¡Compra registrada! Recibirás un correo cuando tus tickets sean aprobados.";
+    // Mensaje de respuesta por defecto mejorado.
+    let responseMessage = "¡Solicitud recibida! Te avisaremos por correo y WhatsApp cuando validemos el pago. ¡Mucha suerte!";
 
+    // 5. Lógica de verificación de pago con Pabilo (del código original).
     const selectedPaymentMethod = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.title, paymentMethod) });
 
     if (selectedPaymentMethod && selectedPaymentMethod.triggersApiVerification) {
@@ -549,13 +581,18 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
       }
     }
 
+    // 6. Ejecutar la transacción en la base de datos.
     const newPurchase = await db.transaction(async (tx) => {
       const ticketsToUpdate = await tx.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.raffleId, raffleId), inArray(tickets.ticketNumber, ticketNumbers), eq(tickets.status, 'reserved')));
-      if (ticketsToUpdate.length !== ticketNumbers.length) throw new Error("Tu reservación expiró o los tickets ya no son válidos. Intenta de nuevo.");
+      if (ticketsToUpdate.length !== ticketNumbers.length) {
+          throw new Error("Tu reservación expiró o los tickets ya no son válidos. Por favor, intenta de nuevo.");
+      }
 
+      // Se añade referralLinkId al objeto a insertar.
       const [createdPurchase] = await tx.insert(purchases).values({
         raffleId, buyerName: name, buyerEmail: email, buyerPhone: phone, ticketCount: ticketNumbers.length,
         amount: amount.toString(), paymentMethod, paymentReference, paymentScreenshotUrl, status: purchaseStatus,
+        referralLinkId: referralLinkId, // Guardar el ID del referido.
       }).returning({ id: purchases.id });
 
       await tx.update(tickets).set({
@@ -567,8 +604,9 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
       return createdPurchase;
     });
 
-    revalidatePath(`/rifas/${raffleId}`);
-    revalidatePath("/dashboard");
+    // 7. Revalidar caché y enviar notificaciones.
+    revalidatePath(`/rifa/${raffle.slug}`); // Usando la ruta mejorada con slug.
+    revalidatePath("/admin/rifas");
 
     if (purchaseStatus === 'confirmed') {
       await sendTicketsEmailAndWhatsapp(newPurchase.id);
@@ -578,11 +616,13 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     }
 
     return { success: true, message: responseMessage, data: newPurchase };
+
   } catch (error: any) {
-    console.error("Error al comprar tickets:", error);
-    return { success: false, message: error.message || "Ocurrió un error en el servidor." };
+    console.error("Error al procesar la compra de tickets:", error);
+    return { success: false, message: error.message || "Ocurrió un error inesperado en el servidor." };
   }
 }
+
 
 const UpdatePurchaseStatusSchema = z.object({
   purchaseId: z.string(),
