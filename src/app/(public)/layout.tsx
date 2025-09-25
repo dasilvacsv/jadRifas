@@ -11,7 +11,7 @@ import { WaitlistNavLink } from '@/components/ui/waitlist-nav-link';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ✅ NUEVO: Información de WhatsApp centralizada
-const phoneNumber = "584249408197";
+const phoneNumber = "584142939088";
 const message = "¡Hola! Necesito ayuda con mi compra en Jorvilaniña."; // Mensaje actualizado
 const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 

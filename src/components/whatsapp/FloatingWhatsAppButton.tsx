@@ -8,7 +8,7 @@ import Image from 'next/image'; // ✅ CAMBIO: Importamos el componente Image de
 // ✅ CAMBIO: Ya no necesitamos el componente SVG, lo hemos eliminado.
 
 export const FloatingWhatsAppButton = () => {
-  const phoneNumber = "584249408197"; // Recuerda reemplazar con tu número
+  const phoneNumber = "584142939088"; // Recuerda reemplazar con tu número
   const message = "¡Hola! Quisiera más información sobre las rifas de Llevateloconjorvi.";
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
