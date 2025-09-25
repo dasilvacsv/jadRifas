@@ -41,7 +41,6 @@ interface PaymentMethod {
     binancePayId?: string | null;
 }
 
-// --- MODIFICADO: Añadir referralCode a las props ---
 interface BuyTicketsFormProps {
     raffle: {
         id: string;
@@ -52,7 +51,7 @@ interface BuyTicketsFormProps {
     };
     paymentMethods: PaymentMethod[];
     exchangeRate: number | null;
-    referralCode?: string; // <-- ¡NUEVO!
+    referralCode?: string;
 }
 
 // Constantes y Estado Inicial
@@ -69,7 +68,7 @@ const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string 
     return currency === 'USD' ? `$${formattedNumber}` : `${formattedNumber} Bs`;
 };
 
-// --- Nuevos estilos CSS para el efecto de borde brillante ---
+// Estilos CSS para el efecto de borde brillante
 const GlobalStyles = memo(function GlobalStyles() {
     return (
         <style jsx global>{`
@@ -85,8 +84,7 @@ const GlobalStyles = memo(function GlobalStyles() {
     );
 });
 
-
-// ✅ Nuevo componente para mostrar un método de pago
+// Componente para mostrar un método de pago
 const PaymentMethodItem = memo(function PaymentMethodItem({ 
     method, 
     isSelected,
@@ -123,7 +121,6 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
                     <Check className="h-4 w-4 text-green-400 animate-in zoom-in-50" />
                 )}
             </div>
-            {/* ✅ Se cambia `Image` por `img` para el icono del método de pago */}
             {method.iconUrl && <img src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10"/>}
             <span className="text-xs font-semibold text-white text-center mt-2">{method.title}</span>
         </label>
@@ -131,7 +128,6 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
 });
 
 // Componente Principal del Formulario
-// --- MODIFICADO: Recibir referralCode en el componente ---
 export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialExchangeRate, referralCode }: BuyTicketsFormProps) {
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
@@ -152,24 +148,22 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [verificationProgress, setVerificationProgress] = useState(0);
 
-    // --- IMPLEMENTACIÓN DE EVENTOS DE SEGUIMIENTO ---
     const isFirstRender = useRef(true); 
 
+    // --- SEGUIMIENTO DE EVENTOS MODIFICADO ---
     useEffect(() => { 
         if (isFirstRender.current) {
             isFirstRender.current = false;
             return;
         }
 
-        // Evento para Meta Pixel
-        tracking.trackLead();
+        // Evento para Meta Pixel: ahora envía el referralCode
+        tracking.trackLead({ content_name: referralCode });
 
-        // 👇 2. Añade el evento para Simple Analytics
+        // Evento para Simple Analytics
         tracking.trackSimpleAnalyticsEvent('select_tickets');
 
-    }, [ticketCount]);
-
-    // --- FIN DE IMPLEMENTACIÓN DE EVENTOS ---
+    }, [ticketCount, referralCode]); // <- Se añade referralCode a las dependencias
 
     // Referencias a elementos
     const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
@@ -260,14 +254,15 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        // Evento para Meta Pixel
+        // --- EVENTO DE COMPRA MODIFICADO ---
         tracking.trackPurchase({
             value: totalAmount,
             currency: raffle.currency,
             num_items: ticketCount,
+            content_name: referralCode, // <- ¡Aquí se añade!
         });
 
-        // 👇 3. Añade el evento para Simple Analytics
+        // Evento para Simple Analytics
         tracking.trackSimpleAnalyticsEvent('confirm_purchase');
 
         setIsPending(true);
@@ -299,7 +294,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
             buyFormData.append('paymentReference', paymentReference);
             if (paymentScreenshot) buyFormData.append('paymentScreenshot', paymentScreenshot);
 
-            // --- ¡NUEVO! Añadir el código de referido al FormData si existe ---
+            // Añadir el código de referido al FormData si existe
             if (referralCode) {
                 buyFormData.append('referralCode', referralCode);
             }
@@ -423,7 +418,6 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                     <h3 className="text-xl font-bold text-center text-white">3. Completa tus datos</h3>
                     <div className="space-y-4">
                         
-                        {/* 👇 CORRECCIÓN: Estructura de cada campo corregida para un layout correcto */}
                         <div className="space-y-2">
                             <Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label>
                             <div className="relative flex items-center">
@@ -455,7 +449,6 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                                 <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-black/30 border-white/10 text-white rounded-lg"/>
                             </div>
                         </div>
-                        {/* 👆 FIN DE LA CORRECCIÓN */}
 
                     </div>
                 </div>
