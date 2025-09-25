@@ -3,15 +3,19 @@
 // -----------------------------------------------------------------------------
 // 1. IMPORTACIONES
 // -----------------------------------------------------------------------------
+// Herramientas de base de datos (Drizzle), React, iconos y utilidades.
+// -----------------------------------------------------------------------------
 import { db } from "@/lib/db";
 import { purchases } from "@/lib/db/schema";
 import { sql, desc, eq } from "drizzle-orm";
-import { Diamond, Shield, Star, Medal, Trophy } from 'lucide-react';
+import { Diamond, Shield, Star, Medal, Trophy, Gift } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
 
 // -----------------------------------------------------------------------------
 // 2. DEFINICIÓN DE TIPOS (TYPES)
+// -----------------------------------------------------------------------------
+// Estructura de datos para un comprador y su rango.
 // -----------------------------------------------------------------------------
 type BuyerWithRank = {
     buyerName: string | null;
@@ -33,6 +37,8 @@ type Rank = {
 // -----------------------------------------------------------------------------
 // 3. CONSTANTES Y CONFIGURACIÓN DE RANGOS
 // -----------------------------------------------------------------------------
+// Array que define cada rango con su nombre, icono y paleta de colores.
+// -----------------------------------------------------------------------------
 const RANKS: Rank[] = [
     { name: 'Diamante', icon: <Diamond className="h-full w-full" />, color: 'text-cyan-300', bgColor: 'bg-cyan-300', borderColor: 'border-cyan-300', glowColor: 'shadow-cyan-300/60' },
     { name: 'Platino', icon: <Shield className="h-full w-full" />, color: 'text-slate-300', bgColor: 'bg-slate-300', borderColor: 'border-slate-300', glowColor: 'shadow-slate-300/60' },
@@ -45,6 +51,9 @@ const getRankForIndex = (index: number): Rank => RANKS[index] || RANKS[RANKS.len
 
 // -----------------------------------------------------------------------------
 // 4. FUNCIÓN DE OBTENCIÓN DE DATOS (Data Fetching)
+// -----------------------------------------------------------------------------
+// Función asíncrona que se ejecuta en el servidor para obtener el top 5
+// de la base de datos.
 // -----------------------------------------------------------------------------
 async function getTopBuyers(): Promise<BuyerWithRank[]> {
     try {
@@ -60,6 +69,7 @@ async function getTopBuyers(): Promise<BuyerWithRank[]> {
             .orderBy(desc(sql`total_tickets`))
             .limit(5);
 
+        // Mapeamos los resultados para añadirles el rango y formatear los datos.
         return topBuyersData.map((buyer, index) => ({
             ...buyer,
             totalTickets: Number(buyer.totalTickets),
@@ -68,21 +78,27 @@ async function getTopBuyers(): Promise<BuyerWithRank[]> {
         }));
     } catch (error) {
         console.error("Error al obtener los mejores compradores:", error);
-        return [];
+        return []; // Devolvemos un array vacío si hay un error.
     }
 }
 
 // -----------------------------------------------------------------------------
 // 5. SUB-COMPONENTES DE UI
 // -----------------------------------------------------------------------------
+// Pequeños componentes reutilizables para construir el leaderboard.
+// -----------------------------------------------------------------------------
+
+// --- Componente de partículas para el 1er puesto ---
 const Sparkles = () => (
     <div className="absolute inset-0 z-0">{[...Array(12)].map((_, i) => ( <div key={i} className="absolute w-1 h-1 bg-cyan-300 rounded-full animate-sparkle" style={{ top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 1.5}s`, animationDuration: `${0.5 + Math.random() * 1}s` }} />))}</div>
 );
 
+// --- Componente para la insignia del icono de rango ---
 const RankBadge = ({ rank, size = 'h-8 w-8' }: { rank: Rank, size?: string }) => (
     <div className={clsx('relative flex items-center justify-center', size, rank.color)}><div className={clsx('absolute -inset-1.5 opacity-50 blur-lg rounded-full animate-pulse', rank.glowColor)}></div>{rank.icon}</div>
 );
 
+// --- Componente para cada puesto en el podio (Top 3) ---
 const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2 | 3 }) => {
     const isFirst = position === 1;
     const styles = { 1: { h: 'h-full', order: 'order-2' }, 2: { h: 'h-[80%]', order: 'order-1' }, 3: { h: 'h-[65%]', order: 'order-3' } };
@@ -102,6 +118,7 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
     );
 };
 
+// --- Componente para cada fila de la lista (Puestos 4-5) ---
 const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTickets: number }) => {
     const progress = (buyer.totalTickets / maxTickets) * 100;
     return (
@@ -120,9 +137,13 @@ const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTicket
 // -----------------------------------------------------------------------------
 // 6. COMPONENTE PRINCIPAL EXPORTADO
 // -----------------------------------------------------------------------------
+// Este es el componente de servidor que se importa en la página principal.
+// Une todas las piezas anteriores para renderizar el leaderboard completo.
+// -----------------------------------------------------------------------------
 export async function TopBuyersLeaderboard() {
     const topBuyers = await getTopBuyers();
 
+    // --- Vista por defecto si no hay compradores ---
     if (topBuyers.length === 0) {
         return (
             <div className="p-6 text-center h-full flex flex-col justify-center">
@@ -136,11 +157,24 @@ export async function TopBuyersLeaderboard() {
     const otherBuyers = topBuyers.slice(3);
     const maxTickets = topBuyers[0]?.totalTickets || 1;
     
+    // --- Vista principal con la tabla de clasificación ---
     return (
         <div className="w-full h-full flex flex-col">
+            
+            {/* MENSAJE DEL PREMIO - VISIBLE SOLO EN MÓVIL (oculto en lg y superior) */}
+            <div className="lg:hidden mb-6 p-4 bg-amber-950/40 border border-amber-500/30 rounded-lg text-center">
+                <Gift className="h-8 w-8 mx-auto text-amber-400 mb-2"/>
+                <p className="text-amber-300 font-bold text-base">
+                    ¡Gana $1000!
+                </p>
+                <p className="text-white/80 text-sm mt-1">
+                    Mantente en el Top 1 hasta el 5 de Octubre que termina la rifa.
+                </p>
+            </div>
+
+            {/* --- Podio (Top 3) --- */}
             <div className="flex-shrink-0">
                 {podiumBuyers.length > 0 && (
-                    // ✅ CAMBIO 1: Aumentado drásticamente el margen inferior del podio
                     <div className="flex justify-center items-end gap-2 mb-12 h-[220px] animate-fade-in-up">
                         {podiumBuyers[1] && <PodiumItem buyer={podiumBuyers[1]} position={2} />}
                         {podiumBuyers[0] && <PodiumItem buyer={podiumBuyers[0]} position={1} />}
@@ -148,9 +182,10 @@ export async function TopBuyersLeaderboard() {
                     </div>
                 )}
             </div>
+            
+            {/* --- Lista (Puestos 4 y 5) --- */}
             <div className="flex-grow overflow-y-auto">
                 {otherBuyers.length > 0 && (
-                    // ✅ CAMBIO 2: Aumentado el espacio entre las filas
                     <div className="space-y-4">
                         {otherBuyers.map(b => <LeaderboardRow key={b.buyerEmail} buyer={b} maxTickets={maxTickets} />)}
                     </div>
