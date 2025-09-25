@@ -446,19 +446,6 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
   }
 }
 
-// --- MODIFICADO: El schema ahora tiene el screenshot como opcional y se eliminó el captcha ---
-const BuyTicketsSchema = z.object({
-  name: z.string().min(3, "El nombre es requerido"),
-  email: z.string().email("Email inválido"),
-  phone: z.string().min(10, "Teléfono inválido"),
-  raffleId: z.string(),
-  paymentReference: z.string().min(1, "La referencia es requerida"),
-  paymentMethod: z.string().min(1, "Debe seleccionar un método de pago"),
-  // AHORA ES OPCIONAL: usa .optional() y .refine para validar si existe
-  paymentScreenshot: z.instanceof(File).optional().nullable(),
-  reservedTickets: z.string().min(1, "No hay tickets apartados para comprar."),
-});
-// --- FIN MODIFICADO ---
 
 const BuyTicketsSchema = z.object({
   name: z.string().min(3, "El nombre es requerido"),
