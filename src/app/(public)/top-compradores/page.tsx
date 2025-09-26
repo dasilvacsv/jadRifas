@@ -7,6 +7,9 @@ import { Diamond, Shield, Star, Medal, Trophy } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
 
+// ✅ AÑADE ESTA LÍNEA PARA FORZAR EL RENDERIZADO DINÁMICO
+export const dynamic = 'force-dynamic';
+
 // --- ✅ SECCIÓN DE RANGOS CON COLORES RESTAURADOS ---
 type BuyerWithRank = {
     buyerName: string | null;
