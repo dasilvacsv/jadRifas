@@ -151,8 +151,16 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     const [isLoadingRates, setIsLoadingRates] = useState(!initialExchangeRate);
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [verificationProgress, setVerificationProgress] = useState(0);
+    const [paymentMethodError, setPaymentMethodError] = useState(''); // N NUEVO: Estado para el error del método de pago
 
     const isFirstRender = useRef(true); 
+
+    // Referencias a elementos
+    const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
+        modalTimer: null,
+        progressTimer: null
+    });
+    const paymentMethodsSectionRef = useRef<HTMLDivElement>(null); // N NUEVO: Ref para la sección de métodos de pago
 
     // --- SEGUIMIENTO DE EVENTOS MODIFICADO ---
     useEffect(() => { 
@@ -168,12 +176,6 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
         tracking.trackSimpleAnalyticsEvent('select_tickets');
 
     }, [ticketCount, referralCode]); // <- Se añade referralCode a las dependencias
-
-    // Referencias a elementos
-    const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
-        modalTimer: null,
-        progressTimer: null
-    });
 
     // Datos calculados y memos
     const selectedPaymentMethod = useMemo(() =>
@@ -239,6 +241,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
         setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
         setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
+        setPaymentMethodError(''); // N NUEVO: Limpiar el error al resetear
     };
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -257,6 +260,15 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
 
     const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        setPaymentMethodError(''); // M MODIFICADO: Limpiar error en cada intento
+
+        // N NUEVO: Validación para el método de pago
+        if (!paymentMethodId) {
+            setPaymentMethodError('Por favor, selecciona un método de pago para continuar.');
+            // Hacer scroll a la sección de pagos
+            paymentMethodsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return; // Detener el envío del formulario
+        }
 
         // --- EVENTO DE COMPRA MODIFICADO ---
         tracking.trackPurchase({
@@ -396,15 +408,26 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                         <hr className="border-t border-zinc-700/50" />
                         
                         {/* Sección 2: Método de Pago */}
-                        <div className="space-y-6">
+                        {/* M MODIFICADO: Se añade la ref y el contenedor del error */}
+                        <div ref={paymentMethodsSectionRef} className="space-y-6">
                             <h3 className="text-xl font-bold text-center text-white">2. Selecciona tu método de pago</h3>
+                            {/* N NUEVO: Contenedor para mostrar el mensaje de error */}
+                            {paymentMethodError && (
+                                <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300 animate-in fade-in-50">
+                                    <AlertDescription>{paymentMethodError}</AlertDescription>
+                                </Alert>
+                            )}
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 {paymentMethods.map(method => (
                                     <PaymentMethodItem
                                         key={method.id}
                                         method={method}
                                         isSelected={paymentMethodId === method.id}
-                                        onSelect={() => setPaymentMethodId(method.id)}
+                                        // M MODIFICADO: Limpiar el error cuando se selecciona un método
+                                        onSelect={() => {
+                                            setPaymentMethodId(method.id);
+                                            setPaymentMethodError('');
+                                        }}
                                     />
                                 ))}
                             </div>
@@ -470,7 +493,8 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                         {/* ✅ Botón de Envío Final Actualizado */}
                         <Button 
                             type="submit" 
-                            disabled={isPending || !paymentMethodId} 
+                            // M MODIFICADO: El botón solo se deshabilita mientras está procesando.
+                            disabled={isPending} 
                             className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none"
                         >
                             {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
