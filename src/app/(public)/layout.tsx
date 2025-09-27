@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-// MODIFICADO: Se añade 'Users' y se quita 'Sparkles'
-import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, Users, MessageCircle } from 'lucide-react';
+import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, MessageCircle, Trophy } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -127,13 +126,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                             <span className="text-xl sm:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-100 to-zinc-400 group-hover:from-white group-hover:to-zinc-300 transition-colors duration-300">Jorvilaniña</span>
                         </Link>
 
-                        {/* --- NAVBAR DESKTOP MODIFICADA --- */}
                         <nav className="hidden md:flex items-center gap-2 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1.5 shadow-inner shadow-black/20">
                             <NavLink href="/"><LayoutGrid className="h-4 w-4" /> Inicio</NavLink>
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
-                            {/* ✅ NUEVO: Enlace a Top Compradores */}
-                            <NavLink href="/top-compradores"><Users className="h-4 w-4" /> Top Compradores</NavLink>
-                            {/* ❌ ELIMINADO: Enlace de ¡Únete! */}
+                            <NavLink href="/top-compradores"><Trophy className="h-4 w-4" /> Top Compradores</NavLink>
                             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-zinc-400 hover:bg-zinc-800/60 hover:text-white">
                                 <img src="/whatsapp.png" alt="Ayuda por WhatsApp" width="16" height="16" />
                                 Ayuda
@@ -147,10 +143,11 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3">
-                            <Link href="/mis-tickets">
+                            {/* ✅ MODIFICADO: Este botón ahora es "Top Compradores" */}
+                            <Link href="/top-compradores">
                                 <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:shadow-amber-600/30 transition-all duration-300 transform hover:-translate-y-px px-3 sm:px-5">
-                                    <Ticket className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
-                                    <span className="hidden sm:inline">Mis Tickets</span>
+                                    <Trophy className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
+                                    <span className="hidden sm:inline">Top Compradores</span>
                                 </Button>
                             </Link>
 
@@ -183,9 +180,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                     <div className="flex flex-col items-center justify-center h-full gap-y-6 px-8">
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
                         <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
-                        {/* ✅ NUEVO: Enlace a Top Compradores para móvil */}
-                        <NavLink href="/top-compradores" onClick={() => setIsMenuOpen(false)}><Users className="h-5 w-5" /> <span className="text-lg">Top Compradores</span></NavLink>
-                        {/* ❌ ELIMINADO: Enlace de ¡Únete! para móvil */}
+                        {/* ✅ MODIFICADO: El enlace "Mis Tickets" ahora está aquí */}
+                        <NavLink href="/mis-tickets" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Mis Tickets</span></NavLink>
+                        
+                        {/* Este botón de abajo también lleva a Mis Tickets, funciona como un Call-to-Action principal en el menú */}
                         <div className="w-full max-w-xs pt-8 flex flex-col gap-4">
                             <Link href="/mis-tickets" className="w-full">
                                 <Button size="lg" className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-full py-6 text-base">
@@ -224,14 +222,12 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                                   </div>
                               </div>
                           </div>
-                          {/* --- FOOTER MODIFICADO --- */}
                           <div>
                               <h3 className="text-sm font-semibold text-zinc-300 tracking-wider uppercase">Navegación</h3>
                               <ul className="mt-4 space-y-3">
                                   <li><Link href="/" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Inicio</Link></li>
                                   <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
                                   <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
-                                  {/* ✅ NUEVO: Enlace a Top Compradores en el footer */}
                                   <li><Link href="/top-compradores" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Top Compradores</Link></li>
                               </ul>
                           </div>
