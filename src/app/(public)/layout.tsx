@@ -28,7 +28,7 @@ const NavLink = ({ href, children, onClick }: { href: string; children: React.Re
     const pathname = usePathname();
     const isActive = href === '/' ? pathname === href : pathname.startsWith(href);
     return (
-        <Link href={href} onClick={onClick} className={cn("px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2", isActive ? 'bg-amber-400/10 text-amber-300 ring-1 ring-inset ring-amber-400/20' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white')}>
+        <Link href={href} onClick={onClick} className={cn("px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2", isActive ? 'bg-amber-400/10 text-amber-300 ring-1 ring-inset ring-amber-400/20' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white')}>
             {children}
         </Link>
     );
@@ -118,36 +118,36 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
             <GlobalStyles />
             <header className="bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative header-line">
-                    <div className="flex justify-between items-center h-24 md:h-20">
+                    <div className="flex justify-between items-center h-20 md:h-16">
                         <Link href="/" className="flex items-center gap-3 group">
-                            <div className="relative h-10 w-10 sm:h-12 sm:w-12 flex items-center justify-center rounded-full bg-white/90 p-1 shadow-lg group-hover:scale-105 transition-transform duration-300 ease-in-out">
+                            <div className="relative h-10 w-10 md:h-9 md:w-9 flex items-center justify-center rounded-full bg-white/90 p-1 shadow-lg group-hover:scale-105 transition-transform duration-300 ease-in-out">
                                 <img src="/jorvi.png" alt="Jorvilaniña Logo" className="absolute inset-0 w-full h-full object-contain rounded-full" />
                             </div>
-                            <span className="text-xl sm:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-100 to-zinc-400 group-hover:from-white group-hover:to-zinc-300 transition-colors duration-300">Jorvilaniña</span>
+                            <span className="text-xl sm:text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-100 to-zinc-400 group-hover:from-white group-hover:to-zinc-300 transition-colors duration-300">Jorvilaniña</span>
                         </Link>
 
-                        <nav className="hidden md:flex items-center gap-2 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1.5 shadow-inner shadow-black/20">
+                        <nav className="hidden md:flex items-center gap-1 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1 shadow-inner shadow-black/20">
                             <NavLink href="/"><LayoutGrid className="h-4 w-4" /> Inicio</NavLink>
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
+                            <NavLink href="/mis-tickets"><Ticket className="h-4 w-4" /> Mis Tickets</NavLink>
                             <NavLink href="/top-compradores"><Trophy className="h-4 w-4" /> Top Compradores</NavLink>
-                            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-zinc-400 hover:bg-zinc-800/60 hover:text-white">
+                            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-zinc-400 hover:bg-zinc-800/60 hover:text-white">
                                 <img src="/whatsapp.png" alt="Ayuda por WhatsApp" width="16" height="16" />
                                 Ayuda
                             </a>
                         </nav>
                         
-                        <div className="hidden lg:flex items-center gap-6">
-                            <img src="/conalot.png" alt="Conalot Logo" width="70" height="25" className="object-contain" />
-                            <img src="/tachira.png" alt="Lotería del Táchira Logo" width="70" height="25" className="object-contain" />
-                            <img src="/super-gana.png" alt="Super Gana Logo" width="70" height="25" className="object-contain" />
+                        <div className="hidden lg:flex items-center gap-4">
+                            <img src="/conalot.png" alt="Conalot Logo" width="65" className="object-contain" />
+                            <img src="/tachira.png" alt="Lotería del Táchira Logo" width="65" className="object-contain" />
+                            <img src="/super-gana.png" alt="Super Gana Logo" width="65" className="object-contain" />
                         </div>
                         
                         <div className="flex items-center gap-2 sm:gap-3">
-                            {/* ✅ MODIFICADO: Este botón ahora es "Top Compradores" */}
-                            <Link href="/top-compradores">
-                                <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:shadow-amber-600/30 transition-all duration-300 transform hover:-translate-y-px px-3 sm:px-5">
-                                    <Trophy className="h-4 w-4 sm:h-5 sm:w-5 sm:mr-2" />
-                                    <span className="hidden sm:inline">Top Compradores</span>
+                            <Link href="/mis-tickets">
+                                <Button className="h-9 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:shadow-amber-600/30 transition-all duration-300 transform hover:-translate-y-px px-3 sm:px-4">
+                                    <Ticket className="h-4 w-4 sm:mr-2" />
+                                    <span className="hidden sm:inline">Mis Tickets</span>
                                 </Button>
                             </Link>
 
@@ -174,16 +174,15 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                 </div>
             </header>
 
-            {/* --- NAVBAR MOBILE MODIFICADA --- */}
             {isMenuOpen && (
-                <div className="md:hidden fixed inset-0 top-24 z-40 bg-zinc-950/95 backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-300">
+                <div className="md:hidden fixed inset-0 top-20 z-40 bg-zinc-950/95 backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-300">
                     <div className="flex flex-col items-center justify-center h-full gap-y-6 px-8">
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
                         <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
-                        {/* ✅ MODIFICADO: El enlace "Mis Tickets" ahora está aquí */}
                         <NavLink href="/mis-tickets" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Mis Tickets</span></NavLink>
+                        {/* ✅ AÑADIDO: Enlace a "Top Compradores" en el menú móvil */}
+                        <NavLink href="/top-compradores" onClick={() => setIsMenuOpen(false)}><Trophy className="h-5 w-5" /> <span className="text-lg">Top Compradores</span></NavLink>
                         
-                        {/* Este botón de abajo también lleva a Mis Tickets, funciona como un Call-to-Action principal en el menú */}
                         <div className="w-full max-w-xs pt-8 flex flex-col gap-4">
                             <Link href="/mis-tickets" className="w-full">
                                 <Button size="lg" className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-full py-6 text-base">
