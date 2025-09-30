@@ -319,7 +319,7 @@ export function BuyTicketsForm({
 
             // ✅ 4. SE AÑADEN AMBOS CÓDIGOS AL FORMDATA PARA LA SERVER ACTION
             if (campaignCode) {
-                buyFormData.append('referralCode', campaignCode);
+                buyFormData.append('campaignCode', campaignCode);
             }
             if (referralUserCode) {
                 buyFormData.append('referralUserCode', referralUserCode);
