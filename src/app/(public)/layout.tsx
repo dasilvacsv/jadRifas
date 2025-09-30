@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+// ✅ AÑADIDO: Importar el ícono Gift
 import { Gift, Ticket, LayoutGrid, Menu, X, ShieldCheck, Instagram, Facebook, MessageCircle, Trophy } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -9,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { TermsModal } from '@/components/TermsModal';
 import { WaitlistNavLink } from '@/components/ui/waitlist-nav-link';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// ... (El resto de tus componentes como GlobalStyles, NavLink, FloatingWhatsAppButton, etc., permanecen sin cambios)
 
 const phoneNumber = "584142939088";
 const message = "¡Hola! Necesito ayuda con mi compra en Jorvilaniña.";
@@ -131,6 +134,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                             <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
                             <NavLink href="/mis-tickets"><Ticket className="h-4 w-4" /> Mis Tickets</NavLink>
                             <NavLink href="/top-compradores"><Trophy className="h-4 w-4" /> Top Compradores</NavLink>
+                            {/* ✅ AÑADIDO: Enlace a "Referidos" en la navegación principal */}
+                            <NavLink href="/referidos"><Gift className="h-4 w-4" /> Referidos</NavLink>
                             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-zinc-400 hover:bg-zinc-800/60 hover:text-white">
                                 <img src="/whatsapp.png" alt="Ayuda por WhatsApp" width="16" height="16" />
                                 Ayuda
@@ -180,8 +185,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
                         <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
                         <NavLink href="/mis-tickets" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Mis Tickets</span></NavLink>
-                        {/* ✅ AÑADIDO: Enlace a "Top Compradores" en el menú móvil */}
                         <NavLink href="/top-compradores" onClick={() => setIsMenuOpen(false)}><Trophy className="h-5 w-5" /> <span className="text-lg">Top Compradores</span></NavLink>
+                        {/* ✅ AÑADIDO: Enlace a "Referidos" en el menú móvil */}
+                        <NavLink href="/referidos" onClick={() => setIsMenuOpen(false)}><Gift className="h-5 w-5" /> <span className="text-lg">Referidos</span></NavLink>
                         
                         <div className="w-full max-w-xs pt-8 flex flex-col gap-4">
                             <Link href="/mis-tickets" className="w-full">
@@ -228,6 +234,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                                   <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
                                   <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
                                   <li><Link href="/top-compradores" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Top Compradores</Link></li>
+                                  {/* ✅ AÑADIDO: Enlace a "Referidos" en el footer */}
+                                  <li><Link href="/referidos" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Programa de Referidos</Link></li>
                               </ul>
                           </div>
                           <div>
