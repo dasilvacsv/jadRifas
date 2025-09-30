@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, memo, useEffect, ReactNode } from 'react';
-// ✅ 1. Importa los dos componentes del archivo del formulario
 import { BuyTicketsForm } from '@/components/forms/BuyTicketsForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,10 +11,10 @@ import Link from 'next/link';
 import { 
     ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
     Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star,
-    Gamepad2 // <-- ICONO NUEVO AÑADIDO
+    Gamepad2,
+    Handshake // <-- ICONO NUEVO AÑADIDO
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-// ✅ Importa los componentes para el Sheet
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 
@@ -59,12 +58,15 @@ interface Raffle {
     images: RaffleImage[];
     winnerTicket: WinnerTicket | null;
 }
+// ✅ 1. Actualiza la interfaz de props para recibir los nuevos datos
 interface RaffleDetailClientProps {
     raffle: Raffle;
     paymentMethods: PaymentMethod[];
     ticketsTakenCount: number;
     exchangeRate: number | null;
-    referralCode?: string;
+    campaignCode?: string;     // ?ref=CODE
+    referralUserCode?: string; // ?r=CODE
+    referrerName?: string | null; // Nombre del referente
     leaderboardComponent: ReactNode;
 }
 
@@ -292,11 +294,36 @@ const getStatusBadge = (status: Raffle['status']) => {
     }
 }
 
-// --- COMPONENTE PRINCIPAL (ACTUALIZADO) ---
-export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTakenCount, exchangeRate, referralCode, leaderboardComponent }: RaffleDetailClientProps) {
+// ✅ 2. Crea un nuevo componente para mostrar el mensaje de bienvenida
+const ReferrerInfo = memo(function ReferrerInfo({ name }: { name: string | null }) {
+  if (!name) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="bg-green-950/50 text-green-300 border border-green-500/30 rounded-lg p-3 flex items-center justify-center gap-3 text-sm font-medium"
+    >
+      <Handshake className="h-5 w-5 flex-shrink-0" />
+      <span>Estás participando por una invitación de <strong>{name}</strong>.</span>
+    </motion.div>
+  );
+});
+
+// ✅ 3. Actualiza el componente principal
+export default function RaffleDetailClient({ 
+    raffle, 
+    paymentMethods, 
+    ticketsTakenCount, 
+    exchangeRate, 
+    campaignCode, 
+    referralUserCode, 
+    referrerName, 
+    leaderboardComponent 
+}: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
-    // ❌ El estado para la sidebar ya no es necesario.
 
     return (
         <>
@@ -340,6 +367,10 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                         {/* --- Columna Derecha: Formulario --- */}
                         <aside className="lg:col-span-2">
                             <div className="lg:sticky lg:top-8 space-y-8">
+                                
+                                {/* ✅ 4. Añade el componente ReferrerInfo aquí */}
+                                <ReferrerInfo name={referrerName} />
+
                                 {raffle.status === 'finished' && raffle.winnerTicketId ? (
                                     <WinnerDisplayCard raffle={raffle} onShowProof={setProofModalUrl} />
                                 ) : raffle.status === 'active' ? (
@@ -347,24 +378,22 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                         <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden">
                                             <CardHeader className="p-6 border-b border-white/10">
                                                 <div className="flex justify-between items-center">
-                                                    {/* ✅ Título "JUEGA AQUÍ" */}
                                                     <CardTitle className="text-2xl font-bold flex items-center gap-3 text-white">
                                                         <Gamepad2 className="h-7 w-7 text-green-400"/>
                                                         JUEGA AQUÍ
                                                     </CardTitle>
                                                     
-                                                    {/* ✅ Botón que activa el Sheet en PC */}
                                                     <div className="hidden lg:block">
                                                         <Sheet>
                                                             <SheetTrigger asChild>
                                                                 <Button
-    size="sm"
-    variant="outline"
-    className="h-9 border-amber-500/30 bg-black/30 text-amber-400 hover:bg-amber-500 hover:text-black font-semibold transition-colors"
->
-    <Trophy className="h-4 w-4 mr-2" />
-    Mostrar Top
-</Button>
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-9 border-amber-500/30 bg-black/30 text-amber-400 hover:bg-amber-500 hover:text-black font-semibold transition-colors"
+                                                                >
+                                                                    <Trophy className="h-4 w-4 mr-2" />
+                                                                    Mostrar Top
+                                                                </Button>
                                                             </SheetTrigger>
                                                             <SheetContent className="bg-zinc-950/95 backdrop-blur-sm border-zinc-800 text-white w-[90vw] max-w-md p-4">
                                                                 <SheetHeader className="mb-4">
@@ -380,7 +409,9 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                                                 raffle={raffle}
                                                 paymentMethods={paymentMethods}
                                                 exchangeRate={exchangeRate}
-                                                referralCode={referralCode}
+                                                // ✅ 5. Pasa ambos códigos al formulario
+                                                campaignCode={campaignCode}
+                                                referralUserCode={referralUserCode}
                                             />
                                         </Card>
                                     </div>
@@ -399,7 +430,7 @@ export default function RaffleDetailClient({ raffle, paymentMethods, ticketsTake
                             </div>
                         </aside>
 
-                        {/* ✅ Leaderboard para MÓVIL (oculto en PC) */}
+                        {/* Leaderboard para MÓVIL (oculto en PC) */}
                         <div className="lg:hidden lg:col-span-5 mt-8">
                              <h3 className="text-2xl font-bold text-center text-white mb-4 tracking-wider">TOP COMPRADORES</h3>
                              <div className="p-4 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">

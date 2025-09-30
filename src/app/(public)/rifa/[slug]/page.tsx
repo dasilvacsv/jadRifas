@@ -1,4 +1,4 @@
-// En app/rifa/[slug]/page.tsx
+// app/rifa/[slug]/page.tsx
 
 import { getRaffleDataBySlug, getSystemSettings } from '@/features/rifas/actions';
 import RaffleDetailClient from '@/features/rifas/raffle-detail-client';
@@ -6,8 +6,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { TopBuyersLeaderboard } from '@/components/TopBuyersLeaderBoard';
 
-// Nota: No es necesario modificar `generateMetadata` ya que no usa el tipo de cambio.
-
+// La función para generar metadatos no necesita cambios
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const result = await getRaffleDataBySlug(params.slug);
 
@@ -23,7 +22,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title: raffle.name,
     description: `Participa en la rifa de ${raffle.name} y gana. ¡Compra tu ticket por solo ${raffle.price} ${raffle.currency}! La suerte te espera con Jorvi.`,
-
     openGraph: {
       title: raffle.name,
       description: `¡Tu oportunidad de ganar un(a) ${raffle.name} está aquí!`,
@@ -46,14 +44,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-// --- MODIFICADO: Añadir searchParams a la función ---
-export default async function RafflePage({ params, searchParams }: { params: { slug: string }, searchParams: { ref?: string } }) {
+// Componente de la página principal
+export default async function RafflePage({ params, searchParams }: { 
+    params: { slug: string }, 
+    searchParams: { ref?: string, r?: string } 
+}) {
   
-  // --- ¡NUEVO! Capturar el código de referido de la URL ---
-  const referralCode = searchParams?.ref;
+  // 1. Captura ambos códigos de referido desde la URL
+  const campaignCode = searchParams?.ref;     // Para ?ref=META_SEP
+  const referralUserCode = searchParams?.r;   // Para ?r=1234
 
-  const [raffleResult, settingsResult] = await Promise.all([ // Carga ambos datos en paralelo
-    getRaffleDataBySlug(params.slug),
+  // 2. Pasa los códigos a la función `getRaffleDataBySlug` para que busque el nombre del referente
+  const [raffleResult, settingsResult] = await Promise.all([
+    getRaffleDataBySlug(params.slug, campaignCode, referralUserCode),
     getSystemSettings()
   ]);
 
@@ -61,14 +64,14 @@ export default async function RafflePage({ params, searchParams }: { params: { s
     notFound();
   }
 
-  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate: raffleExchangeRate } = raffleResult.data;
+  // 3. Extrae toda la información, incluyendo el nuevo `referrerName`
+  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate: raffleExchangeRate, referrerName } = raffleResult.data;
 
-  // 1. Obtén la tasa de cambio global del resultado de `getSystemSettings`
+  // Lógica para determinar la tasa de cambio final
   const globalExchangeRate = settingsResult.success ? parseFloat(settingsResult.data.exchangeRate) : null;
+  const finalExchangeRate = raffleExchangeRate !== null ? raffleExchangeRate : globalExchangeRate;
 
-  // 2. Define la tasa de cambio final: usa la de la rifa si existe, de lo contrario, usa la global.
-  const finalExchangeRate = raffleExchangeRate !== null ? parseFloat(raffleExchangeRate) : globalExchangeRate;
-
+  // Schema para datos estructurados (SEO)
   const raffleJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Event',
@@ -98,14 +101,16 @@ export default async function RafflePage({ params, searchParams }: { params: { s
         dangerouslySetInnerHTML={{ __html: JSON.stringify(raffleJsonLd) }}
       />
       <RaffleDetailClient
-                raffle={raffle}
-                paymentMethods={paymentMethods}
-                ticketsTakenCount={ticketsTakenCount}
-                exchangeRate={finalExchangeRate}
-                referralCode={referralCode}
-               
-                leaderboardComponent={<TopBuyersLeaderboard />}
-            />
+          raffle={raffle}
+          paymentMethods={paymentMethods}
+          ticketsTakenCount={ticketsTakenCount}
+          exchangeRate={finalExchangeRate}
+          // 4. Pasa todos los datos del referido al componente cliente para que los muestre y los use en el formulario
+          campaignCode={campaignCode}
+          referralUserCode={referralUserCode}
+          referrerName={referrerName}
+          leaderboardComponent={<TopBuyersLeaderboard />}
+      />
     </>
   );
 }

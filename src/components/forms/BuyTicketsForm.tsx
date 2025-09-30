@@ -2,7 +2,7 @@
 "use client";
 
 // --- Imports para el Formulario ---
-import { useState, useMemo, ChangeEvent, useEffect, useRef, memo, ReactNode } from 'react';
+import { useState, useMemo, ChangeEvent, useEffect, useRef, memo } from 'react';
 import * as tracking from '@/lib/tracking';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,7 @@ interface PaymentMethod {
     binancePayId?: string | null;
 }
 
+// ✅ 1. SE ACTUALIZA LA INTERFAZ DE PROPS
 interface BuyTicketsFormProps {
     raffle: {
         id: string;
@@ -46,7 +47,8 @@ interface BuyTicketsFormProps {
     };
     paymentMethods: PaymentMethod[];
     exchangeRate: number | null;
-    referralCode?: string;
+    campaignCode?: string;     // Para ?ref=...
+    referralUserCode?: string; // Para ?r=...
 }
 
 // Constantes y Estado Inicial
@@ -75,7 +77,6 @@ const GlobalStyles = memo(function GlobalStyles() {
             .pulse-green-anim {
                 animation: pulse-green 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
             }
-            /* Animación para el botón de compra anterior */
             @keyframes pulse-bright { 
                 0%, 100% { box-shadow: 0 0 15px 0px rgba(23, 224, 122, 0.4); } 
                 50% { box-shadow: 0 0 25px 5px rgba(23, 224, 122, 0.7); } 
@@ -88,43 +89,43 @@ const GlobalStyles = memo(function GlobalStyles() {
 });
 
 // Componente para mostrar un método de pago
-const PaymentMethodItem = memo(function PaymentMethodItem({ 
-    method, 
+const PaymentMethodItem = memo(function PaymentMethodItem({
+    method,
     isSelected,
     onSelect
-}: { 
-    method: PaymentMethod; 
-    isSelected: boolean; 
+}: {
+    method: PaymentMethod;
+    isSelected: boolean;
     onSelect: () => void;
 }) {
     return (
-        <label 
+        <label
             htmlFor={`payment-${method.id}`}
             onClick={onSelect}
             className={`
                 relative flex flex-col items-center justify-center p-4 h-28 rounded-lg border 
                 cursor-pointer transition-all duration-300 transform 
-                ${isSelected 
+                ${isSelected
                     ? 'border-green-500/50 bg-green-900/10 text-white shadow-lg pulse-green-anim'
                     : 'border-white/10 bg-white/[.07] hover:bg-white/10 text-zinc-400 hover:text-white'
                 }
             `}
         >
-            <input 
-                type="radio" 
-                id={`payment-${method.id}`} 
-                name="paymentMethod" 
-                value={method.id} 
+            <input
+                type="radio"
+                id={`payment-${method.id}`}
+                name="paymentMethod"
+                value={method.id}
                 checked={isSelected}
                 readOnly
-                className="sr-only" 
+                className="sr-only"
             />
             <div className="absolute top-2 right-2 w-5 h-5 bg-black/50 border border-white/20 rounded-full flex items-center justify-center">
                 {isSelected && (
                     <Check className="h-4 w-4 text-green-400 animate-in zoom-in-50" />
                 )}
             </div>
-            {method.iconUrl && <img src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10"/>}
+            {method.iconUrl && <img src={method.iconUrl} alt={method.title} width={40} height={40} className="object-contain h-10" />}
             <span className="text-xs font-semibold text-white text-center mt-2">{method.title}</span>
         </label>
     );
@@ -132,7 +133,14 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
 
 
 // Componente Principal del Formulario
-export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialExchangeRate, referralCode }: BuyTicketsFormProps) {
+// ✅ 2. SE RECIBEN LAS NUEVAS PROPS EN LA FIRMA DEL COMPONENTE
+export function BuyTicketsForm({
+    raffle,
+    paymentMethods,
+    exchangeRate: initialExchangeRate,
+    campaignCode,
+    referralUserCode
+}: BuyTicketsFormProps) {
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
     const [isPending, setIsPending] = useState(false);
@@ -151,36 +159,39 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
     const [isLoadingRates, setIsLoadingRates] = useState(!initialExchangeRate);
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [verificationProgress, setVerificationProgress] = useState(0);
-    const [paymentMethodError, setPaymentMethodError] = useState(''); // N NUEVO: Estado para el error del método de pago
+    const [paymentMethodError, setPaymentMethodError] = useState('');
 
-    const isFirstRender = useRef(true); 
+    const isFirstRender = useRef(true);
 
     // Referencias a elementos
     const verificationTimers = useRef<{ modalTimer: NodeJS.Timeout | null, progressTimer: NodeJS.Timer | null }>({
         modalTimer: null,
         progressTimer: null
     });
-    const paymentMethodsSectionRef = useRef<HTMLDivElement>(null); // N NUEVO: Ref para la sección de métodos de pago
+    const paymentMethodsSectionRef = useRef<HTMLDivElement>(null);
 
-    // --- SEGUIMIENTO DE EVENTOS MODIFICADO ---
-    useEffect(() => { 
+    // ✅ 3. SE ACTUALIZA EL USEEFFECT PARA TRACKING
+    useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
             return;
         }
 
-        // Evento para Meta Pixel: ahora envía el referralCode
-        tracking.trackLead({ content_name: referralCode });
+        // Prioriza el código de usuario para el tracking si ambos existen
+        const codeForTracking = referralUserCode || campaignCode;
+
+        // Evento para Meta Pixel
+        tracking.trackLead({ content_name: codeForTracking });
 
         // Evento para Simple Analytics
         tracking.trackSimpleAnalyticsEvent('select_tickets');
 
-    }, [ticketCount, referralCode]); // <- Se añade referralCode a las dependencias
+    }, [ticketCount, campaignCode, referralUserCode]);
 
     // Datos calculados y memos
     const selectedPaymentMethod = useMemo(() =>
         paymentMethods.find(method => method.id === paymentMethodId)
-    , [paymentMethodId, paymentMethods]);
+        , [paymentMethodId, paymentMethods]);
 
     const totalAmount = useMemo(() => ticketCount * parseFloat(raffle.price), [ticketCount, raffle.price]);
 
@@ -213,7 +224,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
             setIsLoadingRates(false);
             return;
         }
-        
+
         const fetchRates = async () => {
             setIsLoadingRates(true);
             try {
@@ -241,7 +252,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
         setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
         setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
-        setPaymentMethodError(''); // N NUEVO: Limpiar el error al resetear
+        setPaymentMethodError('');
     };
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -260,25 +271,21 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
 
     const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        setPaymentMethodError(''); // M MODIFICADO: Limpiar error en cada intento
+        setPaymentMethodError('');
 
-        // N NUEVO: Validación para el método de pago
         if (!paymentMethodId) {
             setPaymentMethodError('Por favor, selecciona un método de pago para continuar.');
-            // Hacer scroll a la sección de pagos
             paymentMethodsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return; // Detener el envío del formulario
+            return;
         }
 
-        // --- EVENTO DE COMPRA MODIFICADO ---
+        // --- Evento de compra ---
         tracking.trackPurchase({
             value: totalAmount,
             currency: raffle.currency,
             num_items: ticketCount,
-            content_name: referralCode, // <- ¡Aquí se añade!
+            content_name: referralUserCode || campaignCode, // Envía el código disponible
         });
-
-        // Evento para Simple Analytics
         tracking.trackSimpleAnalyticsEvent('confirm_purchase');
 
         setIsPending(true);
@@ -310,9 +317,12 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
             buyFormData.append('paymentReference', paymentReference);
             if (paymentScreenshot) buyFormData.append('paymentScreenshot', paymentScreenshot);
 
-            // Añadir el código de referido al FormData si existe
-            if (referralCode) {
-                buyFormData.append('referralCode', referralCode);
+            // ✅ 4. SE AÑADEN AMBOS CÓDIGOS AL FORMDATA PARA LA SERVER ACTION
+            if (campaignCode) {
+                buyFormData.append('referralCode', campaignCode);
+            }
+            if (referralUserCode) {
+                buyFormData.append('referralUserCode', referralUserCode);
             }
 
             const buyResult = await buyTicketsAction(buyFormData);
@@ -324,7 +334,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
             setIsPending(false);
         }
     };
-    
+
     // --- Renderizado del Formulario y Layout ---
 
     return (
@@ -371,9 +381,9 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                             </div>
                         </DialogContent>
                     </Dialog>
-                    
+
                     <form onSubmit={handleFormSubmit} className="p-5 space-y-8 animate-fade-in">
-                        
+
                         {/* Sección 1: Cantidad de Tickets */}
                         <div className="space-y-6">
                             <h3 className="text-xl font-bold text-center text-white">1. Elige la cantidad de tickets</h3>
@@ -381,7 +391,7 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                             <div className="grid grid-cols-3 gap-3">
                                 {TICKET_AMOUNTS.map((q) => (
                                     <div key={q} className="relative">
-                                        <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending}/>
+                                        <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending} />
                                         <label htmlFor={`quantity-${q}`} className="flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-white/[.07] cursor-pointer transition-all hover:bg-white/10 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
                                             <span className="text-2xl font-bold text-white">{q}</span>
                                             <span className="text-xs text-zinc-400 uppercase">tickets</span>
@@ -391,27 +401,25 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                             </div>
                             <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
                                 <div className="flex items-center justify-center space-x-3 mb-4">
-                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5"/></Button>
+                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5" /></Button>
                                     <Input type="number" value={ticketCount} onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 1)} min="1" className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5"/></Button>
+                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5" /></Button>
                                 </div>
                                 <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
                                 <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
                                 {isLoadingRates ? <p className="text-zinc-500 text-sm h-9 flex items-center justify-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando tasa...</p> : (currencyData.totalSecondary && (
                                     <p className="text-xl font-semibold text-zinc-300 mt-2 p-2 bg-white/5 rounded-md border border-white/10 flex items-center justify-center h-9">
-                                        <span className="text-zinc-400 text-base mr-2">≈</span> 
+                                        <span className="text-zinc-400 text-base mr-2">≈</span>
                                         <span className="text-green-400">{currencyData.secondaryCurrencySymbol} {currencyData.totalSecondary}</span>
                                     </p>
                                 ))}
                             </div>
                         </div>
                         <hr className="border-t border-zinc-700/50" />
-                        
+
                         {/* Sección 2: Método de Pago */}
-                        {/* M MODIFICADO: Se añade la ref y el contenedor del error */}
                         <div ref={paymentMethodsSectionRef} className="space-y-6">
                             <h3 className="text-xl font-bold text-center text-white">2. Selecciona tu método de pago</h3>
-                            {/* N NUEVO: Contenedor para mostrar el mensaje de error */}
                             {paymentMethodError && (
                                 <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300 animate-in fade-in-50">
                                     <AlertDescription>{paymentMethodError}</AlertDescription>
@@ -423,7 +431,6 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                                         key={method.id}
                                         method={method}
                                         isSelected={paymentMethodId === method.id}
-                                        // M MODIFICADO: Limpiar el error cuando se selecciona un método
                                         onSelect={() => {
                                             setPaymentMethodId(method.id);
                                             setPaymentMethodError('');
@@ -442,15 +449,15 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                                 <div className="space-y-2">
                                     <Label htmlFor="name" className="text-zinc-400">Nombre y apellido*</Label>
                                     <div className="relative flex items-center">
-                                        <User className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                        <Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                        <User className="absolute left-3 h-5 w-5 text-zinc-500" />
+                                        <Input id="name" value={buyerName} onChange={e => setBuyerName(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email" className="text-zinc-400">Email*</Label>
                                     <div className="relative flex items-center">
-                                        <AtSign className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                        <Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                        <AtSign className="absolute left-3 h-5 w-5 text-zinc-500" />
+                                        <Input id="email" type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -463,8 +470,8 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                                 <div className="space-y-2">
                                     <Label htmlFor="paymentReference" className="text-zinc-400">Nro. de Referencia del pago*</Label>
                                     <div className="relative flex items-center">
-                                        <FileText className="absolute left-3 h-5 w-5 text-zinc-500"/>
-                                        <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg"/>
+                                        <FileText className="absolute left-3 h-5 w-5 text-zinc-500" />
+                                        <Input id="paymentReference" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} required className="h-12 pl-10 bg-white/[.07] border-white/10 text-white rounded-lg" />
                                     </div>
                                 </div>
                             </div>
@@ -482,19 +489,18 @@ export function BuyTicketsForm({ raffle, paymentMethods, exchangeRate: initialEx
                                     </p>
                                 </div>
                             </div>
-                            
+
                             <label htmlFor="paymentScreenshot" className="relative flex flex-col items-center justify-center w-full min-h-[160px] border-2 border-zinc-600 border-dashed rounded-lg cursor-pointer bg-white/[.07] hover:bg-white/10 p-4">
                                 <div className="text-center text-zinc-400"><UploadCloud className="w-10 h-10 mb-3 text-amber-500 mx-auto" /><p className="font-semibold"><span className="text-amber-400">Click para subir</span> o arrastra</p><p className="text-xs mt-1">PNG, JPG, GIF (MAX. 5MB) - Opcional</p></div>
                                 <Input id="paymentScreenshot" type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
                             </label>
                             {preview && (<div className="relative mt-2 w-28 h-28 mx-auto"><Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" /><button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button></div>)}
                         </div>
-                        
-                        {/* ✅ Botón de Envío Final Actualizado */}
-                        <Button 
-                            type="submit" 
-                            // M MODIFICADO: El botón solo se deshabilita mientras está procesando.
-                            disabled={isPending} 
+
+                        {/* Botón de Envío Final */}
+                        <Button
+                            type="submit"
+                            disabled={isPending}
                             className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none"
                         >
                             {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}

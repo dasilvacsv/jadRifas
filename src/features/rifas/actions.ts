@@ -2,7 +2,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { raffles, tickets, paymentMethods, raffleExchangeRates, systemSettings } from '@/lib/db/schema';
+import { raffles, tickets, paymentMethods, raffleExchangeRates, systemSettings, referralLinks, referrals } from '@/lib/db/schema';
 import { eq, and, or, gt, count } from 'drizzle-orm';
 import { getBCVRates } from '@/lib/exchangeRates';
 
@@ -15,20 +15,25 @@ interface SystemSettingsResponse {
   error?: string;
 }
 
-export async function getRaffleDataBySlug(slug: string) {
+export async function getRaffleDataBySlug(slug: string, refCode?: string, rCode?: string) {
   try {
-    const raffle = await db.query.raffles.findFirst({
-      where: eq(raffles.slug, slug),
-      with: {
-        images: true,
-        winnerTicket: {
-          with: {
-            purchase: true,
-          }
+    // ✅ 3. Busca los datos del referente en paralelo con la rifa
+    const [raffle, referrer] = await Promise.all([
+      db.query.raffles.findFirst({
+        where: eq(raffles.slug, slug),
+        with: {
+          images: true,
+          winnerTicket: { with: { purchase: true } },
+          exchangeRate: true,
         },
-        exchangeRate: true, // 👈 Se incluye la relación para obtener la tasa específica
-      },
-    });
+      }),
+      // Esta consulta busca el nombre del referente, dando prioridad a 'r' (cuentas)
+      rCode 
+        ? db.query.referrals.findFirst({ where: eq(referrals.code, rCode), columns: { name: true } })
+        : refCode
+        ? db.query.referralLinks.findFirst({ where: eq(referralLinks.code, refCode), columns: { name: true } })
+        : Promise.resolve(null)
+    ]);
 
     if (!raffle) {
       return { success: false, message: 'Rifa no encontrada' };
@@ -55,9 +60,6 @@ export async function getRaffleDataBySlug(slug: string) {
       );
 
     const ticketsTakenCount = ticketsTakenResult?.count || 0;
-
-    // AHORA: La función devuelve la tasa específica si existe, si no, devuelve null.
-    // La lógica para la tasa global se mueve al componente de página.
     const exchangeRate = raffle.exchangeRate ? parseFloat(raffle.exchangeRate.usdToVesRate) : null;
 
     return {
@@ -66,7 +68,9 @@ export async function getRaffleDataBySlug(slug: string) {
         raffle,
         paymentMethods: activePaymentMethods,
         ticketsTakenCount,
-        exchangeRate, // 👈 Ahora puede ser un número o null
+        exchangeRate,
+        // ✅ 4. Devuelve el nombre del referente si se encontró
+        referrerName: referrer?.name || null,
       },
     };
   } catch (error) {
