@@ -47,7 +47,7 @@ interface BuyTicketsFormProps {
     };
     paymentMethods: PaymentMethod[];
     exchangeRate: number | null;
-    campaignCode?: string;     // Para ?ref=...
+    campaignCode?: string;      // Para ?ref=...
     referralUserCode?: string; // Para ?r=...
 }
 
@@ -144,7 +144,7 @@ export function BuyTicketsForm({
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
     const [isPending, setIsPending] = useState(false);
-    const [ticketCount, setTicketCount] = useState<number>(2);
+    const [ticketCount, setTicketCount] = useState<number>(4);
     const [reservedTickets, setReservedTickets] = useState<string[]>([]);
     const [paymentMethodId, setPaymentMethodId] = useState('');
     const [buyerName, setBuyerName] = useState('');
@@ -248,7 +248,7 @@ export function BuyTicketsForm({
 
     // Manejadores de eventos
     const resetForm = () => {
-        setApiState(initialState); setTicketCount(2); setReservedTickets([]);
+        setApiState(initialState); setTicketCount(4); setReservedTickets([]);
         setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
         setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
