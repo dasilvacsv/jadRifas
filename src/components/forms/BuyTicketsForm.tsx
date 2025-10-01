@@ -144,7 +144,7 @@ export function BuyTicketsForm({
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
     const [isPending, setIsPending] = useState(false);
-    const [ticketCount, setTicketCount] = useState<number>(4);
+    const [ticketCount, setTicketCount] = useState<number>(2); // <--- CAMBIO AQUÍ
     const [reservedTickets, setReservedTickets] = useState<string[]>([]);
     const [paymentMethodId, setPaymentMethodId] = useState('');
     const [buyerName, setBuyerName] = useState('');
@@ -248,7 +248,7 @@ export function BuyTicketsForm({
 
     // Manejadores de eventos
     const resetForm = () => {
-        setApiState(initialState); setTicketCount(4); setReservedTickets([]);
+        setApiState(initialState); setTicketCount(2); setReservedTickets([]); // <--- CAMBIO AQUÍ
         setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
         setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
