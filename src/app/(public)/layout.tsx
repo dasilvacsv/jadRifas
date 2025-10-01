@@ -131,7 +131,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
 
                         <nav className="hidden md:flex items-center gap-1 bg-zinc-900/50 border border-zinc-800/50 rounded-full px-2 py-1 shadow-inner shadow-black/20">
                             <NavLink href="/"><LayoutGrid className="h-4 w-4" /> Inicio</NavLink>
-                            <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink>
+                            {/* ELIMINADO: <NavLink href="/#resultados"><Ticket className="h-4 w-4" /> Resultados</NavLink> */}
                             <NavLink href="/mis-tickets"><Ticket className="h-4 w-4" /> Mis Tickets</NavLink>
                             <NavLink href="/top-compradores"><Trophy className="h-4 w-4" /> Top Compradores</NavLink>
                             {/* ✅ AÑADIDO: Enlace a "Referidos" en la navegación principal */}
@@ -183,7 +183,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                 <div className="md:hidden fixed inset-0 top-20 z-40 bg-zinc-950/95 backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-300">
                     <div className="flex flex-col items-center justify-center h-full gap-y-6 px-8">
                         <NavLink href="/" onClick={() => setIsMenuOpen(false)}><LayoutGrid className="h-5 w-5" /> <span className="text-lg">Inicio</span></NavLink>
-                        <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink>
+                        {/* ELIMINADO: <NavLink href="/#resultados" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Resultados</span></NavLink> */}
                         <NavLink href="/mis-tickets" onClick={() => setIsMenuOpen(false)}><Ticket className="h-5 w-5" /> <span className="text-lg">Mis Tickets</span></NavLink>
                         <NavLink href="/top-compradores" onClick={() => setIsMenuOpen(false)}><Trophy className="h-5 w-5" /> <span className="text-lg">Top Compradores</span></NavLink>
                         {/* ✅ AÑADIDO: Enlace a "Referidos" en el menú móvil */}
@@ -232,7 +232,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode; 
                               <ul className="mt-4 space-y-3">
                                   <li><Link href="/" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Inicio</Link></li>
                                   <li><Link href="/mis-tickets" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Mis Tickets</Link></li>
-                                  <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li>
+                                  {/* ELIMINADO: <li><Link href="/#resultados" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Ganadores</Link></li> */}
                                   <li><Link href="/top-compradores" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Top Compradores</Link></li>
                                   {/* ✅ AÑADIDO: Enlace a "Referidos" en el footer */}
                                   <li><Link href="/referidos" className="text-base text-zinc-400 hover:text-amber-400 transition-colors">Programa de Referidos</Link></li>
