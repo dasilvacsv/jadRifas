@@ -114,12 +114,6 @@ export default function ReferralDashboard({ referral, activeRaffles }: ReferralD
       icon: Users,
       color: "text-blue-400",
     },
-    {
-        title: "Ingresos Generados",
-        value: `$${commissions.summary.totalRevenue.toFixed(2)}`,
-        icon: TrendingUp,
-        color: "text-indigo-400",
-    },
   ];
 
   // Lógica de paginación
