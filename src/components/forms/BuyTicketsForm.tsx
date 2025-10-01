@@ -144,11 +144,7 @@ export function BuyTicketsForm({
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
     const [isPending, setIsPending] = useState(false);
-<<<<<<< HEAD
     const [ticketCount, setTicketCount] = useState<number>(2); // <--- CAMBIO AQUÍ
-=======
-    const [ticketCount, setTicketCount] = useState<number>(2);
->>>>>>> a1163bc48c9fc953f59f7954eb0e7de77e1f0a4a
     const [reservedTickets, setReservedTickets] = useState<string[]>([]);
     const [paymentMethodId, setPaymentMethodId] = useState('');
     const [buyerName, setBuyerName] = useState('');
