@@ -1480,7 +1480,7 @@ async function handleTop5Notifications(raffleId: string, currentPurchaseId: stri
         if (otherBuyer.buyerEmail !== currentBuyer.buyerEmail && otherBuyer.totalTickets < currentBuyer.totalTickets) {
             const ticketsToReclaim = currentBuyer.totalTickets - otherBuyer.totalTickets + 1;
             const subject = "¡Te han superado en el ranking! ⚔️";
-            const message = `¡Atención, ${otherBuyer.buyerName}! El comprador ${currentBuyer.buyerName} te ha superado en el ranking. Compra ${ticketsToReclaim} ticket(s) para recuperar tu posición. ¡La competencia está reñida!`;
+const message = `¡Atención, ${otherBuyer.buyerName}! El comprador ${currentBuyer.buyerName} te ha superado en el ranking. Compra ${ticketsToReclaim} ticket(s) para recuperar tu posición. ¡La competencia está reñida!\n\nPuedes ver la clasificación aquí:\nhttps://www.llevateloconjorvi.com/top-compradores`;
             
             await sendEmail({ to: otherBuyer.buyerEmail, subject, body: `<p>${message}</p>` });
             if (otherBuyer.buyerPhone) await sendWhatsappMessage(otherBuyer.buyerPhone, `⚔️ ${message}`);
