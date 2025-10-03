@@ -1,11 +1,12 @@
 // src/components/leaderboard/TopBuyersLeaderboard.tsx
 
 // -----------------------------------------------------------------------------
-// 1. IMPORTACIONES (Sin cambios)
+// 1. IMPORTACIONES (MODIFICADAS)
 // -----------------------------------------------------------------------------
 import { db } from "@/lib/db";
 import { purchases } from "@/lib/db/schema";
-import { sql, desc, eq } from "drizzle-orm";
+// ✅ IMPORTACIONES ACTUALIZADAS: Se añaden 'and', 'isNotNull' y 'ne' para la nueva consulta
+import { sql, desc, eq, and, isNotNull, ne } from "drizzle-orm";
 import { Diamond, Shield, Star, Medal, Trophy, Gift } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
@@ -32,17 +33,24 @@ const RANKS: Rank[] = [
 const getRankForIndex = (index: number): Rank => RANKS[index] || RANKS[RANKS.length - 1];
 
 // -----------------------------------------------------------------------------
-// 4. OBTENCIÓN DE DATOS (Sin cambios)
+// 4. OBTENCIÓN DE DATOS (LÓGICA MODIFICADA)
 // -----------------------------------------------------------------------------
 async function getTopBuyers(): Promise<BuyerWithRank[]> {
     try {
+        // ✅ La lógica ahora agrupa las compras por número de teléfono.
         const topBuyersData = await db.select({
-            buyerName: purchases.buyerName,
-            buyerEmail: purchases.buyerEmail,
+            // Se usa MAX() para obtener un nombre y email consistentes para el grupo.
+            buyerName: sql<string>`max(${purchases.buyerName})`.as('buyer_name'),
+            buyerEmail: sql<string>`max(${purchases.buyerEmail})`.as('buyer_email'),
             totalTickets: sql<number>`sum(${purchases.ticketCount})`.as('total_tickets'),
         }).from(purchases)
-            .where(eq(purchases.status, 'confirmed'))
-            .groupBy(purchases.buyerEmail, purchases.buyerName)
+            // Se filtran compras confirmadas y con un número de teléfono válido.
+            .where(and(
+                eq(purchases.status, 'confirmed'),
+                isNotNull(purchases.buyerPhone),
+                ne(purchases.buyerPhone, '')
+            ))
+            .groupBy(purchases.buyerPhone) // La clave de agrupación ahora es el teléfono.
             .orderBy(desc(sql`total_tickets`))
             .limit(5);
 
@@ -59,15 +67,13 @@ async function getTopBuyers(): Promise<BuyerWithRank[]> {
 }
 
 // -----------------------------------------------------------------------------
-// 5. SUB-COMPONENTES DE UI (REFACTORIZADOS)
+// 5. SUB-COMPONENTES DE UI (Sin cambios funcionales)
 // -----------------------------------------------------------------------------
 
-// Componente para las chispas del primer lugar (sin cambios funcionales)
 const Sparkles = () => (
     <div className="absolute inset-0 z-0">{[...Array(12)].map((_, i) => ( <div key={i} className="absolute w-1 h-1 bg-cyan-300 rounded-full animate-sparkle" style={{ top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 1.5}s`, animationDuration: `${0.5 + Math.random() * 1}s` }} />))}</div>
 );
 
-// Componente para la insignia de rango (sin cambios funcionales)
 const RankBadge = ({ rank, size = 'h-8 w-8' }: { rank: Rank, size?: string }) => (
     <div className={clsx('relative flex-shrink-0 flex items-center justify-center', size, rank.color)}>
         <div className={clsx('absolute -inset-1 opacity-60 blur-md rounded-full animate-pulse', rank.glowColor)}></div>
@@ -75,11 +81,8 @@ const RankBadge = ({ rank, size = 'h-8 w-8' }: { rank: Rank, size?: string }) =>
     </div>
 );
 
-// --- [REFACTORIZADO] --- Componente para cada puesto del podio
 const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2 | 3 }) => {
     const isFirst = position === 1;
-    
-    // Alturas y orden para el podio. Se mantienen para la jerarquía visual.
     const styles = {
         1: { height: 'h-full', order: 'order-2' },
         2: { height: 'h-[85%]', order: 'order-1' },
@@ -87,17 +90,12 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
     };
 
     return (
-        // CAMBIO: Se usa 'flex-1' para que cada item ocupe el espacio disponible de forma flexible
-        // en lugar de 'w-1/3', lo que evita desbordamientos en pantallas pequeñas.
         <div className={clsx('relative flex flex-col items-center flex-1 max-w-[180px]', styles[position].height, styles[position].order)}>
             <div className="flex flex-col items-center text-center px-1">
                 {isFirst && <Sparkles />}
-                {/* CAMBIO: Tamaños de insignia ajustados para ser más compactos en móvil. */}
                 <RankBadge rank={buyer.rank} size={isFirst ? "h-10 w-10 sm:h-12 sm:w-12" : "h-8 w-8 sm:h-10 sm:w-10"} />
                 
-                {/* CAMBIO: Se reduce el margen y se ajusta el alto mínimo para el nombre. */}
                 <div className="mt-1.5 min-h-[36px] sm:min-h-[40px] flex flex-col items-center justify-start gap-0.5">
-                    {/* CAMBIO: Se ajusta el tamaño de la fuente y se usa 'w-full' para truncar correctamente. */}
                     <p className="text-xs sm:text-sm font-bold text-white w-full truncate" title={buyer.buyerName || 'Anónimo'}>
                         {buyer.buyerName || 'Anónimo'}
                     </p>
@@ -107,10 +105,9 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
                 </div>
             </div>
 
-            {/* CAMBIO: Se simplifica la estructura. 'flex-grow' empuja el número hacia abajo. */}
             <div className={clsx(
                 "w-full flex-grow flex flex-col justify-end mt-1 rounded-t-lg border-t-4",
-                "bg-gradient-to-b from-white/10 to-transparent", // MEJORA VISUAL: Gradiente sutil.
+                "bg-gradient-to-b from-white/10 to-transparent",
                 buyer.rank.borderColor
             )}>
                 <p className={clsx("text-lg sm:text-2xl font-black text-center font-display", buyer.rank.color)}>
@@ -126,17 +123,13 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
     );
 };
 
-// --- [REFACTORIZADO] --- Componente para las filas de la tabla
 const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTickets: number }) => {
     const progress = Math.min((buyer.totalTickets / maxTickets) * 100, 100);
     return (
-        // CAMBIO: Espaciado (gap) ajustado. Se añade efecto hover.
         <div className="flex items-center p-2 gap-3 rounded-lg bg-white/[.03] border border-white/5 hover:bg-white/5 transition-colors duration-200">
-            {/* CAMBIO: Se reduce el tamaño del número de ranking para dar más espacio al nombre. */}
             <div className="w-4 text-center font-bold text-xs font-display text-white/40">{buyer.rankIndex + 1}</div>
             <RankBadge rank={buyer.rank} size="h-6 w-6"/>
             
-            {/* CAMBIO: Se agrupan nombre y barra de progreso para un mejor control del truncado. */}
             <div className="flex-grow min-w-0">
                 <p className="font-semibold text-white text-sm truncate">{buyer.buyerName || 'Anónimo'}</p>
                 <div className="w-full bg-black/20 rounded-full h-1.5 mt-1 overflow-hidden">
@@ -153,7 +146,7 @@ const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTicket
 
 
 // -----------------------------------------------------------------------------
-// 6. COMPONENTE PRINCIPAL (REFACTORIZADO)
+// 6. COMPONENTE PRINCIPAL (MODIFICADO)
 // -----------------------------------------------------------------------------
 export async function TopBuyersLeaderboard() {
     const topBuyers = await getTopBuyers();
@@ -174,13 +167,11 @@ export async function TopBuyersLeaderboard() {
     
     return (
         <div className="w-full max-w-2xl mx-auto">
-            {/* MEJORA VISUAL: Título principal del componente */}
             <h2 className="text-2xl font-bold text-center text-white mb-2">
                 Tabla de Líderes
             </h2>
             <p className="text-sm text-center text-zinc-400 mb-6">Los 5 compradores con más tickets.</p>
 
-            {/* MEJORA VISUAL: Banner de premio rediseñado para ser más atractivo. */}
             <div className="mb-8 p-4 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 rounded-lg text-center flex items-center justify-center gap-4">
                 <div className="flex-shrink-0 bg-amber-400/10 p-2.5 rounded-full border border-amber-400/20">
                     <Gift className="h-7 w-7 text-amber-400"/>
@@ -192,7 +183,6 @@ export async function TopBuyersLeaderboard() {
             </div>
 
             {podiumBuyers.length > 0 && (
-                // CAMBIO: Se ajusta altura mínima y espaciado del podio.
                 <div className="flex justify-center items-end gap-1 sm:gap-2 mb-8 min-h-[220px] sm:min-h-[250px] animate-fade-in-up">
                     {podiumBuyers[1] && <PodiumItem buyer={podiumBuyers[1]} position={2} />}
                     {podiumBuyers[0] && <PodiumItem buyer={podiumBuyers[0]} position={1} />}
@@ -201,9 +191,9 @@ export async function TopBuyersLeaderboard() {
             )}
             
             {otherBuyers.length > 0 && (
-                // CAMBIO: Espaciado ajustado para una lista más limpia.
                 <div className="space-y-2">
-                    {otherBuyers.map(b => <LeaderboardRow key={b.buyerEmail} buyer={b} maxTickets={maxTickets} />)}
+                    {/* ✅ CAMBIO DE KEY: Se usa rankIndex que es único en esta lista. */}
+                    {otherBuyers.map(b => <LeaderboardRow key={b.rankIndex} buyer={b} maxTickets={maxTickets} />)}
                 </div>
             )}
         </div>

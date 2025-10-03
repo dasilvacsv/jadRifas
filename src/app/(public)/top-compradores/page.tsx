@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db";
 import { purchases } from "@/lib/db/schema";
-import { sql, desc, eq } from "drizzle-orm";
+// ✅ IMPORTACIONES ACTUALIZADAS: Se añaden 'and', 'isNotNull' y 'ne' para la nueva consulta
+import { sql, desc, eq, and, isNotNull, ne } from "drizzle-orm";
 import { Diamond, Shield, Star, Medal, Trophy } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
@@ -40,18 +41,26 @@ const getRankForIndex = (index: number): Rank => {
     return RANKS[index] || RANKS[RANKS.length - 1];
 };
 
-// --- FUNCIÓN PARA OBTENER DATOS (Sin cambios) ---
+// --- ✅ FUNCIÓN PARA OBTENER DATOS (LÓGICA MODIFICADA) ---
 async function getTopBuyers(): Promise<BuyerWithRank[]> {
     try {
+        // La lógica ahora agrupa las compras por número de teléfono.
         const topBuyersData = await db
             .select({
-                buyerName: purchases.buyerName,
-                buyerEmail: purchases.buyerEmail,
+                // Al agrupar, se debe especificar cómo elegir un nombre y email.
+                // Usamos MAX() para obtener un valor consistente para cada grupo de teléfono.
+                buyerName: sql<string>`max(${purchases.buyerName})`.as('buyer_name'),
+                buyerEmail: sql<string>`max(${purchases.buyerEmail})`.as('buyer_email'),
                 totalTickets: sql<number>`sum(${purchases.ticketCount})`.as('total_tickets'),
             })
             .from(purchases)
-            .where(eq(purchases.status, 'confirmed'))
-            .groupBy(purchases.buyerEmail, purchases.buyerName)
+            // Se filtran compras confirmadas y con un número de teléfono válido.
+            .where(and(
+                eq(purchases.status, 'confirmed'),
+                isNotNull(purchases.buyerPhone),
+                ne(purchases.buyerPhone, '')
+            ))
+            .groupBy(purchases.buyerPhone) // La clave de agrupación ahora es el teléfono.
             .orderBy(desc(sql`total_tickets`))
             .limit(5);
 
@@ -67,7 +76,8 @@ async function getTopBuyers(): Promise<BuyerWithRank[]> {
     }
 }
 
-// --- COMPONENTES AUXILIARES DE LA UI (Optimizados) ---
+
+// --- COMPONENTES AUXILIARES DE LA UI (Sin cambios) ---
 
 const Sparkles = () => (
     <div className="absolute inset-0 z-0">
@@ -94,7 +104,6 @@ const RankBadge = ({ rank, size = 'h-10 w-10' }: { rank: Rank, size?: string }) 
     </div>
 );
 
-// ✅ COMPONENTE DE FILA OPTIMIZADO PARA MÓVIL
 const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTickets: number }) => {
     const progressPercentage = (buyer.totalTickets / maxTickets) * 100;
     return (
@@ -121,7 +130,6 @@ const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTicket
     );
 };
 
-// ✅ COMPONENTE DEL PODIO OPTIMIZADO PARA MÓVIL
 const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2 | 3 }) => {
     const isFirst = position === 1;
     const styles = {
@@ -138,11 +146,11 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
             </div>
             <div className="text-center mt-2 flex flex-col items-center gap-1 h-16 justify-start sm:justify-center">
                  <p className="text-sm sm:text-lg font-bold text-white px-1 w-full truncate" title={buyer.buyerName || 'Anónimo'}>
-                    {buyer.buyerName || 'Anónimo'}
-                </p>
-                <div className={clsx("px-2 py-0.5 rounded-full text-xs font-bold border", buyer.rank.borderColor, buyer.rank.color, "bg-black/20")}>
-                    {buyer.rank.name}
-                </div>
+                     {buyer.buyerName || 'Anónimo'}
+                 </p>
+                 <div className={clsx("px-2 py-0.5 rounded-full text-xs font-bold border", buyer.rank.borderColor, buyer.rank.color, "bg-black/20")}>
+                     {buyer.rank.name}
+                 </div>
             </div>
             <p className={clsx("text-3xl sm:text-5xl font-black font-display mt-1 drop-shadow-lg", buyer.rank.color)}>
                 {buyer.totalTickets}
@@ -155,7 +163,7 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
 };
 
 
-// ✅ COMPONENTE PRINCIPAL CON DISEÑO RESPONSIVO
+// --- COMPONENTE PRINCIPAL (Con cambio menor en el 'key') ---
 export default async function TopCompradoresPage() {
     const topBuyers = await getTopBuyers();
 
@@ -198,7 +206,8 @@ export default async function TopCompradoresPage() {
                         {otherBuyers.length > 0 && (
                              <div className="space-y-2 sm:space-y-3">
                                 {otherBuyers.map((buyer) => (
-                                    <LeaderboardRow key={buyer.buyerEmail} buyer={buyer} maxTickets={maxTickets} />
+                                    // ✅ CAMBIO DE KEY: Se usa rankIndex que es único en esta lista.
+                                    <LeaderboardRow key={buyer.rankIndex} buyer={buyer} maxTickets={maxTickets} />
                                 ))}
                             </div>
                         )}
