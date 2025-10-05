@@ -2,9 +2,10 @@
 "use client";
 
 // --- Imports para el Formulario ---
-import { useState, useMemo, ChangeEvent, useEffect, useRef, memo } from 'react';
+import { useState, useMemo, ChangeEvent, useEffect, useRef, memo, useCallback } from 'react';
 import * as tracking from '@/lib/tracking';
 import { buyTicketsAction, reserveTicketsAction } from '@/lib/actions';
+import { getRaffleAvailabilityInfo } from '@/features/rifas/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,8 +17,7 @@ import { PaymentDetailsDisplay } from './PaymentDetailsDisplay';
 import { CountryCodeSelector } from '@/components/ui/CountryCodeSelector';
 import { getBCVRates } from '@/lib/exchangeRates';
 import Image from 'next/image';
-import { Loader2, X, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Minus, Plus, Check, Ticket } from 'lucide-react';
-
+import { Loader2, X, CheckCircle, UploadCloud, User, AtSign, Phone, FileText, Minus, Plus, Check, Ticket, AlertTriangle, RefreshCw } from 'lucide-react';
 
 // --- INICIO: LÓGICA DEL FORMULARIO ---
 interface PaymentMethod {
@@ -36,7 +36,7 @@ interface PaymentMethod {
     binancePayId?: string | null;
 }
 
-// ✅ 1. SE ACTUALIZA LA INTERFAZ DE PROPS
+// ✅ ACTUALIZADA: Interfaz de props con información detallada de disponibilidad
 interface BuyTicketsFormProps {
     raffle: {
         id: string;
@@ -44,11 +44,21 @@ interface BuyTicketsFormProps {
         price: string;
         currency: 'USD' | 'VES';
         status: string;
+        minimumTickets: number;
     };
     paymentMethods: PaymentMethod[];
     exchangeRate: number | null;
-    campaignCode?: string;      // Para ?ref=...
-    referralUserCode?: string; // Para ?r=...
+    campaignCode?: string;
+    referralUserCode?: string;
+    // ✅ CAMBIO: Ahora recibimos información detallada de disponibilidad
+    availabilityInfo?: {
+        available: number;
+        sold: number;
+        reserved: number;
+        taken: number;
+        total: number;
+        percentage: number;
+    };
 }
 
 // Constantes y Estado Inicial
@@ -131,20 +141,19 @@ const PaymentMethodItem = memo(function PaymentMethodItem({
     );
 });
 
-
 // Componente Principal del Formulario
-// ✅ 2. SE RECIBEN LAS NUEVAS PROPS EN LA FIRMA DEL COMPONENTE
 export function BuyTicketsForm({
     raffle,
     paymentMethods,
     exchangeRate: initialExchangeRate,
     campaignCode,
-    referralUserCode
+    referralUserCode,
+    availabilityInfo
 }: BuyTicketsFormProps) {
     // Estados del componente
     const [apiState, setApiState] = useState(initialState);
     const [isPending, setIsPending] = useState(false);
-    const [ticketCount, setTicketCount] = useState<number>(2); // <--- CAMBIO AQUÍ
+    const [ticketCount, setTicketCount] = useState<number>(2);
     const [reservedTickets, setReservedTickets] = useState<string[]>([]);
     const [paymentMethodId, setPaymentMethodId] = useState('');
     const [buyerName, setBuyerName] = useState('');
@@ -160,6 +169,11 @@ export function BuyTicketsForm({
     const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
     const [verificationProgress, setVerificationProgress] = useState(0);
     const [paymentMethodError, setPaymentMethodError] = useState('');
+    
+    // ✅ NUEVO: Estados para manejo de disponibilidad en tiempo real
+    const [currentAvailability, setCurrentAvailability] = useState(availabilityInfo);
+    const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+    const [availabilityError, setAvailabilityError] = useState('');
 
     const isFirstRender = useRef(true);
 
@@ -170,7 +184,51 @@ export function BuyTicketsForm({
     });
     const paymentMethodsSectionRef = useRef<HTMLDivElement>(null);
 
-    // ✅ 3. SE ACTUALIZA EL USEEFFECT PARA TRACKING
+    // ✅ NUEVA FUNCIÓN: Verificar disponibilidad en tiempo real
+    const checkAvailability = useCallback(async () => {
+        if (!raffle.id) return;
+        
+        setIsCheckingAvailability(true);
+        setAvailabilityError('');
+        
+        try {
+            const result = await getRaffleAvailabilityInfo(raffle.id);
+            if (result.success) {
+                setCurrentAvailability(result.data);
+                
+                // Si el usuario tiene seleccionados más tickets de los disponibles, ajustar
+                if (ticketCount > result.data.available) {
+                    const newCount = Math.max(1, Math.min(ticketCount, result.data.available));
+                    setTicketCount(newCount);
+                    if (result.data.available === 0) {
+                        setReservationError('Ya no hay tickets disponibles.');
+                    } else if (newCount < ticketCount) {
+                        setReservationError(`Solo hay ${result.data.available} tickets disponibles. Se ajustó tu selección.`);
+                    }
+                }
+            } else {
+                setAvailabilityError('Error al verificar disponibilidad');
+            }
+        } catch (error) {
+            console.error('Error checking availability:', error);
+            setAvailabilityError('Error de conexión');
+        } finally {
+            setIsCheckingAvailability(false);
+        }
+    }, [raffle.id, ticketCount]);
+
+    // ✅ EFECTO: Verificar disponibilidad periódicamente
+    useEffect(() => {
+        // Verificar inmediatamente al montar
+        checkAvailability();
+        
+        // Verificar cada 30 segundos
+        const interval = setInterval(checkAvailability, 30000);
+        
+        return () => clearInterval(interval);
+    }, [checkAvailability]);
+
+    // ✅ ACTUALIZADO: Tracking con códigos de referido
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
@@ -194,6 +252,11 @@ export function BuyTicketsForm({
         , [paymentMethodId, paymentMethods]);
 
     const totalAmount = useMemo(() => ticketCount * parseFloat(raffle.price), [ticketCount, raffle.price]);
+
+    // ✅ CAMBIO: Usar la información de disponibilidad actualizada
+    const availableTickets = useMemo(() => {
+        return currentAvailability ? Math.max(0, currentAvailability.available) : 0;
+    }, [currentAvailability]);
 
     const currencyData = useMemo(() => {
         const price = parseFloat(raffle.price);
@@ -248,11 +311,16 @@ export function BuyTicketsForm({
 
     // Manejadores de eventos
     const resetForm = () => {
-        setApiState(initialState); setTicketCount(2); setReservedTickets([]); // <--- CAMBIO AQUÍ
+        setApiState(initialState); 
+        setTicketCount(2); 
+        setReservedTickets([]);
         setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
         setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
         setPaymentMethodError('');
+        setAvailabilityError('');
+        // Verificar disponibilidad después de resetear
+        checkAvailability();
     };
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -267,15 +335,47 @@ export function BuyTicketsForm({
         setBuyerPhone(value);
     };
 
-    const handleTicketCountChange = (value: number) => setTicketCount(Math.max(1, value));
+    const handleTicketCountChange = (value: number) => {
+        const newValue = Math.max(1, Math.min(value, availableTickets));
+        setTicketCount(newValue);
+        
+        // Limpiar error de reserva si el usuario cambia la cantidad
+        if (reservationError) {
+            setReservationError('');
+        }
+        
+        // Verificar disponibilidad cuando cambia la cantidad
+        if (newValue !== value) {
+            checkAvailability();
+        }
+    };
 
     const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setPaymentMethodError('');
+        setReservationError('');
 
         if (!paymentMethodId) {
             setPaymentMethodError('Por favor, selecciona un método de pago para continuar.');
             paymentMethodsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        // ✅ MEJORA: Verificar disponibilidad antes de proceder
+        setIsCheckingAvailability(true);
+        await checkAvailability();
+        setIsCheckingAvailability(false);
+        
+        // Usar la disponibilidad más reciente
+        const latestAvailable = currentAvailability?.available || 0;
+        
+        if (ticketCount > latestAvailable) {
+            setReservationError(`Solo hay ${latestAvailable} tickets disponibles. Por favor, reduce la cantidad.`);
+            return;
+        }
+
+        if (availableTickets === 0) {
+            setReservationError('No hay tickets disponibles en este momento.');
             return;
         }
 
@@ -284,7 +384,7 @@ export function BuyTicketsForm({
             value: totalAmount,
             currency: raffle.currency,
             num_items: ticketCount,
-            content_name: referralUserCode || campaignCode, // Envía el código disponible
+            content_name: referralUserCode || campaignCode,
         });
         tracking.trackSimpleAnalyticsEvent('confirm_purchase');
 
@@ -317,7 +417,7 @@ export function BuyTicketsForm({
             buyFormData.append('paymentReference', paymentReference);
             if (paymentScreenshot) buyFormData.append('paymentScreenshot', paymentScreenshot);
 
-            // ✅ 4. SE AÑADEN AMBOS CÓDIGOS AL FORMDATA PARA LA SERVER ACTION
+            // ✅ Añadir códigos de referido
             if (campaignCode) {
                 buyFormData.append('campaignCode', campaignCode);
             }
@@ -366,7 +466,7 @@ export function BuyTicketsForm({
                 <CardContent className="p-0">
                     <GlobalStyles />
                     <Dialog open={isVerifyingPayment}>
-                        <DialogContent className="bg-zinc-900 border-zinc-700 text-white" hideCloseButton>
+                        <DialogContent className="bg-zinc-900 border-zinc-700 text-white">
                             <DialogHeader>
                                 <DialogTitle className="text-center text-2xl font-bold text-amber-400">Verificando tu Pago</DialogTitle>
                                 <DialogDescription className="text-center text-zinc-400 pt-2">
@@ -387,23 +487,137 @@ export function BuyTicketsForm({
                         {/* Sección 1: Cantidad de Tickets */}
                         <div className="space-y-6">
                             <h3 className="text-xl font-bold text-center text-white">1. Elige la cantidad de tickets</h3>
-                            {reservationError && <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300"><AlertDescription>{reservationError}</AlertDescription></Alert>}
-                            <div className="grid grid-cols-3 gap-3">
-                                {TICKET_AMOUNTS.map((q) => (
-                                    <div key={q} className="relative">
-                                        <input type="radio" id={`quantity-${q}`} name="ticketQuantity" value={q} checked={ticketCount === q} onChange={() => setTicketCount(q)} className="sr-only peer" disabled={isPending} />
-                                        <label htmlFor={`quantity-${q}`} className="flex flex-col items-center justify-center p-2 h-20 rounded-lg border border-white/10 bg-white/[.07] cursor-pointer transition-all hover:bg-white/10 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50">
-                                            <span className="text-2xl font-bold text-white">{q}</span>
-                                            <span className="text-xs text-zinc-400 uppercase">tickets</span>
-                                        </label>
+                            
+                            {/* ✅ MEJORADO: Información de tickets disponibles con estados visuales */}
+                            <div className={`border rounded-lg p-3 text-center transition-colors ${
+                                availableTickets === 0 
+                                    ? 'bg-red-950/30 border-red-400/30' 
+                                    : availableTickets < 100 
+                                        ? 'bg-amber-950/30 border-amber-400/30' 
+                                        : 'bg-blue-950/30 border-blue-400/30'
+                            }`}>
+                                <div className="flex items-center justify-center gap-2">
+                                    <Ticket className="h-4 w-4" />
+                                    <p className={`text-sm font-medium ${
+                                        availableTickets === 0 
+                                            ? 'text-red-300' 
+                                            : availableTickets < 100 
+                                                ? 'text-amber-300' 
+                                                : 'text-blue-300'
+                                    }`}>
+                                        Tickets disponibles: <span className="font-bold">{availableTickets.toLocaleString()}</span>
+                                        {currentAvailability && (
+                                            <span className="text-xs opacity-75"> de {currentAvailability.total.toLocaleString()}</span>
+                                        )}
+                                    </p>
+                                    {isCheckingAvailability && (
+                                        <RefreshCw className="h-3 w-3 animate-spin" />
+                                    )}
+                                </div>
+                                
+                                {/* Información adicional de estado */}
+                                {currentAvailability && (
+                                    <div className="mt-2 text-xs opacity-75">
+                                        <span className="text-green-400">Vendidos: {currentAvailability.sold.toLocaleString()}</span>
+                                        {currentAvailability.reserved > 0 && (
+                                            <span className="text-yellow-400 ml-3">Reservados: {currentAvailability.reserved.toLocaleString()}</span>
+                                        )}
                                     </div>
-                                ))}
+                                )}
+                                
+                                {/* Mensajes de estado */}
+                                {availableTickets < 100 && availableTickets > 0 && (
+                                    <p className="text-amber-300 text-xs mt-1 font-medium flex items-center justify-center gap-1">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        ¡Quedan pocos! Apúrate
+                                    </p>
+                                )}
+                                {availableTickets === 0 && (
+                                    <p className="text-red-300 text-xs mt-1 font-medium flex items-center justify-center gap-1">
+                                        <X className="h-3 w-3" />
+                                        ¡Agotados!
+                                    </p>
+                                )}
+                                
+                                {/* Error de disponibilidad */}
+                                {availabilityError && (
+                                    <div className="mt-2 flex items-center justify-center gap-2">
+                                        <AlertTriangle className="h-3 w-3 text-red-400" />
+                                        <span className="text-red-400 text-xs">{availabilityError}</span>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={checkAvailability}
+                                            disabled={isCheckingAvailability}
+                                            className="h-6 px-2 text-xs"
+                                        >
+                                            {isCheckingAvailability ? <RefreshCw className="h-3 w-3 animate-spin" /> : 'Reintentar'}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
+                            
+                            {reservationError && <Alert variant="destructive" className="bg-red-950/50 border-red-400/30 text-red-300"><AlertDescription>{reservationError}</AlertDescription></Alert>}
+                            
+                            <div className="grid grid-cols-3 gap-3">
+                                {TICKET_AMOUNTS.map((q) => {
+                                    const isDisabled = isPending || q > availableTickets;
+                                    return (
+                                        <div key={q} className="relative">
+                                            <input 
+                                                type="radio" 
+                                                id={`quantity-${q}`} 
+                                                name="ticketQuantity" 
+                                                value={q} 
+                                                checked={ticketCount === q} 
+                                                onChange={() => setTicketCount(q)} 
+                                                className="sr-only peer" 
+                                                disabled={isDisabled} 
+                                            />
+                                            <label 
+                                                htmlFor={`quantity-${q}`} 
+                                                className={`flex flex-col items-center justify-center p-2 h-20 rounded-lg border transition-all ${
+                                                    isDisabled 
+                                                        ? 'border-white/5 bg-white/[.02] cursor-not-allowed opacity-50' 
+                                                        : 'border-white/10 bg-white/[.07] cursor-pointer hover:bg-white/10 peer-checked:border-amber-400/50 peer-checked:bg-amber-950/30 peer-checked:ring-2 peer-checked:ring-amber-400/50'
+                                                }`}
+                                            >
+                                                <span className={`text-2xl font-bold ${isDisabled ? 'text-zinc-600' : 'text-white'}`}>{q}</span>
+                                                <span className={`text-xs uppercase ${isDisabled ? 'text-zinc-700' : 'text-zinc-400'}`}>tickets</span>
+                                            </label>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* Botón para comprar todos los tickets disponibles */}
+                            {availableTickets > 100 && (
+                                <div className="flex justify-center">
+                                    <Button
+                                        type="button"
+                                        onClick={() => handleTicketCountChange(availableTickets)}
+                                        disabled={isPending || availableTickets === 0}
+                                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                                    >
+                                        <Ticket className="mr-2 h-5 w-5" />
+                                        Comprar TODOS ({availableTickets.toLocaleString()} tickets)
+                                    </Button>
+                                </div>
+                            )}
+                            
                             <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
                                 <div className="flex items-center justify-center space-x-3 mb-4">
                                     <Button type="button" onClick={() => handleTicketCountChange(ticketCount - 1)} disabled={isPending || ticketCount <= 1} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Minus className="h-5 w-5" /></Button>
-                                    <Input type="number" value={ticketCount} onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 1)} min="1" className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5" /></Button>
+                                    <Input 
+                                        type="number" 
+                                        value={ticketCount} 
+                                        onChange={(e) => handleTicketCountChange(parseInt(e.target.value) || 1)} 
+                                        min="1" 
+                                        max={availableTickets}
+                                        className="w-28 text-center !text-7xl h-28 bg-black/30 border-white/10 text-white rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                    />
+                                    <Button type="button" onClick={() => handleTicketCountChange(ticketCount + 1)} disabled={isPending || ticketCount >= availableTickets} variant="outline" size="icon" className="h-10 w-10 text-zinc-300 border-white/10 bg-transparent hover:bg-white/5"><Plus className="h-5 w-5" /></Button>
                                 </div>
                                 <p className="text-zinc-400 text-sm">{ticketCount} ticket{ticketCount !== 1 ? 's' : ''} x {currencyData.pricePerTicket}</p>
                                 <p className="text-4xl font-extrabold text-amber-400 leading-tight mb-2">{currencyData.totalPrimary}</p>
@@ -497,14 +711,33 @@ export function BuyTicketsForm({
                             {preview && (<div className="relative mt-2 w-28 h-28 mx-auto"><Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" /><button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button></div>)}
                         </div>
 
-                        {/* Botón de Envío Final */}
+                        {/* ✅ MEJORADO: Botón de Envío Final con estados */}
                         <Button
                             type="submit"
-                            disabled={isPending}
+                            disabled={isPending || availableTickets === 0 || isCheckingAvailability}
                             className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg py-6 text-base shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:drop-shadow-none"
                         >
-                            {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Ticket className="mr-2 h-5 w-5" />}
-                            Confirmar Compra
+                            {isPending ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    Procesando...
+                                </>
+                            ) : isCheckingAvailability ? (
+                                <>
+                                    <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                                    Verificando...
+                                </>
+                            ) : availableTickets === 0 ? (
+                                <>
+                                    <X className="mr-2 h-5 w-5" />
+                                    Sin Tickets Disponibles
+                                </>
+                            ) : (
+                                <>
+                                    <Ticket className="mr-2 h-5 w-5" />
+                                    Confirmar Compra
+                                </>
+                            )}
                         </Button>
                     </form>
                 </CardContent>

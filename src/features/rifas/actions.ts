@@ -3,7 +3,7 @@
 
 import { db } from '@/lib/db';
 import { raffles, tickets, paymentMethods, raffleExchangeRates, systemSettings, referralLinks, referrals } from '@/lib/db/schema';
-import { eq, and, or, gt, count } from 'drizzle-orm';
+import { eq, and, or, gt, count, sql } from 'drizzle-orm';
 import { getBCVRates } from '@/lib/exchangeRates';
 
 interface SystemSettingsResponse {
@@ -13,6 +13,91 @@ interface SystemSettingsResponse {
     // Otros ajustes si los agregas
   } | null;
   error?: string;
+}
+
+// ✅ NUEVA FUNCIÓN: Obtener información de disponibilidad en tiempo real
+export async function getRaffleAvailabilityInfo(raffleId: string) {
+  try {
+    // Limpiar reservas expiradas primero
+    await db.update(tickets)
+      .set({ 
+        status: 'available', 
+        reservedUntil: null, 
+        purchaseId: null 
+      })
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'reserved'),
+          gt(new Date(), tickets.reservedUntil)
+        )
+      );
+
+    // Contar tickets por estado
+    const [availableResult] = await db
+      .select({ count: sql`count(*)` })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'available')
+        )
+      );
+
+    const [soldResult] = await db
+      .select({ count: sql`count(*)` })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'sold')
+        )
+      );
+
+    const [reservedResult] = await db
+      .select({ count: sql`count(*)` })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'reserved'),
+          gt(tickets.reservedUntil, new Date())
+        )
+      );
+
+    const available = Number(availableResult.count);
+    const sold = Number(soldResult.count);
+    const reserved = Number(reservedResult.count);
+    const total = 10000; // Total de tickets generados
+    const taken = sold + reserved;
+
+    console.log(`Disponibilidad actualizada - Rifa: ${raffleId}, Disponibles: ${available}, Vendidos: ${sold}, Reservados: ${reserved}`);
+
+    return {
+      success: true,
+      data: {
+        available,
+        sold,
+        reserved,
+        taken,
+        total,
+        percentage: Math.min((taken / total) * 100, 100)
+      }
+    };
+  } catch (error) {
+    console.error('Error obteniendo disponibilidad:', error);
+    return {
+      success: false,
+      data: {
+        available: 0,
+        sold: 0,
+        reserved: 0,
+        taken: 0,
+        total: 10000,
+        percentage: 0
+      }
+    };
+  }
 }
 
 export async function getRaffleDataBySlug(slug: string, refCode?: string, rCode?: string) {
@@ -43,23 +128,10 @@ export async function getRaffleDataBySlug(slug: string, refCode?: string, rCode?
       where: eq(paymentMethods.isActive, true),
     });
 
-    const [ticketsTakenResult] = await db
-      .select({ count: count() })
-      .from(tickets)
-      .where(
-        and(
-          eq(tickets.raffleId, raffle.id),
-          or(
-            eq(tickets.status, 'sold'),
-            and(
-              eq(tickets.status, 'reserved'),
-              gt(tickets.reservedUntil, new Date())
-            )
-          )
-        )
-      );
+    // ✅ MEJORA: Usar la nueva función para obtener datos más precisos
+    const availabilityInfo = await getRaffleAvailabilityInfo(raffle.id);
+    const ticketsTakenCount = availabilityInfo.success ? availabilityInfo.data.taken : 0;
 
-    const ticketsTakenCount = ticketsTakenResult?.count || 0;
     const exchangeRate = raffle.exchangeRate ? parseFloat(raffle.exchangeRate.usdToVesRate) : null;
 
     return {
@@ -71,6 +143,8 @@ export async function getRaffleDataBySlug(slug: string, refCode?: string, rCode?
         exchangeRate,
         // ✅ 4. Devuelve el nombre del referente si se encontró
         referrerName: referrer?.name || null,
+        // ✅ NUEVO: Información detallada de disponibilidad
+        availabilityInfo: availabilityInfo.data,
       },
     };
   } catch (error) {
@@ -78,6 +152,7 @@ export async function getRaffleDataBySlug(slug: string, refCode?: string, rCode?
     return { success: false, message: 'Error interno del servidor' };
   }
 }
+
 // Mantener la función original por compatibilidad (por si acaso)
 export async function getRaffleData(id: string) {
   try {
@@ -103,24 +178,9 @@ export async function getRaffleData(id: string) {
       where: eq(paymentMethods.isActive, true),
     });
 
-    // Contar tickets vendidos o reservados activos
-    const [ticketsTakenResult] = await db
-      .select({ count: count() })
-      .from(tickets)
-      .where(
-        and(
-          eq(tickets.raffleId, raffle.id),
-          or(
-            eq(tickets.status, 'sold'),
-            and(
-              eq(tickets.status, 'reserved'),
-              gt(tickets.reservedUntil, new Date())
-            )
-          )
-        )
-      );
-
-    const ticketsTakenCount = ticketsTakenResult?.count || 0;
+    // ✅ MEJORA: Usar la nueva función para contar tickets más precisamente
+    const availabilityInfo = await getRaffleAvailabilityInfo(raffle.id);
+    const ticketsTakenCount = availabilityInfo.success ? availabilityInfo.data.taken : 0;
 
     // Obtener tasa de cambio específica de la rifa
     let exchangeRate: number | null = null;
@@ -148,6 +208,8 @@ export async function getRaffleData(id: string) {
         paymentMethods: activePaymentMethods,
         ticketsTakenCount,
         exchangeRate,
+        // ✅ NUEVO: Información detallada de disponibilidad
+        availabilityInfo: availabilityInfo.data,
       },
     };
   } catch (error) {

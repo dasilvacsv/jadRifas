@@ -49,6 +49,65 @@ export type ActionState = {
   data?: any;
 };
 
+// ✅ NUEVA FUNCIÓN: Verificar disponibilidad real de tickets
+async function verifyTicketAvailability(raffleId: string, requestedCount: number): Promise<{
+  available: boolean;
+  availableCount: number;
+  message?: string;
+}> {
+  try {
+    // Limpiar reservas expiradas primero
+    await db.update(tickets)
+      .set({ 
+        status: 'available', 
+        reservedUntil: null, 
+        purchaseId: null 
+      })
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'reserved'),
+          lt(tickets.reservedUntil, new Date())
+        )
+      );
+
+    // Contar tickets realmente disponibles
+    const [availableResult] = await db
+      .select({ count: sql`count(*)` })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId),
+          eq(tickets.status, 'available')
+        )
+      );
+
+    const availableCount = Number(availableResult.count);
+    
+    console.log(`Verificación de disponibilidad - Rifa: ${raffleId}, Disponibles: ${availableCount}, Solicitados: ${requestedCount}`);
+
+    if (availableCount < requestedCount) {
+      return {
+        available: false,
+        availableCount,
+        message: `Solo hay ${availableCount} tickets disponibles, pero se solicitaron ${requestedCount}.`
+      };
+    }
+
+    return {
+      available: true,
+      availableCount
+    };
+  } catch (error) {
+    console.error("Error verificando disponibilidad de tickets:", error);
+    return {
+      available: false,
+      availableCount: 0,
+      message: "Error interno al verificar disponibilidad."
+    };
+  }
+}
+
 // ----------------------------------------------------------------
 // ACTIONS PARA AUTENTICACIÓN
 // ----------------------------------------------------------------
@@ -90,8 +149,6 @@ export async function registerAction(prevState: ActionState, formData: FormData)
     return { success: false, message: "Error del servidor" };
   }
 }
-
-
 
 // ✅ --- NUEVA FUNCIÓN: ENVIAR NOTIFICACIÓN DE RECHAZO ---
 async function sendRejectionNotification(
@@ -273,7 +330,6 @@ async function sendWinnerNotification(raffleId: string, winnerTicketId: string):
   }
 }
 
-
 async function sendConfirmationEmail(purchaseId: string): Promise<void> {
   const purchase = await db.query.purchases.findFirst({
     where: eq(purchases.id, purchaseId),
@@ -352,7 +408,6 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
   }
 }
 
-
 // ✅ --- NUEVA FUNCIÓN ---
 // Envía un WhatsApp para notificar que la compra está pendiente de revisión.
 async function sendConfirmationWhatsapp(purchaseId: string): Promise<void> {
@@ -398,6 +453,15 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
   const RESERVATION_MINUTES = 10;
 
   try {
+    // ✅ VALIDACIÓN MEJORADA: Verificar disponibilidad antes de proceder
+    const availabilityCheck = await verifyTicketAvailability(raffleId, ticketCount);
+    if (!availabilityCheck.available) {
+      return { 
+        success: false, 
+        message: availabilityCheck.message || `Solo hay ${availabilityCheck.availableCount} tickets disponibles.`
+      };
+    }
+
     const reservedData = await db.transaction(async (tx) => {
       // Check if raffle exists and is active
       const raffle = await tx.query.raffles.findFirst({ where: eq(raffles.id, raffleId) });
@@ -434,10 +498,12 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
       // Clean up expired reservations
       await tx.update(tickets).set({ status: 'available', reservedUntil: null, purchaseId: null }).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'reserved'), lt(tickets.reservedUntil, new Date())));
 
-      // Find available tickets
+      // ✅ VALIDACIÓN CRÍTICA: Verificar disponibilidad dentro de la transacción
       const availableTickets = await tx.select({ id: tickets.id, ticketNumber: tickets.ticketNumber }).from(tickets).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'available'))).orderBy(sql`RANDOM()`).limit(ticketCount).for("update", { skipLocked: true });
 
-      if (availableTickets.length < ticketCount) throw new Error("No hay suficientes tickets disponibles para apartar.");
+      if (availableTickets.length < ticketCount) {
+        throw new Error(`Solo hay ${availableTickets.length} tickets disponibles, pero se solicitaron ${ticketCount}.`);
+      }
 
       const ticketIdsToReserve = availableTickets.map(t => t.id);
       const reservationTime = new Date(Date.now() + RESERVATION_MINUTES * 60 * 1000);
@@ -451,7 +517,6 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
     return { success: false, message: error.message || "Ocurrió un error en el servidor." };
   }
 }
-
 
 const BuyTicketsSchema = z.object({
   name: z.string().min(3, "El nombre es requerido"),
@@ -488,6 +553,16 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
   const { name, email, phone, raffleId, paymentReference, paymentMethod, reservedTickets, campaignCode, referralUserCode } = validatedFields.data;
   const ticketNumbers = reservedTickets.split(',');
   let paymentScreenshotUrl = '';
+
+  // ✅ VALIDACIÓN CRÍTICA: Verificar disponibilidad antes de procesar
+  console.log(`Iniciando validación de ${ticketNumbers.length} tickets para la rifa ${raffleId}`);
+  const availabilityCheck = await verifyTicketAvailability(raffleId, ticketNumbers.length);
+  if (!availabilityCheck.available) {
+    return { 
+      success: false, 
+      message: `Error de disponibilidad: ${availabilityCheck.message || `Solo hay ${availabilityCheck.availableCount} tickets disponibles.`}`
+    };
+  }
 
   if (validatedFields.data.paymentScreenshot && validatedFields.data.paymentScreenshot.size > 0) {
     try {
@@ -577,9 +652,48 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     }
 
     const newPurchase = await db.transaction(async (tx) => {
-      const ticketsToUpdate = await tx.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.raffleId, raffleId), inArray(tickets.ticketNumber, ticketNumbers), eq(tickets.status, 'reserved')));
-      if (ticketsToUpdate.length !== ticketNumbers.length) {
-        throw new Error("Tu reservación expiró o los tickets ya no son válidos. Por favor, intenta de nuevo.");
+      // ✅ VALIDACIÓN FINAL: Verificar que los tickets específicos sigan reservados y válidos
+      const ticketsToUpdate = await tx.select({ 
+        id: tickets.id, 
+        ticketNumber: tickets.ticketNumber,
+        status: tickets.status,
+        reservedUntil: tickets.reservedUntil
+      })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.raffleId, raffleId), 
+          inArray(tickets.ticketNumber, ticketNumbers)
+        )
+      )
+      .for("update");
+
+      // Verificar estado y vigencia de cada ticket
+      const validTickets = ticketsToUpdate.filter(ticket => {
+        if (ticket.status === 'sold') {
+          console.error(`Ticket ${ticket.ticketNumber} ya fue vendido`);
+          return false;
+        }
+        if (ticket.status === 'reserved') {
+          // Verificar si la reserva sigue vigente
+          if (ticket.reservedUntil && new Date(ticket.reservedUntil) < new Date()) {
+            console.error(`Ticket ${ticket.ticketNumber} tenía reserva expirada`);
+            return false;
+          }
+          return true;
+        }
+        if (ticket.status === 'available') {
+          // Ticket disponible puede ser tomado
+          return true;
+        }
+        return false;
+      });
+
+      if (validTickets.length !== ticketNumbers.length) {
+        const invalidTickets = ticketNumbers.filter(num => 
+          !validTickets.some(valid => valid.ticketNumber === num)
+        );
+        throw new Error(`Los siguientes tickets ya no están disponibles: ${invalidTickets.join(', ')}. Por favor, intenta de nuevo.`);
       }
 
       const [createdPurchase] = await tx.insert(purchases).values({
@@ -593,7 +707,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         status: purchaseStatus === 'confirmed' ? 'sold' : 'reserved',
         purchaseId: createdPurchase.id,
         reservedUntil: null,
-      }).where(inArray(tickets.id, ticketsToUpdate.map(t => t.id)));
+      }).where(inArray(tickets.id, validTickets.map(t => t.id)));
 
       return createdPurchase;
     });
@@ -634,6 +748,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
 
     }
 
+    console.log(`✅ Compra procesada exitosamente: ${newPurchase.id} con ${ticketNumbers.length} tickets`);
     return { success: true, message: responseMessage, data: newPurchase };
 
   } catch (error: any) {
@@ -641,7 +756,6 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     return { success: false, message: error.message || "Ocurrió un error inesperado en el servidor." };
   }
 }
-
 
 const UpdatePurchaseStatusSchema = z.object({
   purchaseId: z.string(),
@@ -1339,7 +1453,6 @@ export async function addToWaitlistAction(prevState: ActionState, formData: Form
     return { success: false, message: "Ocurrió un error en el servidor. Inténtalo de nuevo." };
   }
 }
-
 
 /**
  * Notifica a todos los suscriptores de la lista de espera sobre una nueva rifa.

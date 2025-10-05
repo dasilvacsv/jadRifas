@@ -69,6 +69,14 @@ interface RaffleDetailClientProps {
     referralUserCode?: string; // ?r=CODE
     referrerName?: string | null; // Nombre del referente
     leaderboardComponent: ReactNode;
+    availabilityInfo?: {
+        available: number;
+        sold: number;
+        reserved: number;
+        taken: number;
+        total: number;
+        percentage: number;
+    };
 }
 
 // --- UTILIDADES ---
@@ -386,7 +394,8 @@ export default function RaffleDetailClient({
     campaignCode, 
     referralUserCode, 
     referrerName, 
-    leaderboardComponent 
+    leaderboardComponent,
+    availabilityInfo
 }: RaffleDetailClientProps) {
     const progress = Math.min((ticketsTakenCount / raffle.minimumTickets) * 100, 100);
     const [proofModalUrl, setProofModalUrl] = useState<string | null>(null);
@@ -438,7 +447,7 @@ export default function RaffleDetailClient({
                             <div className="lg:sticky lg:top-8 space-y-8">
                                 
                                 {/* ✅ 4. Añade el componente ReferrerInfo aquí */}
-                                <ReferrerInfo name={referrerName} />
+                                <ReferrerInfo name={referrerName || null} />
 
                                 {/* Mostrar el mensaje especial cuando esté pausada */}
                                 {raffle.status === 'postponed' ? (
@@ -484,6 +493,7 @@ export default function RaffleDetailClient({
                                                 // ✅ 5. Pasa ambos códigos al formulario
                                                 campaignCode={campaignCode}
                                                 referralUserCode={referralUserCode}
+                                                availabilityInfo={availabilityInfo || undefined}
                                             />
                                         </Card>
                                     </div>

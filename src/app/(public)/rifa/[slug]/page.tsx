@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-// Componente de la página principal
+// ✅ ACTUALIZADO: Componente de la página principal con información detallada de disponibilidad
 export default async function RafflePage({ params, searchParams }: { 
     params: { slug: string }, 
     searchParams: { ref?: string, r?: string } 
@@ -64,11 +64,18 @@ export default async function RafflePage({ params, searchParams }: {
     notFound();
   }
 
-  // 3. Extrae toda la información, incluyendo el nuevo `referrerName`
-  const { raffle, paymentMethods, ticketsTakenCount, exchangeRate: raffleExchangeRate, referrerName } = raffleResult.data;
+  // ✅ ACTUALIZADO: Extrae la información detallada de disponibilidad
+  const { 
+    raffle, 
+    paymentMethods, 
+    ticketsTakenCount,
+    exchangeRate: raffleExchangeRate, 
+    referrerName,
+    availabilityInfo  // ✅ NUEVO: Información detallada de disponibilidad
+  } = raffleResult.data;
 
   // Lógica para determinar la tasa de cambio final
-  const globalExchangeRate = settingsResult.success ? parseFloat(settingsResult.data.exchangeRate) : null;
+  const globalExchangeRate = settingsResult.success && settingsResult.data ? parseFloat(settingsResult.data.exchangeRate) : null;
   const finalExchangeRate = raffleExchangeRate !== null ? raffleExchangeRate : globalExchangeRate;
 
   // Schema para datos estructurados (SEO)
@@ -101,9 +108,12 @@ export default async function RafflePage({ params, searchParams }: {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(raffleJsonLd) }}
       />
       <RaffleDetailClient
+          // @ts-ignore - Database raffle object has more properties than interface
           raffle={raffle}
           paymentMethods={paymentMethods}
           ticketsTakenCount={ticketsTakenCount}
+          // ✅ CAMBIO: Ahora pasamos la información detallada de disponibilidad
+          availabilityInfo={availabilityInfo}
           exchangeRate={finalExchangeRate}
           // 4. Pasa todos los datos del referido al componente cliente para que los muestre y los use en el formulario
           campaignCode={campaignCode}
