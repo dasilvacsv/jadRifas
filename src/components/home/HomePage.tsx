@@ -4,7 +4,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, Star, MessageSquare } from 'lucide-react';
+import { Ticket, Gift, Clock, Sparkles, ChevronLeft, ChevronRight, X, CheckCircle, Trophy, CalendarOff, Star, MessageSquare, Pause } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import React, { useState, useEffect } from 'react';
@@ -75,6 +75,12 @@ const GlobalStyles = () => (
         transform: translate(-50%, -50%); width: 150%; height: 150%;
         background: conic-gradient(from 0deg, transparent 70%, #FBBF24, #F59E0B, transparent 100%); 
         animation: border-spin 5s linear infinite; z-index: -1;
+    }
+    .animated-border-paused::before {
+        content: ''; position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%); width: 150%; height: 150%;
+        background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #d97706, transparent 100%); 
+        animation: border-spin 8s linear infinite; z-index: -1;
     }
     .text-gold-gradient {
         background: linear-gradient(120deg, #FDE047 10%, #F59E0B 50%, #D97706 90%);
@@ -243,12 +249,25 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
         return () => clearInterval(intervalId);
     }, [raffle.limitDate]);
 
+    // Determinar el tipo de border según el status
+    const getBorderClass = () => {
+        if (raffle.status === 'postponed') return 'animated-border-paused';
+        return isFeatured ? 'animated-border' : 'animated-border';
+    };
+
     return (
-        <div className={`group relative rounded-2xl p-px overflow-hidden animated-border ${isFeatured ? 'sm:col-span-full' : ''}`}>
+        <div className={`group relative rounded-2xl p-px overflow-hidden ${getBorderClass()} ${isFeatured ? 'sm:col-span-full' : ''}`}>
             <Link href={`/rifa/${raffle.slug}`} className="block h-full">
                 <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden h-full flex flex-col shadow-2xl shadow-black/40 transition-all duration-300">
                     <CardHeader className="p-0 relative">
-                        {isTimerFinished && (
+                        {raffle.status === 'postponed' ? (
+                            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[90%] z-30 pointer-events-none sm:top-4">
+                                <div className="bg-amber-600/95 text-white text-xs font-bold px-3 py-2 rounded-lg backdrop-blur-sm border border-amber-300/60 shadow-lg flex items-center justify-center animate-pulse sm:text-sm sm:px-4 sm:py-2.5 sm:rounded-xl">
+                                    <Pause className="h-3 w-3 mr-2 sm:h-4 sm:w-4" />
+                                    Esperando resultados del sorteo
+                                </div>
+                            </div>
+                        ) : isTimerFinished && (
                             <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[90%] z-30 pointer-events-none sm:top-4">
                                 <div className="bg-sky-500/95 text-white text-xs font-bold px-3 py-2 rounded-lg backdrop-blur-sm border border-sky-300/60 shadow-lg flex items-center justify-center animate-pulse sm:text-sm sm:px-4 sm:py-2.5 sm:rounded-xl">
                                     <Sparkles className="h-3 w-3 mr-2 sm:h-4 sm:w-4" />
@@ -262,8 +281,20 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                                <Star className="h-3 w-3 mr-1.5 sm:h-4 sm:w-4 sm:mr-2" /> RIFA ESTRELLA
                            </Badge>
                         )}
-                        <Badge variant="secondary" className="absolute top-3 right-3 bg-black/50 text-amber-300 font-semibold py-1 px-2.5 border border-amber-300/20 backdrop-blur-sm text-xs sm:top-4 sm:right-4 sm:px-3">
-                            <Sparkles className="h-3 w-3 mr-1 text-amber-400 sm:h-3.5 sm:w-3.5 sm:mr-1.5" /> ¡EN VIVO!
+                        <Badge variant="secondary" className={`absolute top-3 right-3 font-semibold py-1 px-2.5 border backdrop-blur-sm text-xs sm:top-4 sm:right-4 sm:px-3 ${
+                            raffle.status === 'postponed' 
+                                ? 'bg-amber-900/50 text-amber-300 border-amber-300/20 animate-pulse'
+                                : 'bg-black/50 text-amber-300 border-amber-300/20'
+                        }`}>
+                            {raffle.status === 'postponed' ? (
+                                <>
+                                    <Pause className="h-3 w-3 mr-1 text-amber-400 sm:h-3.5 sm:w-3.5 sm:mr-1.5" /> PAUSADA
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-3 w-3 mr-1 text-amber-400 sm:h-3.5 sm:w-3.5 sm:mr-1.5" /> ¡EN VIVO!
+                                </>
+                            )}
                         </Badge>
                     </CardHeader>
                     <CardContent className="p-4 flex-grow flex flex-col sm:p-5">
@@ -274,13 +305,17 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                             <p className="text-zinc-400 text-xs line-clamp-2 mb-3 sm:text-sm sm:mb-4">{raffle.description}</p>
                         )}
                         <div className="mt-auto space-y-4 pt-3 sm:space-y-5 sm:pt-4">
-                            <div>
-                                <div className="flex justify-end items-center text-xs mb-1.5">
-                                    <span className="font-bold text-white">{progress.toFixed(0)}% Vendido</span>
-                                </div>
-                                <Progress value={progress} className="h-2 bg-white/10 rounded-full border border-white/10 overflow-hidden [&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-500" />
-                            </div>
-                            <CountdownTimer targetDate={raffle.limitDate} />
+                            {raffle.status !== 'postponed' && (
+                                <>
+                                    <div>
+                                        <div className="flex justify-end items-center text-xs mb-1.5">
+                                            <span className="font-bold text-white">{progress.toFixed(0)}% Vendido</span>
+                                        </div>
+                                        <Progress value={progress} className="h-2 bg-white/10 rounded-full border border-white/10 overflow-hidden [&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-500" />
+                                    </div>
+                                    <CountdownTimer targetDate={raffle.limitDate} />
+                                </>
+                            )}
                         </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-3 flex flex-wrap gap-3 justify-between items-center bg-black/20 border-t border-white/10 sm:p-5 sm:pt-4 sm:gap-4">
@@ -288,9 +323,13 @@ const ActiveRaffleCard = ({ raffle, isFeatured = false }: { raffle: ActiveRaffle
                             <p className="text-xs text-zinc-400">Precio</p>
                             <p className="text-2xl font-extrabold text-white leading-none sm:text-3xl">{formatCurrency(raffle.price, raffle.currency)}</p>
                         </div>
-                        <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg px-6 py-4 text-sm shadow-lg shadow-black/40 transition-all duration-300 ease-out group-hover:scale-105 group-hover:drop-shadow-[0_0_15px_theme(colors.amber.500)] sm:rounded-xl sm:px-8 sm:py-6 sm:text-base">
+                        <Button className={`font-bold rounded-lg px-6 py-4 text-sm shadow-lg shadow-black/40 transition-all duration-300 ease-out group-hover:scale-105 sm:rounded-xl sm:px-8 sm:py-6 sm:text-base ${
+                            raffle.status === 'postponed'
+                                ? 'bg-amber-600 hover:bg-amber-500 text-white group-hover:drop-shadow-[0_0_15px_theme(colors.amber.600)]'
+                                : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white group-hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]'
+                        }`}>
                            <Ticket className="h-4 w-4 mr-2 sm:h-5 sm:w-5 sm:mr-2.5"/>
-                           Participar
+                           {raffle.status === 'postponed' ? 'Ver Resultados' : 'Participar'}
                         </Button>
                     </CardFooter>
                 </Card>

@@ -12,7 +12,8 @@ import {
     ArrowLeft, DollarSign, Ticket, Trophy, AlertCircle, 
     Sparkles, ChevronLeft, ChevronRight, Gift, Clock, X, CheckCircle, Star,
     Gamepad2,
-    Handshake // <-- ICONO NUEVO AÑADIDO
+    Handshake, // <-- ICONO NUEVO AÑADIDO
+    Pause
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -95,11 +96,16 @@ const GlobalStyles = memo(function GlobalStyles() {
             from { transform: translate(-50%, -50%) rotate(0deg); }
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.8); }
+        }
       
         .fade-in-anim { animation: fade-in 0.3s ease-out forwards; }
         .scale-in-anim { animation: scale-in 0.3s ease-out forwards; }
         .blob-anim { animation: blob 7s infinite; }
         .animation-delay-4000 { animation-delay: 4s; }
+        .pulse-glow-anim { animation: pulse-glow 2s ease-in-out infinite; }
       
         .animated-border::before {
             content: '';
@@ -123,6 +129,18 @@ const GlobalStyles = memo(function GlobalStyles() {
             height: 150%;
             background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #fbbf24, transparent 100%);
             animation: border-spin 5s linear infinite;
+            z-index: -1;
+        }
+        .animated-border-paused::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 150%;
+            height: 150%;
+            background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #fbbf24, transparent 100%);
+            animation: border-spin 8s linear infinite;
             z-index: -1;
         }
       `}</style>
@@ -213,6 +231,52 @@ const WinnerDisplayCard = memo(function WinnerDisplayCard({ raffle, onShowProof 
     );
 });
 
+// ✅ NUEVO COMPONENTE: Mensaje cuando la rifa está pausada
+const RafflePausedCard = memo(function RafflePausedCard() {
+    return (
+        <div className="group relative rounded-2xl p-px overflow-hidden animated-border-paused">
+            <Card className="relative bg-amber-950/80 backdrop-blur-md border-none rounded-[15px] overflow-hidden shadow-2xl shadow-amber-500/20">
+                <CardHeader className="p-8 text-center">
+                    <div className="mx-auto mb-6 relative">
+                        <div className="h-20 w-20 bg-amber-500 rounded-full flex items-center justify-center pulse-glow-anim">
+                            <Pause className="h-10 w-10 text-white" />
+                        </div>
+                    </div>
+                    <CardTitle className="text-3xl font-bold text-white mb-4">¡Plataforma Cerrada!</CardTitle>
+                    <div className="space-y-3 text-center">
+                        <p className="text-lg text-amber-200 font-medium">
+                            ¡Gracias por participar!
+                        </p>
+                        <p className="text-amber-300 font-semibold">
+                            Espera los resultados por el SuperGana
+                        </p>
+                        <div className="bg-black/30 border border-amber-400/30 rounded-lg p-4 mt-6">
+                            <p className="text-white text-sm leading-relaxed">
+                                El sorteo se realizará próximamente. 
+                                Los resultados serán publicados oficialmente.
+                                <br />
+                                <span className="text-amber-300 font-semibold">
+                                    ¡Mantente atento a nuestras redes sociales!
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="px-8 pb-8">
+                    <div className="bg-gradient-to-r from-amber-600/20 to-orange-600/20 rounded-xl p-4 border border-amber-500/30">
+                        <div className="flex items-center justify-center gap-3">
+                            <Trophy className="h-6 w-6 text-amber-400 flex-shrink-0" />
+                            <p className="text-amber-100 text-sm text-center font-medium">
+                                Los ganadores serán contactados directamente
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+});
+
 const CountdownTimer = memo(function CountdownTimer({ targetDate }: { targetDate: Date }) {
     const [hasMounted, setHasMounted] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -289,6 +353,8 @@ const getStatusBadge = (status: Raffle['status']) => {
             return <Badge className="bg-zinc-800 text-zinc-300 border border-zinc-700 py-1.5 px-3">Finalizada</Badge>;
         case 'cancelled':
             return <Badge variant="destructive" className="bg-red-900/50 text-red-400 border border-red-500/30 py-1.5 px-3">Cancelada</Badge>;
+        case 'postponed':
+            return <Badge className="bg-amber-900/50 text-amber-300 border border-amber-500/30 py-1.5 px-3 animate-pulse"><Pause className="h-4 w-4 mr-1" />Pausada</Badge>;
         default:
             return <Badge variant="secondary" className="py-1.5 px-3">{status}</Badge>;
     }
@@ -352,16 +418,19 @@ export default function RaffleDetailClient({
                                 {raffle.description && <p className="text-zinc-300 text-lg leading-relaxed max-w-prose">{raffle.description}</p>}
                             </div>
                             
-                            <div className="bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-xl p-6 space-y-5">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="font-bold text-white">Progreso de la Rifa</span>
-                                        <span className="font-bold text-white">{progress.toFixed(0)}%</span>
+                            {/* Solo mostrar progreso y countdown si NO está pausada */}
+                            {raffle.status !== 'postponed' && (
+                                <div className="bg-zinc-900/60 backdrop-blur-md border border-white/10 rounded-xl p-6 space-y-5">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="font-bold text-white">Progreso de la Rifa</span>
+                                            <span className="font-bold text-white">{progress.toFixed(0)}%</span>
+                                        </div>
+                                        <Progress value={progress} className="h-2.5 bg-white/10 rounded-full border border-white/10 overflow-hidden [&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-500" />
                                     </div>
-                                    <Progress value={progress} className="h-2.5 bg-white/10 rounded-full border border-white/10 overflow-hidden [&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-500" />
+                                    <CountdownTimer targetDate={raffle.limitDate} />
                                 </div>
-                                <CountdownTimer targetDate={raffle.limitDate} />
-                            </div>
+                            )}
                         </div>
 
                         {/* --- Columna Derecha: Formulario --- */}
@@ -371,7 +440,10 @@ export default function RaffleDetailClient({
                                 {/* ✅ 4. Añade el componente ReferrerInfo aquí */}
                                 <ReferrerInfo name={referrerName} />
 
-                                {raffle.status === 'finished' && raffle.winnerTicketId ? (
+                                {/* Mostrar el mensaje especial cuando esté pausada */}
+                                {raffle.status === 'postponed' ? (
+                                    <RafflePausedCard />
+                                ) : raffle.status === 'finished' && raffle.winnerTicketId ? (
                                     <WinnerDisplayCard raffle={raffle} onShowProof={setProofModalUrl} />
                                 ) : raffle.status === 'active' ? (
                                     <div className="group relative rounded-2xl p-px overflow-hidden animated-border">
@@ -431,12 +503,14 @@ export default function RaffleDetailClient({
                         </aside>
 
                         {/* Leaderboard para MÓVIL (oculto en PC) */}
-                        <div className="lg:hidden lg:col-span-5 mt-8">
-                             <h3 className="text-2xl font-bold text-center text-white mb-4 tracking-wider">TOP COMPRADORES</h3>
-                             <div className="p-4 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">
-                                 {leaderboardComponent}
-                             </div>
-                        </div>
+                        {raffle.status !== 'postponed' && (
+                            <div className="lg:hidden lg:col-span-5 mt-8">
+                                 <h3 className="text-2xl font-bold text-center text-white mb-4 tracking-wider">TOP COMPRADORES</h3>
+                                 <div className="p-4 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl">
+                                     {leaderboardComponent}
+                                 </div>
+                            </div>
+                        )}
 
                     </div>
                 </main>
