@@ -591,20 +591,7 @@ export function BuyTicketsForm({
                                 })}
                             </div>
                             
-                            {/* Botón para comprar todos los tickets disponibles */}
-                            {availableTickets > 100 && (
-                                <div className="flex justify-center">
-                                    <Button
-                                        type="button"
-                                        onClick={() => handleTicketCountChange(availableTickets)}
-                                        disabled={isPending || availableTickets === 0}
-                                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                                    >
-                                        <Ticket className="mr-2 h-5 w-5" />
-                                        Comprar TODOS ({availableTickets.toLocaleString()} tickets)
-                                    </Button>
-                                </div>
-                            )}
+                           
                             
                             <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
                                 <div className="flex items-center justify-center space-x-3 mb-4">
