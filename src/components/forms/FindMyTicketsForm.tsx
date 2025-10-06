@@ -9,16 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
 
 // --- ICONOS ---
-// ▼▼▼ CAMBIO: Se añade el ícono 'User' ▼▼▼
-import { Loader2, Search, Ticket, CheckCircle, Trophy, ExternalLink, Calendar, AlertCircle, ChevronLeft, ChevronRight, Gift, User } from 'lucide-react';
+import { Loader2, Search, Ticket, Trophy, Calendar, AlertCircle, ChevronLeft, ChevronRight, Gift, User } from 'lucide-react';
 import Image from 'next/image';
 
-// --- ESTADO INICIAL Y UTILIDADES ---
-// ... (Sin cambios aquí)
+// ... (Estado inicial y utilidades sin cambios)
 const initialState: { success: boolean; message: string; data?: any[] | null } = {
   success: false, message: '', data: null
 };
@@ -36,9 +33,6 @@ const formatDate = (date: Date) => {
         year: 'numeric', month: 'long', day: 'numeric'
     });
 };
-
-
-// --- SUBCOMPONENTES ---
 
 // ... (RaffleImagesCarousel y PurchaseWinnerInfo sin cambios)
 const RaffleImagesCarousel = ({ images, raffleName }: { images: any[], raffleName: string }) => {
@@ -104,7 +98,6 @@ const PurchaseWinnerInfo = ({ purchase }: { purchase: any }) => {
   );
 };
 
-
 // ▼▼▼ COMPONENTE MODIFICADO ▼▼▼
 const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
     const getStatusBadge = (status: string) => {
@@ -129,44 +122,24 @@ const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
                         <Calendar className="h-3.5 w-3.5" /> Sorteo: {formatDate(purchase.raffle.limitDate)}
                     </CardDescription>
 
-                    {/* ✅ LÍNEA AÑADIDA PARA MOSTRAR EL NOMBRE DEL COMPRADOR */}
                     <p className="!mt-2 flex items-center gap-2 text-sm text-zinc-300">
                         <User className="h-4 w-4 text-zinc-400" />
                         <span className="font-medium">{purchase.buyerName}</span>
                     </p>
-                    {/* FIN DE LA LÍNEA AÑADIDA */}
 
-                    <div className="flex justify-between items-center text-sm border-t border-white/10 pt-4 mt-4">
+                    <div className="flex justify-between items-start text-sm border-t border-white/10 pt-4 mt-4 space-x-4">
                         <div className='flex flex-col'>
-                            <span className="text-xs text-zinc-400">Monto Pagado</span>
-                            <span className="font-bold text-white text-lg">{formatCurrency(purchase.amount, purchase.raffle.currency)}</span>
-                        </div>
-                        <div className='flex flex-col text-right'>
-                            <span className="text-xs text-zinc-400">Tickets</span>
+                            <span className="text-xs text-zinc-400">Tickets en esta compra</span>
                             <span className="font-bold text-white text-lg">{purchase.ticketCount}</span>
+                        </div>
+                        {/* ✅ NUEVO BLOQUE PARA MOSTRAR EL TOTAL DEL COMPRADOR */}
+                        <div className='flex flex-col text-right'>
+                            <span className="text-xs text-zinc-400">Total de tickets del comprador</span>
+                            <span className="font-bold text-amber-400 text-lg">{purchase.totalTicketsFromBuyer}</span>
                         </div>
                     </div>
                     
                     <PurchaseWinnerInfo purchase={purchase} />
-
-                    {purchase.status === 'confirmed' && purchase.tickets.length > 0 && (
-                        <Accordion type="single" collapsible className="w-full mt-4">
-                            <AccordionItem value="tickets" className="border-none">
-                                <AccordionTrigger className="text-amber-400 font-semibold hover:no-underline px-4 py-3 bg-black/20 hover:bg-white/5 border border-white/10 rounded-lg">
-                                    <CheckCircle className="h-5 w-5 mr-2" /> Ver mis {purchase.tickets.length} tickets
-                                </AccordionTrigger>
-                                <AccordionContent className="p-4 mt-2 bg-black/20 rounded-lg border border-white/10">
-                                    <div className="flex flex-wrap gap-2 justify-center">
-                                        {purchase.tickets.map((t: any) => 
-                                            <Badge key={t.ticketNumber} variant="outline" className="text-base font-mono bg-zinc-800 border-zinc-700 text-zinc-300 px-3 py-1">
-                                                {t.ticketNumber}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    )}
                 </CardContent>
             </Card>
         </div>
@@ -174,7 +147,6 @@ const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
 }
 
 // --- COMPONENTE PRINCIPAL ---
-// ... (FindMyTicketsForm sin cambios aquí)
 export function FindMyTicketsForm() {
   const [state, setState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);

@@ -19,7 +19,7 @@ import {
   referrals,
 } from "./db/schema";
 import { revalidatePath } from "next/cache";
-import { eq, desc, inArray, and, lt, sql } from "drizzle-orm";
+import { eq, desc, inArray, and, lt, sql, sum } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { uploadToS3, deleteFromS3 } from "./s3";
 import crypto from "crypto";
@@ -849,8 +849,9 @@ export async function updatePurchaseStatusAction(
 }
 
 // ▼▼▼ FUNCIÓN MODIFICADA ▼▼▼
+// ▼▼▼ FUNCIÓN MODIFICADA ▼▼▼
 export async function findMyTicketsAction(formData: FormData): Promise<ActionState> {
-  // 1. Validar que se está recibiendo un número de 4 dígitos.
+  // 1. Validar el número de ticket
   const schema = z.object({ 
     ticketNumber: z.string().length(4, "Debes ingresar un número de 4 dígitos.") 
   });
@@ -863,49 +864,70 @@ export async function findMyTicketsAction(formData: FormData): Promise<ActionSta
   const { ticketNumber } = validatedFields.data;
 
   try {
-    // 2. Buscar el ticket específico en la base de datos.
+    // 2. Buscar el ticket específico.
     const ticket = await db.query.tickets.findFirst({
-      where: eq(tickets.ticketNumber, ticketNumber),
+      where: and(
+          eq(tickets.ticketNumber, ticketNumber),
+          eq(tickets.status, 'sold') // Solo buscar tickets que ya han sido vendidos
+      ),
+      with: {
+        // Incluimos la compra para obtener el email del comprador directamente
+        purchase: {
+            columns: {
+                buyerEmail: true
+            }
+        }
+      }
     });
 
-    // 3. Si el ticket no existe o no está asociado a ninguna compra, devolver un arreglo vacío.
-    if (!ticket || !ticket.purchaseId) {
-      // Devolvemos 'success: true' y data vacía para que el frontend muestre el mensaje "No encontrado".
+    // 3. Si el ticket no se encuentra o no tiene una compra asociada, terminar.
+    if (!ticket || !ticket.purchaseId || !ticket.purchase?.buyerEmail) {
       return { success: true, message: "Ticket no encontrado o aún no ha sido comprado.", data: [] };
     }
 
-    // 4. Si se encontró el ticket, buscar la compra a la que pertenece.
-    // Usamos findFirst porque un ticket solo puede pertenecer a una compra.
-    const userPurchase = await db.query.purchases.findFirst({
+    const buyerEmail = ticket.purchase.buyerEmail;
+
+    // 4. ✅ ¡NUEVA LÓGICA! Calcular el total de tickets para ese comprador.
+    // Usamos la función 'sum' de Drizzle para sumar todos los 'ticketCount' de las compras
+    // que coincidan con el email del comprador.
+    const totalTicketsResult = await db.select({
+        total: sum(purchases.ticketCount)
+    }).from(purchases)
+      .where(and(
+          eq(purchases.buyerEmail, buyerEmail),
+          eq(purchases.status, 'confirmed') // Sumar solo tickets de compras confirmadas
+      ));
+    
+    // El resultado es un número, o null si no hay compras. Usamos '?? 0' para asegurar que sea un número.
+    const totalTicketsFromBuyer = Number(totalTicketsResult[0]?.total ?? 0);
+
+    // 5. Buscar la información completa de la compra específica del ticket que se buscó.
+    const specificPurchase = await db.query.purchases.findFirst({
       where: eq(purchases.id, ticket.purchaseId),
-      // Mantenemos la misma estructura de datos que la consulta original para no romper el componente
       with: {
         raffle: { 
           with: { 
             images: true, 
-            winnerTicket: { 
-              with: { 
-                purchase: true 
-              } 
-            } 
+            winnerTicket: { with: { purchase: true } } 
           } 
         },
-        tickets: { 
-          columns: { 
-            id: true, 
-            ticketNumber: true 
-          } 
-        }
+        // Ya no necesitamos traer los tickets aquí, pues no los vamos a listar
       },
     });
     
-    // 5. Si por alguna razón la compra no existe, también devolvemos vacío.
-    if (!userPurchase) {
+    if (!specificPurchase) {
       return { success: true, message: "No se encontró la compra asociada al ticket.", data: [] };
     }
 
-    // 6. Devolver la compra encontrada dentro de un arreglo para que el frontend (que espera un .map) funcione correctamente.
-    return { success: true, message: "Datos encontrados.", data: [userPurchase] };
+    // 6. ✅ Añadir el total calculado al objeto de la compra que devolveremos.
+    // Esto crea un nuevo objeto que tiene todos los datos de 'specificPurchase' MÁS el nuevo campo.
+    const purchaseWithTotal = {
+        ...specificPurchase,
+        totalTicketsFromBuyer: totalTicketsFromBuyer // Añadimos el nuevo dato
+    };
+
+    // 7. Devolver la compra (con el total añadido) dentro de un arreglo.
+    return { success: true, message: "Datos encontrados.", data: [purchaseWithTotal] };
 
   } catch (error) {
     console.error("Error al buscar ticket:", error);
