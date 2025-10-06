@@ -450,7 +450,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
   if (!validatedFields.success) return { success: false, message: "Datos inválidos." };
 
   const { raffleId, ticketCount } = validatedFields.data;
-  const RESERVATION_MINUTES = 10;
+  const RESERVATION_MINUTES = 2;
 
   try {
     // ✅ VALIDACIÓN MEJORADA: Verificar disponibilidad antes de proceder
