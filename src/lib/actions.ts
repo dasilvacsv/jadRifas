@@ -848,19 +848,67 @@ export async function updatePurchaseStatusAction(
   }
 }
 
+// ▼▼▼ FUNCIÓN MODIFICADA ▼▼▼
 export async function findMyTicketsAction(formData: FormData): Promise<ActionState> {
-  const validatedFields = z.object({ email: z.string().email("Debes ingresar un email válido.") }).safeParse(Object.fromEntries(formData.entries()));
-  if (!validatedFields.success) return { success: false, message: "Email inválido." };
-  const { email } = validatedFields.data;
+  // 1. Validar que se está recibiendo un número de 4 dígitos.
+  const schema = z.object({ 
+    ticketNumber: z.string().length(4, "Debes ingresar un número de 4 dígitos.") 
+  });
+  const validatedFields = schema.safeParse(Object.fromEntries(formData.entries()));
+  
+  if (!validatedFields.success) {
+    return { success: false, message: validatedFields.error.flatten().fieldErrors.ticketNumber?.[0] || "Número de ticket inválido." };
+  }
+  
+  const { ticketNumber } = validatedFields.data;
+
   try {
-    const userPurchases = await db.query.purchases.findMany({
-      where: eq(purchases.buyerEmail, email),
-      orderBy: desc(purchases.createdAt),
-      with: { raffle: { with: { images: { limit: 1 }, winnerTicket: { with: { purchase: true } } } }, tickets: { columns: { id: true, ticketNumber: true } } },
+    // 2. Buscar el ticket específico en la base de datos.
+    const ticket = await db.query.tickets.findFirst({
+      where: eq(tickets.ticketNumber, ticketNumber),
     });
-    return { success: true, message: "Datos encontrados.", data: userPurchases };
+
+    // 3. Si el ticket no existe o no está asociado a ninguna compra, devolver un arreglo vacío.
+    if (!ticket || !ticket.purchaseId) {
+      // Devolvemos 'success: true' y data vacía para que el frontend muestre el mensaje "No encontrado".
+      return { success: true, message: "Ticket no encontrado o aún no ha sido comprado.", data: [] };
+    }
+
+    // 4. Si se encontró el ticket, buscar la compra a la que pertenece.
+    // Usamos findFirst porque un ticket solo puede pertenecer a una compra.
+    const userPurchase = await db.query.purchases.findFirst({
+      where: eq(purchases.id, ticket.purchaseId),
+      // Mantenemos la misma estructura de datos que la consulta original para no romper el componente
+      with: {
+        raffle: { 
+          with: { 
+            images: true, 
+            winnerTicket: { 
+              with: { 
+                purchase: true 
+              } 
+            } 
+          } 
+        },
+        tickets: { 
+          columns: { 
+            id: true, 
+            ticketNumber: true 
+          } 
+        }
+      },
+    });
+    
+    // 5. Si por alguna razón la compra no existe, también devolvemos vacío.
+    if (!userPurchase) {
+      return { success: true, message: "No se encontró la compra asociada al ticket.", data: [] };
+    }
+
+    // 6. Devolver la compra encontrada dentro de un arreglo para que el frontend (que espera un .map) funcione correctamente.
+    return { success: true, message: "Datos encontrados.", data: [userPurchase] };
+
   } catch (error) {
-    console.error("Error al buscar tickets:", error);
+    console.error("Error al buscar ticket:", error);
     return { success: false, message: "Ocurrió un error en el servidor." };
   }
 }

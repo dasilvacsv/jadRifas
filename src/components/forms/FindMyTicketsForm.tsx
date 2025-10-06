@@ -1,4 +1,4 @@
-'use client'; // ✅ SOLUCIÓN: Añadir esta directiva al inicio del archivo
+'use client'; 
 
 import { useState } from 'react';
 import { findMyTicketsAction } from '@/lib/actions';
@@ -13,10 +13,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from '@/components/ui/badge';
 
 // --- ICONOS ---
-import { Loader2, Search, Ticket, CheckCircle, Trophy, ExternalLink, Calendar, AlertCircle, ChevronLeft, ChevronRight, Gift } from 'lucide-react';
+// ▼▼▼ CAMBIO: Se añade el ícono 'User' ▼▼▼
+import { Loader2, Search, Ticket, CheckCircle, Trophy, ExternalLink, Calendar, AlertCircle, ChevronLeft, ChevronRight, Gift, User } from 'lucide-react';
 import Image from 'next/image';
 
 // --- ESTADO INICIAL Y UTILIDADES ---
+// ... (Sin cambios aquí)
 const initialState: { success: boolean; message: string; data?: any[] | null } = {
   success: false, message: '', data: null
 };
@@ -35,46 +37,10 @@ const formatDate = (date: Date) => {
     });
 };
 
-// --- ESTILOS GLOBALES DE ANIMACIÓN ---
-const GlobalStyles = () => (
-  <style jsx global>{`
-    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes blob {
-      0% { transform: translate(0px, 0px) scale(1); }
-      33% { transform: translate(30px, -50px) scale(1.1); }
-      66% { transform: translate(-20px, 20px) scale(0.9); }
-      100% { transform: translate(0px, 0px) scale(1); }
-    }
-    @keyframes border-spin {
-        from { transform: translate(-50%, -50%) rotate(0deg); }
-        to { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-    .fade-in-anim { animation: fade-in 0.5s ease-out forwards; }
-    .blob-anim { animation: blob 8s infinite; }
-    .animation-delay-4000 { animation-delay: 4s; }
-    .animated-border::before {
-        content: ''; position: absolute; top: 50%; left: 50%;
-        transform: translate(-50%, -50%); width: 150%; height: 150%;
-        background: conic-gradient(from 0deg, transparent 70%, #8b5cf6, #ec4899, transparent 100%);
-        animation: border-spin 6s linear infinite; z-index: 0;
-        opacity: 0;
-        transition: opacity 0.3s ease-in-out;
-    }
-    .group:hover .animated-border::before {
-        opacity: 1;
-    }
-    .animated-border-winner::before {
-        content: ''; position: absolute; top: 50%; left: 50%;
-        transform: translate(-50%, -50%); width: 150%; height: 150%;
-        background: conic-gradient(from 0deg, transparent 70%, #f59e0b, #fbbf24, transparent 100%);
-        animation: border-spin 5s linear infinite; z-index: -1;
-    }
-  `}</style>
-);
-
 
 // --- SUBCOMPONENTES ---
 
+// ... (RaffleImagesCarousel y PurchaseWinnerInfo sin cambios)
 const RaffleImagesCarousel = ({ images, raffleName }: { images: any[], raffleName: string }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const handleNext = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setCurrentIndex((prev) => (prev + 1) % images.length); };
@@ -138,6 +104,8 @@ const PurchaseWinnerInfo = ({ purchase }: { purchase: any }) => {
   );
 };
 
+
+// ▼▼▼ COMPONENTE MODIFICADO ▼▼▼
 const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -160,6 +128,13 @@ const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
                     <CardDescription className="!mt-1 flex items-center gap-1.5 text-zinc-400">
                         <Calendar className="h-3.5 w-3.5" /> Sorteo: {formatDate(purchase.raffle.limitDate)}
                     </CardDescription>
+
+                    {/* ✅ LÍNEA AÑADIDA PARA MOSTRAR EL NOMBRE DEL COMPRADOR */}
+                    <p className="!mt-2 flex items-center gap-2 text-sm text-zinc-300">
+                        <User className="h-4 w-4 text-zinc-400" />
+                        <span className="font-medium">{purchase.buyerName}</span>
+                    </p>
+                    {/* FIN DE LA LÍNEA AÑADIDA */}
 
                     <div className="flex justify-between items-center text-sm border-t border-white/10 pt-4 mt-4">
                         <div className='flex flex-col'>
@@ -199,6 +174,7 @@ const PurchaseResultCard = ({ purchase }: { purchase: any }) => {
 }
 
 // --- COMPONENTE PRINCIPAL ---
+// ... (FindMyTicketsForm sin cambios aquí)
 export function FindMyTicketsForm() {
   const [state, setState] = useState(initialState);
   const [isPending, setIsPending] = useState(false);
@@ -212,7 +188,6 @@ export function FindMyTicketsForm() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-hidden relative isolate">
-        <GlobalStyles />
         <div className="absolute inset-0 -z-10 h-full w-full bg-zinc-950 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
         <div className="absolute -top-40 -left-40 w-[30rem] h-[30rem] bg-gradient-to-br from-amber-600/30 to-orange-600/10 rounded-full blur-3xl blob-anim -z-10"></div>
         <div className="absolute -bottom-40 -right-40 w-[30rem] h-[30rem] bg-gradient-to-br from-purple-600/20 to-indigo-600/10 rounded-full blur-3xl blob-anim animation-delay-4000 -z-10"></div>
@@ -224,7 +199,7 @@ export function FindMyTicketsForm() {
                     <span className="block bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500 mt-2">de tu Suerte</span>
                 </h1>
                 <p className="max-w-2xl mx-auto mt-6 text-lg text-zinc-300">
-                    Ingresa tu correo electrónico para ver el historial de tus compras y los tickets que te pertenecen.
+                    Ingresa el número de tu ticket (4 dígitos) para ver la compra a la que pertenece y su estado actual.
                 </p>
             </section>
 
@@ -232,15 +207,22 @@ export function FindMyTicketsForm() {
                 <Card className="relative bg-zinc-900/80 backdrop-blur-md border-none rounded-[15px] z-10">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-3 text-2xl text-white">
-                            <Ticket className="h-7 w-7 text-amber-400" /> Buscar Mis Tickets
+                            <Ticket className="h-7 w-7 text-amber-400" /> Buscar Mi Ticket
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleFormSubmit} className="flex flex-col sm:flex-row gap-3">
-                            <Label htmlFor="email" className="sr-only">Email</Label>
-                            <Input id="email" name="email" type="email" required disabled={isPending}
+                            <Label htmlFor="ticketNumber" className="sr-only">Número de Ticket</Label>
+                            <Input 
+                                id="ticketNumber" 
+                                name="ticketNumber" 
+                                type="text" 
+                                required 
+                                disabled={isPending}
+                                maxLength={4}
                                 className="flex-1 bg-black/30 border-white/10 text-white placeholder:text-zinc-500 h-12 text-base rounded-lg"
-                                placeholder="tu.correo@ejemplo.com" />
+                                placeholder="Ej: 1234" 
+                            />
                             <Button type="submit" disabled={isPending} size="lg" className="h-12 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold rounded-lg shadow-lg shadow-black/40 transition-all duration-300 ease-out hover:scale-105 hover:drop-shadow-[0_0_15px_theme(colors.amber.500)]">
                                 {isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Search className="mr-2 h-5 w-5" />}
                                 Buscar
@@ -267,8 +249,8 @@ export function FindMyTicketsForm() {
                     ) : (
                         <div className="text-center py-16 px-6 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl max-w-lg mx-auto">
                             <Ticket className="h-16 w-16 text-amber-500 mx-auto mb-6 drop-shadow-[0_2px_8px_rgba(217,119,6,0.5)]" />
-                            <h2 className="text-2xl font-bold mb-2 text-white">No se encontraron compras</h2>
-                            <p className="text-zinc-400">No hemos encontrado ninguna compra asociada a ese correo. Por favor, verifica que esté bien escrito.</p>
+                            <h2 className="text-2xl font-bold mb-2 text-white">Ticket no encontrado</h2>
+                            <p className="text-zinc-400">No hemos encontrado ninguna compra asociada a ese número de ticket. Por favor, verifica que esté bien escrito o que el ticket ya haya sido vendido.</p>
                         </div>
                     )}
                 </div>
