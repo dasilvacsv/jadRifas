@@ -64,6 +64,9 @@ interface BuyTicketsFormProps {
 // Constantes y Estado Inicial
 const initialState = { success: false, message: '' };
 const TICKET_AMOUNTS = [1, 5, 10, 25, 50, 100];
+// ✅ LÓGICA LOCALSTORAGE: Clave para guardar los datos en localStorage
+const BUYER_DATA_KEY = 'raffleBuyerData';
+
 
 // Función de utilidad para formatear moneda
 const formatCurrency = (amount: number, currency: 'USD' | 'VES', locale: string = 'es-VE') => {
@@ -183,6 +186,22 @@ export function BuyTicketsForm({
         progressTimer: null
     });
     const paymentMethodsSectionRef = useRef<HTMLDivElement>(null);
+
+    // ✅ LÓGICA LOCALSTORAGE: Cargar datos del comprador al iniciar el componente.
+    useEffect(() => {
+        try {
+            const savedDataString = localStorage.getItem(BUYER_DATA_KEY);
+            if (savedDataString) {
+                const savedData = JSON.parse(savedDataString);
+                if (savedData.name) setBuyerName(savedData.name);
+                if (savedData.email) setBuyerEmail(savedData.email);
+                if (savedData.countryCode) setCountryCode(savedData.countryCode);
+                if (savedData.phone) setBuyerPhone(savedData.phone);
+            }
+        } catch (error) {
+            console.error("Error al cargar los datos del comprador desde localStorage:", error);
+        }
+    }, []); // El array vacío asegura que este efecto se ejecute solo una vez.
 
     // ✅ NUEVA FUNCIÓN: Verificar disponibilidad en tiempo real
     const checkAvailability = useCallback(async () => {
@@ -314,8 +333,11 @@ export function BuyTicketsForm({
         setApiState(initialState); 
         setTicketCount(2); 
         setReservedTickets([]);
-        setPaymentMethodId(''); setBuyerName(''); setBuyerEmail('');
-        setCountryCode('+58'); setBuyerPhone(''); setPaymentReference('');
+        setPaymentMethodId(''); 
+        // No reseteamos los datos del comprador para que pueda comprar de nuevo fácilmente
+        // setBuyerName(''); setBuyerEmail('');
+        // setCountryCode('+58'); setBuyerPhone(''); 
+        setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
         setPaymentMethodError('');
         setAvailabilityError('');
@@ -427,6 +449,21 @@ export function BuyTicketsForm({
 
             const buyResult = await buyTicketsAction(buyFormData);
             setApiState(buyResult);
+
+            // ✅ LÓGICA LOCALSTORAGE: Guardar los datos del comprador si la compra es exitosa.
+            if (buyResult.success) {
+                try {
+                    const dataToSave = {
+                        name: buyerName,
+                        email: buyerEmail,
+                        countryCode: countryCode,
+                        phone: buyerPhone,
+                    };
+                    localStorage.setItem(BUYER_DATA_KEY, JSON.stringify(dataToSave));
+                } catch (error) {
+                    console.error("Error al guardar los datos del comprador en localStorage:", error);
+                }
+            }
 
         } catch (error) {
             setApiState({ success: false, message: 'Ocurrió un error inesperado.' });
@@ -591,7 +628,7 @@ export function BuyTicketsForm({
                                 })}
                             </div>
                             
-                           
+                            
                             
                             <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
                                 <div className="flex items-center justify-center space-x-3 mb-4">

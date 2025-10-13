@@ -1,14 +1,12 @@
 // app/top-compradores/page.tsx
 
 import { db } from "@/lib/db";
-import { purchases } from "@/lib/db/schema";
-// ✅ IMPORTACIONES ACTUALIZADAS: Se añaden 'and', 'isNotNull' y 'ne' para la nueva consulta
+import { purchases, raffles } from "@/lib/db/schema";
 import { sql, desc, eq, and, isNotNull, ne } from "drizzle-orm";
 import { Diamond, Shield, Star, Medal, Trophy } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
 
-// ✅ FORZAR RENDERIZADO DINÁMICO
 export const dynamic = 'force-dynamic';
 
 // --- SECCIÓN DE RANGOS (Sin cambios) ---
@@ -41,26 +39,24 @@ const getRankForIndex = (index: number): Rank => {
     return RANKS[index] || RANKS[RANKS.length - 1];
 };
 
-// --- ✅ FUNCIÓN PARA OBTENER DATOS (LÓGICA MODIFICADA) ---
+// --- FUNCIÓN PARA OBTENER DATOS (Sin cambios) ---
 async function getTopBuyers(): Promise<BuyerWithRank[]> {
     try {
-        // La lógica ahora agrupa las compras por número de teléfono.
         const topBuyersData = await db
             .select({
-                // Al agrupar, se debe especificar cómo elegir un nombre y email.
-                // Usamos MAX() para obtener un valor consistente para cada grupo de teléfono.
                 buyerName: sql<string>`max(${purchases.buyerName})`.as('buyer_name'),
                 buyerEmail: sql<string>`max(${purchases.buyerEmail})`.as('buyer_email'),
                 totalTickets: sql<number>`sum(${purchases.ticketCount})`.as('total_tickets'),
             })
             .from(purchases)
-            // Se filtran compras confirmadas y con un número de teléfono válido.
+            .innerJoin(raffles, eq(purchases.raffleId, raffles.id))
             .where(and(
                 eq(purchases.status, 'confirmed'),
                 isNotNull(purchases.buyerPhone),
-                ne(purchases.buyerPhone, '')
+                ne(purchases.buyerPhone, ''),
+                eq(raffles.status, 'active')
             ))
-            .groupBy(purchases.buyerPhone) // La clave de agrupación ahora es el teléfono.
+            .groupBy(purchases.buyerPhone)
             .orderBy(desc(sql`total_tickets`))
             .limit(5);
 
@@ -78,7 +74,6 @@ async function getTopBuyers(): Promise<BuyerWithRank[]> {
 
 
 // --- COMPONENTES AUXILIARES DE LA UI (Sin cambios) ---
-
 const Sparkles = () => (
     <div className="absolute inset-0 z-0">
         {[...Array(12)].map((_, i) => (
@@ -146,10 +141,10 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
             </div>
             <div className="text-center mt-2 flex flex-col items-center gap-1 h-16 justify-start sm:justify-center">
                  <p className="text-sm sm:text-lg font-bold text-white px-1 w-full truncate" title={buyer.buyerName || 'Anónimo'}>
-                     {buyer.buyerName || 'Anónimo'}
+                      {buyer.buyerName || 'Anónimo'}
                  </p>
                  <div className={clsx("px-2 py-0.5 rounded-full text-xs font-bold border", buyer.rank.borderColor, buyer.rank.color, "bg-black/20")}>
-                     {buyer.rank.name}
+                      {buyer.rank.name}
                  </div>
             </div>
             <p className={clsx("text-3xl sm:text-5xl font-black font-display mt-1 drop-shadow-lg", buyer.rank.color)}>
@@ -163,7 +158,7 @@ const PodiumItem = ({ buyer, position }: { buyer: BuyerWithRank; position: 1 | 2
 };
 
 
-// --- COMPONENTE PRINCIPAL (Con cambio menor en el 'key') ---
+// --- COMPONENTE PRINCIPAL (Con el texto del premio eliminado) ---
 export default async function TopCompradoresPage() {
     const topBuyers = await getTopBuyers();
 
@@ -185,10 +180,8 @@ export default async function TopCompradoresPage() {
                             TOP COMPRADORES
                         </span>
                     </h1>
+                    {/* ✅ PÁRRAFO MODIFICADO: Se eliminó el 'strong' con la promoción */}
                     <p className="mt-3 sm:mt-4 text-sm sm:text-base text-white/70 max-w-2xl mx-auto">
-                        <strong className="block text-yellow-300 text-base sm:text-lg mb-1 sm:mb-2">
-                            ¡Quien se mantenga en el Top 1 para el 5 de Octubre de 2025 ganará $1000!
-                        </strong>
                         Celebrando a nuestros campeones. ¡Gracias por vuestro increíble apoyo y dedicación!
                     </p>
                 </header>
@@ -206,7 +199,6 @@ export default async function TopCompradoresPage() {
                         {otherBuyers.length > 0 && (
                              <div className="space-y-2 sm:space-y-3">
                                 {otherBuyers.map((buyer) => (
-                                    // ✅ CAMBIO DE KEY: Se usa rankIndex que es único en esta lista.
                                     <LeaderboardRow key={buyer.rankIndex} buyer={buyer} maxTickets={maxTickets} />
                                 ))}
                             </div>
@@ -214,8 +206,10 @@ export default async function TopCompradoresPage() {
                     </>
                 ) : (
                     <div className="text-center py-16 px-4 sm:px-6 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl animate-fade-in-up">
-                        <h2 className="text-2xl sm:text-3xl font-bold font-display text-white/80">La Competición es Joven</h2>
-                        <p className="mt-3 text-sm sm:text-base text-white/50 max-w-md mx-auto">Los puestos en el top esperan a sus héroes. ¡Sé el primero en dejar tu marca!</p>
+                        <h2 className="text-2xl sm:text-3xl font-bold font-display text-white/80">Aún no hay un Top de Compradores</h2>
+                        <p className="mt-3 text-sm sm:text-base text-white/50 max-w-md mx-auto">
+                            Esto puede deberse a que no hay rifas activas en este momento o todavía nadie ha realizado una compra. ¡Sé el primero!
+                        </p>
                     </div>
                 )}
             </main>

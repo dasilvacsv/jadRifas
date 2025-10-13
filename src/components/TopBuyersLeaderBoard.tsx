@@ -4,10 +4,10 @@
 // 1. IMPORTACIONES (MODIFICADAS)
 // -----------------------------------------------------------------------------
 import { db } from "@/lib/db";
-import { purchases } from "@/lib/db/schema";
-// ✅ IMPORTACIONES ACTUALIZADAS: Se añaden 'and', 'isNotNull' y 'ne' para la nueva consulta
+// ✅ IMPORTACIÓN ACTUALIZADA: Se añade la tabla 'raffles'
+import { purchases, raffles } from "@/lib/db/schema";
 import { sql, desc, eq, and, isNotNull, ne } from "drizzle-orm";
-import { Diamond, Shield, Star, Medal, Trophy, Gift } from 'lucide-react';
+import { Diamond, Shield, Star, Medal, Trophy } from 'lucide-react';
 import React, { ReactNode } from 'react';
 import clsx from 'clsx';
 
@@ -37,22 +37,25 @@ const getRankForIndex = (index: number): Rank => RANKS[index] || RANKS[RANKS.len
 // -----------------------------------------------------------------------------
 async function getTopBuyers(): Promise<BuyerWithRank[]> {
     try {
-        // ✅ La lógica ahora agrupa las compras por número de teléfono.
+        // ✅ La consulta ahora se une con 'raffles' para filtrar por rifas activas.
         const topBuyersData = await db.select({
-            // Se usa MAX() para obtener un nombre y email consistentes para el grupo.
             buyerName: sql<string>`max(${purchases.buyerName})`.as('buyer_name'),
             buyerEmail: sql<string>`max(${purchases.buyerEmail})`.as('buyer_email'),
             totalTickets: sql<number>`sum(${purchases.ticketCount})`.as('total_tickets'),
-        }).from(purchases)
-            // Se filtran compras confirmadas y con un número de teléfono válido.
-            .where(and(
-                eq(purchases.status, 'confirmed'),
-                isNotNull(purchases.buyerPhone),
-                ne(purchases.buyerPhone, '')
-            ))
-            .groupBy(purchases.buyerPhone) // La clave de agrupación ahora es el teléfono.
-            .orderBy(desc(sql`total_tickets`))
-            .limit(5);
+        })
+        .from(purchases)
+        // ✅ PASO 1: Unir con la tabla de rifas.
+        .innerJoin(raffles, eq(purchases.raffleId, raffles.id))
+        // ✅ PASO 2: Añadir la condición de que la rifa esté activa.
+        .where(and(
+            eq(purchases.status, 'confirmed'),
+            isNotNull(purchases.buyerPhone),
+            ne(purchases.buyerPhone, ''),
+            eq(raffles.status, 'active') // <-- CONDICIÓN NUEVA
+        ))
+        .groupBy(purchases.buyerPhone)
+        .orderBy(desc(sql`total_tickets`))
+        .limit(5);
 
         return topBuyersData.map((buyer, index) => ({
             ...buyer,
@@ -151,12 +154,15 @@ const LeaderboardRow = ({ buyer, maxTickets }: { buyer: BuyerWithRank, maxTicket
 export async function TopBuyersLeaderboard() {
     const topBuyers = await getTopBuyers();
 
+    // ✅ MENSAJE ACTUALIZADO cuando no hay compradores o rifas activas.
     if (topBuyers.length === 0) {
         return (
             <div className="p-6 text-center border border-dashed border-zinc-700 rounded-lg">
                 <Trophy className="h-10 w-10 mx-auto text-zinc-500 mb-3"/>
                 <h3 className="font-bold text-white text-xl">Top Compradores</h3>
-                <p className="text-sm text-zinc-400 mt-1">¡La tabla de clasificación aparecerá aquí cuando haya compras!</p>
+                <p className="text-sm text-zinc-400 mt-1">
+                    No hay un top de compradores porque no hay rifas activas o nadie ha comprado aún.
+                </p>
             </div>
         );
     }
@@ -172,15 +178,7 @@ export async function TopBuyersLeaderboard() {
             </h2>
             <p className="text-sm text-center text-zinc-400 mb-6">Los 5 compradores con más tickets.</p>
 
-            <div className="mb-8 p-4 bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 rounded-lg text-center flex items-center justify-center gap-4">
-                <div className="flex-shrink-0 bg-amber-400/10 p-2.5 rounded-full border border-amber-400/20">
-                    <Gift className="h-7 w-7 text-amber-400"/>
-                </div>
-                <div>
-                    <p className="text-amber-300 font-bold text-base">¡El Top 1 gana $1000!</p>
-                    <p className="text-white/80 text-xs sm:text-sm mt-0.5">Mantente en la cima hasta el 5 de Octubre.</p>
-                </div>
-            </div>
+            {/* ✅ BLOQUE DE PROMOCIÓN ELIMINADO */}
 
             {podiumBuyers.length > 0 && (
                 <div className="flex justify-center items-end gap-1 sm:gap-2 mb-8 min-h-[220px] sm:min-h-[250px] animate-fade-in-up">
@@ -192,7 +190,6 @@ export async function TopBuyersLeaderboard() {
             
             {otherBuyers.length > 0 && (
                 <div className="space-y-2">
-                    {/* ✅ CAMBIO DE KEY: Se usa rankIndex que es único en esta lista. */}
                     {otherBuyers.map(b => <LeaderboardRow key={b.rankIndex} buyer={b} maxTickets={maxTickets} />)}
                 </div>
             )}
