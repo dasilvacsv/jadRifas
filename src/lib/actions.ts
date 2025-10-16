@@ -49,7 +49,15 @@ export type ActionState = {
     data?: any;
 };
 
-// ✅ NUEVA FUNCIÓN: Verificar disponibilidad real de tickets
+// ================================================================
+// LÓGICA DE UTILIDAD DE TICKETS
+// ================================================================
+
+/**
+ * Verifica la disponibilidad real de tickets para una rifa, limpiando reservas expiradas.
+ * @param raffleId ID de la rifa.
+ * @param requestedCount Cantidad de tickets solicitados.
+ */
 async function verifyTicketAvailability(raffleId: string, requestedCount: number): Promise<{
     available: boolean;
     availableCount: number;
@@ -108,136 +116,9 @@ async function verifyTicketAvailability(raffleId: string, requestedCount: number
     }
 }
 
-// ----------------------------------------------------------------
-// ACTIONS PARA AUTENTICACIÓN
-// ----------------------------------------------------------------
-
-// --- SEGURIDAD: Se elimina el campo 'role' del schema de registro ---
-const RegisterSchema = z.object({
-    name: z.string().min(2, "El nombre es requerido"),
-    email: z.string().email("Email inválido"),
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-});
-
-export async function registerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
-    // --- SEGURIDAD: Solo un administrador puede registrar nuevos usuarios ---
-    try {
-        await requireAdmin();
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
-
-    const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
-    if (!validatedFields.success) return { success: false, message: "Error de validación" };
-
-    const { name, email, password } = validatedFields.data;
-
-    try {
-        const existingUser = await db.query.users.findFirst({ where: eq(users.email, email) });
-        if (existingUser) return { success: false, message: "El email ya está registrado" };
-
-        const hashedPassword = await bcrypt.hash(password, 12);
-
-        // --- SEGURIDAD: Se asigna el rol 'user' por defecto en el servidor ---
-        const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role: 'user' }).returning({ id: users.id });
-
-        revalidatePath("/usuarios");
-        return { success: true, message: "Usuario registrado exitosamente", data: newUser[0] };
-
-    } catch (error) {
-        console.error("Error al registrar usuario:", error);
-        return { success: false, message: "Error del servidor" };
-    }
-}
-
-// ✅ --- NUEVA FUNCIÓN: ENVIAR NOTIFICACIÓN DE RECHAZO ---
-async function sendRejectionNotification(
-    purchaseId: string,
-    reason: 'invalid_payment' | 'malicious',
-    comment?: string | null
-): Promise<void> {
-    const purchase = await db.query.purchases.findFirst({
-        where: eq(purchases.id, purchaseId),
-        with: { raffle: true },
-    });
-
-    if (!purchase) {
-        console.error(`No se encontró la compra con ID: ${purchaseId} para notificar rechazo.`);
-        return;
-    }
-
-    // --- Construcción de mensajes dinámicos ---
-    let subject = `Problema con tu compra para la rifa ${purchase.raffle.name}`;
-    let mainMessage: string;
-    let additionalComment: string = '';
-
-    if (reason === 'invalid_payment') {
-        mainMessage = "Lastimosamente no pudimos verificar tu pago. Por favor, revisa los datos de tu comprobante e intenta tu compra de nuevo. Si crees que se trata de un error, contáctanos.";
-    } else { // 'malicious'
-        mainMessage = "Lastimosamente no pudimos verificar tu pago. Tu compra ha sido marcada como rechazada por nuestro sistema.";
-        if (comment) {
-            additionalComment = `<p><strong>Motivo adicional:</strong> ${comment}</p>`;
-        }
-    }
-
-    // --- Plantilla de Correo ---
-    const emailBody = `
-        <h1>Hola, ${purchase.buyerName}</h1>
-        <p>${mainMessage}</p>
-        ${additionalComment}
-        <p>El equipo de Llevateloconjorvi.</p>
-    `;
-
-    // --- Texto de WhatsApp ---
-    // Reemplaza <br> y <p> por saltos de línea para WhatsApp
-    const whatsappText = `Hola, ${purchase.buyerName} 👋\n\n${mainMessage.replace(/<br\s*\/?>/gi, '\n')}\n\n${comment ? `*Motivo adicional:* ${comment}\n\n` : ''}El equipo de Llevateloconjorvi.`;
-
-    // 1. Envío de Correo
-    await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
-
-    // 2. Envío de WhatsApp
-    if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
-        console.log(`Intentando enviar WhatsApp de rechazo a: ${purchase.buyerPhone}`);
-        try {
-            await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
-            console.log(`WhatsApp de rechazo enviado con éxito a ${purchase.buyerPhone}`);
-        } catch (error) {
-            console.error(`ERROR al enviar WhatsApp de rechazo a ${purchase.buyerPhone}:`, error);
-        }
-    } else {
-        console.warn(`No se envió WhatsApp de rechazo para la compra #${purchase.id} por falta de número.`);
-    }
-}
-
-// --- NUEVA ACCIÓN: OBTENER TOP COMPRADORES ---
-export async function getTopBuyers(raffleId: string): Promise<{ buyerName: string | null; buyerEmail: string; totalTickets: number }[]> {
-    try {
-        const topBuyersData = await db
-            .select({
-                buyerName: purchases.buyerName,
-                buyerEmail: purchases.buyerEmail,
-                totalTickets: sql<number>`sum(${purchases.ticketCount})`.mapWith(Number),
-            })
-            .from(purchases)
-            .where(and(
-                eq(purchases.raffleId, raffleId),
-                eq(purchases.status, 'confirmed')
-            ))
-            .groupBy(purchases.buyerName, purchases.buyerEmail)
-            .orderBy(desc(sql`sum(${purchases.ticketCount})`))
-            .limit(5); // Obtenemos el top 5
-
-        return topBuyersData;
-
-    } catch (error) {
-        console.error("Error al obtener top compradores:", error);
-        return []; // Devolver un array vacío en caso de error
-    }
-}
-
-// ----------------------------------------------------------------
-// ACTIONS PARA ENVÍO DE CORREO
-// ----------------------------------------------------------------
+// ================================================================
+// LÓGICA DE NOTIFICACIONES (EMAIL Y WHATSAPP)
+// ================================================================
 
 interface EmailData {
     to: string;
@@ -247,7 +128,7 @@ interface EmailData {
 
 async function sendEmail({ to, subject, body }: EmailData): Promise<void> {
     try {
-        const { data, error } = await resend.emails.send({
+        const { error } = await resend.emails.send({
             from: "Llevateloconjorvi <ventas@llevateloconjorvi.com>",
             to: [to],
             subject: subject,
@@ -263,8 +144,6 @@ async function sendEmail({ to, subject, body }: EmailData): Promise<void> {
         console.error("Error general al enviar el correo:", error);
     }
 }
-
-// ▼▼▼ RESEND CONTACTS MODIFICATION: NUEVA FUNCIÓN PARA CREAR/ACTUALIZAR CONTACTO ▼▼▼
 
 /**
  * Crea o actualiza un contacto en la audiencia de Resend para broadcasts.
@@ -282,12 +161,11 @@ async function createResendContact(email: string, name: string, whatsapp?: strin
 
     try {
         // La API de contactos de Resend es idempotente: si el email ya existe, lo actualiza.
-        const { data, error } = await resend.contacts.create({
+        const { error } = await resend.contacts.create({
             email: email,
             firstName: name.split(' ')[0], // Usamos solo el primer nombre
             unsubscribed: false, // Aseguramos que el usuario está suscrito
             audienceId: AUDIENCE_ID,
-            // Puedes agregar más datos al campo 'properties' si lo necesitas
             properties: {
                 whatsapp_phone: whatsapp || 'N/A',
             }
@@ -302,11 +180,6 @@ async function createResendContact(email: string, name: string, whatsapp?: strin
         console.error("Error general al crear el contacto de Resend:", error);
     }
 }
-
-// ▲▲▲ FIN DE LA MODIFICACIÓN DE RESEND CONTACTS ▲▲▲
-
-
-// ✅ --- INICIO DE CAMBIOS: NUEVA FUNCIÓN PARA NOTIFICAR AL GANADOR ---
 
 /**
  * Envía una notificación de felicitación al ganador de la rifa por correo y WhatsApp.
@@ -355,10 +228,8 @@ async function sendWinnerNotification(raffleId: string, winnerTicketId: string):
     const whatsappText = `🎉 ¡Felicidades, ${buyerName}! 🎉\n\n¡Eres el afortunado ganador de la rifa *${raffle.name}* con tu ticket número *${ticketNumber}*! 🥳\n\nPronto nos pondremos en contacto contigo para coordinar la entrega de tu premio. ¡Gracias por participar!`;
 
     // 4. Enviar las notificaciones
-    // Envío de correo
     await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
 
-    // Envío de WhatsApp (con verificación)
     if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
         console.log(`Intentando enviar WhatsApp de ganador a: ${purchase.buyerPhone}`);
         try {
@@ -372,6 +243,73 @@ async function sendWinnerNotification(raffleId: string, winnerTicketId: string):
     }
 }
 
+/**
+ * Envía una notificación de rechazo por correo y WhatsApp.
+ * @param purchaseId El ID de la compra.
+ * @param reason El motivo del rechazo.
+ * @param comment Comentario adicional.
+ */
+async function sendRejectionNotification(
+    purchaseId: string,
+    reason: 'invalid_payment' | 'malicious',
+    comment?: string | null
+): Promise<void> {
+    const purchase = await db.query.purchases.findFirst({
+        where: eq(purchases.id, purchaseId),
+        with: { raffle: true },
+    });
+
+    if (!purchase) {
+        console.error(`No se encontró la compra con ID: ${purchaseId} para notificar rechazo.`);
+        return;
+    }
+
+    // --- Construcción de mensajes dinámicos ---
+    let subject = `Problema con tu compra para la rifa ${purchase.raffle.name}`;
+    let mainMessage: string;
+    let additionalComment: string = '';
+
+    if (reason === 'invalid_payment') {
+        mainMessage = "Lastimosamente no pudimos verificar tu pago. Por favor, revisa los datos de tu comprobante e intenta tu compra de nuevo. Si crees que se trata de un error, contáctanos.";
+    } else { // 'malicious'
+        mainMessage = "Lastimosamente no pudimos verificar tu pago. Tu compra ha sido marcada como rechazada por nuestro sistema.";
+        if (comment) {
+            additionalComment = `<p><strong>Motivo adicional:</strong> ${comment}</p>`;
+        }
+    }
+
+    // --- Plantilla de Correo ---
+    const emailBody = `
+        <h1>Hola, ${purchase.buyerName}</h1>
+        <p>${mainMessage}</p>
+        ${additionalComment}
+        <p>El equipo de Llevateloconjorvi.</p>
+    `;
+
+    // --- Texto de WhatsApp ---
+    const whatsappText = `Hola, ${purchase.buyerName} 👋\n\n${mainMessage.replace(/<br\s*\/?>/gi, '\n')}\n\n${comment ? `*Motivo adicional:* ${comment}\n\n` : ''}El equipo de Llevateloconjorvi.`;
+
+    // 1. Envío de Correo
+    await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
+
+    // 2. Envío de WhatsApp
+    if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
+        console.log(`Intentando enviar WhatsApp de rechazo a: ${purchase.buyerPhone}`);
+        try {
+            await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
+            console.log(`WhatsApp de rechazo enviado con éxito a ${purchase.buyerPhone}`);
+        } catch (error) {
+            console.error(`ERROR al enviar WhatsApp de rechazo a ${purchase.buyerPhone}:`, error);
+        }
+    } else {
+        console.warn(`No se envió WhatsApp de rechazo para la compra #${purchase.id} por falta de número.`);
+    }
+}
+
+/**
+ * Envía un correo de confirmación de compra (PENDIENTE).
+ * @param purchaseId ID de la compra
+ */
 async function sendConfirmationEmail(purchaseId: string): Promise<void> {
     const purchase = await db.query.purchases.findFirst({
         where: eq(purchases.id, purchaseId),
@@ -398,7 +336,37 @@ async function sendConfirmationEmail(purchaseId: string): Promise<void> {
 }
 
 /**
- * Envía un correo Y un mensaje de WhatsApp con los tickets asignados.
+ * Envía un mensaje de WhatsApp para notificar que la compra está pendiente de revisión.
+ * @param purchaseId ID de la compra
+ */
+async function sendConfirmationWhatsapp(purchaseId: string): Promise<void> {
+    const purchase = await db.query.purchases.findFirst({
+        where: eq(purchases.id, purchaseId),
+        with: { raffle: true },
+    });
+
+    if (!purchase || !purchase.buyerPhone) {
+        console.warn(`No se envió WhatsApp de confirmación para la compra #${purchaseId} por falta de número.`);
+        return;
+    }
+
+    const text = `¡Hola, ${purchase.buyerName}! 👋\n\nRecibimos tu solicitud de compra para la rifa *${purchase.raffle.name}*. \n\nTu pago está siendo verificado. Te notificaremos por aquí una vez que sea aprobado. ¡Gracias por participar!\n\nRECUERDE QUE LOS NÚMEROS SON ALEATORIOS ENVIADOS POR EL SISTEMA`;
+
+    try {
+        console.log(`Intentando enviar WhatsApp de confirmación a: ${purchase.buyerPhone}`);
+        const result = await sendWhatsappMessage(purchase.buyerPhone, text);
+        if (result.success) {
+            console.log(`WhatsApp de confirmación enviado con éxito a ${purchase.buyerPhone}`);
+        } else {
+            console.error(`Falló el envío de WhatsApp de confirmación a ${purchase.buyerPhone}:`, result.error);
+        }
+    } catch (error) {
+        console.error(`ERROR CATASTRÓFICO al enviar WhatsApp de confirmación:`, error);
+    }
+}
+
+/**
+ * Envía un correo Y un mensaje de WhatsApp con los tickets asignados (CONFIRMADO).
  * @param purchaseId ID de la compra
  */
 async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
@@ -427,22 +395,18 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
         <p>El equipo de Llevateloconjorvi.</p>
     `;
 
-    // 1. Envío del correo (esto ya funcionaba)
+    // 1. Envío del correo
     await sendEmail({ to: purchase.buyerEmail, subject, body: emailBody });
 
     // 2. Envío del mensaje de WhatsApp con verificación y manejo de errores
     const whatsappText = `¡Hola, ${purchase.buyerName}! 🎉\n\nTu compra para la rifa *${purchase.raffle.name}* ha sido confirmada.\n\nAquí están tus tickets de la suerte:\n\n*${ticketNumbers}*\n\nEl sorteo será este mismo domingo 5/10/2025 a las 10pm por el Super Gana de la lotería del táchira https://supergana.com.ve/resultados.php, la plataforma cerrará a las 8pm.\n\nRecuerda que también tendremos un premio para el que tenga más tickets. Puedes ver el top de compradores aquí:\nhttps://www.llevateloconjorvi.com/top-compradores\n\nPor favor, únete a nuestro WhatsApp para las dinámicas donde puedes ganar con nosotros:\nhttps://chat.whatsapp.com/DJ7cNWxa7VPKcFpoQBdlyz\n\n¡Participa y gana! 😉`;
 
-    // --- MEJORA CLAVE ---
-    // Verificamos si existe el número de teléfono antes de intentar enviar.
     if (purchase.buyerPhone && purchase.buyerPhone.trim() !== '') {
         console.log(`Intentando enviar WhatsApp al número: ${purchase.buyerPhone}`);
         try {
-            // Envolvemos la llamada en un try...catch para capturar cualquier error.
             await sendWhatsappMessage(purchase.buyerPhone, whatsappText);
             console.log(`WhatsApp enviado con éxito a ${purchase.buyerPhone}`);
         } catch (error) {
-            // Si hay un error, lo mostraremos en la consola del servidor para poder depurarlo.
             console.error(`ERROR al enviar WhatsApp a ${purchase.buyerPhone}:`, error);
         }
     } else {
@@ -450,37 +414,270 @@ async function sendTicketsEmailAndWhatsapp(purchaseId: string): Promise<void> {
     }
 }
 
-// ✅ --- NUEVA FUNCIÓN ---
-// Envía un WhatsApp para notificar que la compra está pendiente de revisión.
-async function sendConfirmationWhatsapp(purchaseId: string): Promise<void> {
-    const purchase = await db.query.purchases.findFirst({
-        where: eq(purchases.id, purchaseId),
-        with: { raffle: true },
-    });
-
-    if (!purchase || !purchase.buyerPhone) {
-        console.warn(`No se envió WhatsApp de confirmación para la compra #${purchaseId} por falta de número.`);
-        return;
-    }
-
-    const text = `¡Hola, ${purchase.buyerName}! 👋\n\nRecibimos tu solicitud de compra para la rifa *${purchase.raffle.name}*. \n\nTu pago está siendo verificado. Te notificaremos por aquí una vez que sea aprobado. ¡Gracias por participar!\n\nRECUERDE QUE LOS NÚMEROS SON ALEATORIOS ENVIADOS POR EL SISTEMA`;
-
+/**
+ * Obtiene el Top 5 de compradores con los detalles necesarios para las notificaciones.
+ * @param raffleId El ID de la rifa.
+ * @returns Una lista de los 5 mejores compradores.
+ */
+async function getTopBuyersForNotifications(raffleId: string) {
     try {
-        console.log(`Intentando enviar WhatsApp de confirmación a: ${purchase.buyerPhone}`);
-        const result = await sendWhatsappMessage(purchase.buyerPhone, text);
-        if (result.success) {
-            console.log(`WhatsApp de confirmación enviado con éxito a ${purchase.buyerPhone}`);
-        } else {
-            console.error(`Falló el envío de WhatsApp de confirmación a ${purchase.buyerPhone}:`, result.error);
-        }
+        const topBuyersData = await db
+            .select({
+                buyerName: purchases.buyerName,
+                buyerEmail: purchases.buyerEmail,
+                buyerPhone: purchases.buyerPhone, // Necesitamos el teléfono para WhatsApp
+                totalTickets: sql<number>`sum(${purchases.ticketCount})`.mapWith(Number),
+            })
+            .from(purchases)
+            .where(and(
+                eq(purchases.raffleId, raffleId),
+                eq(purchases.status, 'confirmed')
+            ))
+            .groupBy(purchases.buyerName, purchases.buyerEmail, purchases.buyerPhone) // Agrupamos por teléfono también
+            .orderBy(desc(sql`sum(${purchases.ticketCount})`))
+            .limit(5); // Obtenemos el top 5
+
+        return topBuyersData;
+
     } catch (error) {
-        console.error(`ERROR CATASTRÓFICO al enviar WhatsApp de confirmación:`, error);
+        console.error("Error al obtener top compradores para notificaciones:", error);
+        return [];
     }
 }
 
-// ----------------------------------------------------------------
+/**
+ * Revisa el Top 5 después de una compra y envía notificaciones relevantes.
+ * @param raffleId - El ID de la rifa afectada.
+ * @param currentPurchaseId - El ID de la compra que acaba de ser confirmada.
+ */
+async function handleTop5Notifications(raffleId: string, currentPurchaseId: string) {
+    console.log(`Iniciando lógica de notificación Top 5 para la rifa ${raffleId}`);
+
+    // 1. Obtener los detalles del comprador actual
+    const currentPurchase = await db.query.purchases.findFirst({
+        where: eq(purchases.id, currentPurchaseId),
+    });
+    if (!currentPurchase) {
+        console.error("No se encontró la compra para la notificación del Top 5.");
+        return;
+    }
+
+    // 2. Obtener la lista actualizada del Top 5
+    const top5 = await getTopBuyersForNotifications(raffleId);
+    if (top5.length === 0) return; // No hay nadie en el top, no hacemos nada.
+
+    // 3. Encontrar la posición del comprador actual en el Top 5
+    const currentBuyerIndex = top5.findIndex(b => b.buyerEmail === currentPurchase.buyerEmail);
+
+    // Si el comprador actual no entró en el Top 5, terminamos la ejecución.
+    if (currentBuyerIndex === -1) {
+        console.log(`El comprador ${currentPurchase.buyerEmail} no entró en el Top 5.`);
+        return;
+    }
+
+    const currentBuyer = top5[currentBuyerIndex];
+    const leader = top5[0];
+
+    // 4. Notificar al comprador que entró al Top 5
+    if (currentBuyer.buyerEmail === leader.buyerEmail) {
+        // Mensaje si se convierte en el #1
+        const subject = "¡Felicidades! ¡Eres el número 1! 🏆";
+
+        // ▼▼▼ ¡AQUÍ ESTÁ LA MODIFICACIÓN! ▼▼▼
+        const message = `¡Felicidades, ${currentBuyer.buyerName}! Has alcanzado el primer puesto en el Top 5 de compradores. ¡Sigue así para ganar el gran premio de 1000$ al primer lugar!`;
+        // ▲▲▲ FIN DE LA MODIFICACIÓN ▲▲▲
+
+        await sendEmail({ to: currentBuyer.buyerEmail, subject, body: `<p>🏆 ${message}</p>` });
+        if (currentBuyer.buyerPhone) await sendWhatsappMessage(currentBuyer.buyerPhone, `🏆 ${message}`);
+
+    } else {
+        // Mensaje si entra al Top 5 pero no es #1
+        const ticketsToLead = leader.totalTickets - currentBuyer.totalTickets + 1;
+        const subject = "¡Has entrado al Top 5 de compradores! 🔥";
+        const message = `¡Felicidades, ${currentBuyer.buyerName}! Has entrado al Top 5. Para alcanzar el primer lugar y superar al líder, necesitas comprar ${ticketsToLead} ticket(s) más. ¡No te rindas!`;
+        await sendEmail({ to: currentBuyer.buyerEmail, subject, body: `<p>${message}</p>` });
+        if (currentBuyer.buyerPhone) await sendWhatsappMessage(currentBuyer.buyerPhone, `🔥 ${message}`);
+    }
+
+    // 5. Notificar a los usuarios que fueron superados por el comprador actual
+    for (const otherBuyer of top5) {
+        // No nos notificamos a nosotros mismos y solo notificamos a quienes tienen menos tickets que el comprador actual
+        if (otherBuyer.buyerEmail !== currentBuyer.buyerEmail && otherBuyer.totalTickets < currentBuyer.totalTickets) {
+            const ticketsToReclaim = currentBuyer.totalTickets - otherBuyer.totalTickets + 1;
+            const subject = "¡Te han superado en el ranking! ⚔️";
+            const message = `¡Atención, ${otherBuyer.buyerName}! El comprador ${currentBuyer.buyerName} te ha superado en el ranking. Compra ${ticketsToReclaim} ticket(s) para recuperar tu posición. ¡La competencia está reñida!\n\nPuedes ver la clasificación aquí:\nhttps://www.llevateloconjorvi.com/top-compradores`;
+
+            await sendEmail({ to: otherBuyer.buyerEmail, subject, body: `<p>${message}</p>` });
+            if (otherBuyer.buyerPhone) await sendWhatsappMessage(otherBuyer.buyerPhone, `⚔️ ${message}`);
+        }
+    }
+    console.log("Lógica de notificación Top 5 completada.");
+}
+
+/**
+ * Revisa si una compra confirmada contiene uno de los "Tickets Premium"
+ * y notifica a un número de administrador si se encuentra un ganador.
+ * @param purchaseId El ID de la compra que acaba de ser confirmada.
+ */
+async function checkAndNotifyMagicTicketWinner(purchaseId: string): Promise<void> {
+    // --- CONFIGURACIÓN DE LA DINÁMICA ---
+    const MAGIC_TICKETS = ['9578', '1988', '0510'];
+    const ADMIN_WHATSAPP_NUMBER = '584123604755'; // Tu número de WhatsApp para recibir el aviso.
+    // ------------------------------------
+
+    console.log(`Verificando Tickets Premium para la compra #${purchaseId}...`);
+
+    try {
+        const purchaseData = await db.query.purchases.findFirst({
+            where: eq(purchases.id, purchaseId),
+            with: {
+                raffle: { columns: { name: true } },
+                tickets: { columns: { ticketNumber: true } },
+            },
+        });
+
+        if (!purchaseData) {
+            console.error(`[Magic Ticket] No se encontró la compra ${purchaseId} para verificar.`);
+            return;
+        }
+
+        // Filtramos para encontrar si alguno de los tickets comprados es un "Ticket Mágico".
+        const winningTickets = purchaseData.tickets.filter(ticket =>
+            MAGIC_TICKETS.includes(ticket.ticketNumber)
+        );
+
+        // Si encontramos al menos un ticket ganador en esta compra...
+        if (winningTickets.length > 0) {
+            const winnerName = purchaseData.buyerName;
+            const raffleName = purchaseData.raffle.name;
+            const winningTicketNumbers = winningTickets.map(t => t.ticketNumber).join(', ');
+
+            console.log(`¡GANADOR ENCONTRADO! Ticket ${winningTicketNumbers} para ${winnerName}. Notificando al admin...`);
+
+            const notificationMessage = `🚨 ¡Alerta de Ganador "Ticket Premium"! 🚨\n\nEl comprador *${winnerName}* acaba de asegurar el ticket ganador número *${winningTicketNumbers}* para la rifa "${raffleName}".\n\n¡Has encontrado a uno de los ganadores de $100! 💸`;
+
+            // Enviamos el mensaje al número del administrador.
+            await sendWhatsappMessage(ADMIN_WHATSAPP_NUMBER, notificationMessage);
+
+            console.log(`Notificación de Ticket Premium enviada a ${ADMIN_WHATSAPP_NUMBER}.`);
+        } else {
+            console.log(`La compra #${purchaseId} no contenía Tickets Premium.`);
+        }
+    } catch (error) {
+        // Es importante capturar el error para que, si esta notificación falla,
+        // no interrumpa el proceso principal de confirmación de la compra para el usuario.
+        console.error(`[ERROR] Falló el proceso de notificación del Ticket Premium para la compra #${purchaseId}:`, error);
+    }
+}
+
+
+/**
+ * Notifica a todos los suscriptores de la lista de espera sobre una nueva rifa.
+ * @param raffleId El ID de la nueva rifa.
+ * @param raffleName El nombre de la nueva rifa.
+ * @param rafflePrice El precio del ticket de la nueva rifa.
+ */
+async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string, rafflePrice: string, raffleCurrency: 'USD' | 'VES') {
+    console.log(`Iniciando notificación a la lista de espera para la rifa: ${raffleName}`);
+
+    try {
+        const subscribers = await db.query.waitlistSubscribers.findMany();
+
+        if (subscribers.length === 0) {
+            console.log("No hay suscriptores en la lista de espera para notificar.");
+            return;
+        }
+
+        const priceFormatted = raffleCurrency === 'USD' ? `$${rafflePrice}` : `Bs. ${rafflePrice}`;
+        const raffleUrl = `https://llevateloconjorvi.com/rifa/${raffleId}`; // <-- CAMBIA ESTO por tu dominio real
+
+        for (const subscriber of subscribers) {
+            // --- Preparar mensaje de Email ---
+            const emailSubject = `🎉 ¡Nueva Rifa Disponible: ${raffleName}!`;
+            const emailBody = `
+                <h1>¡Hola ${subscriber.name}!</h1>
+                <p>¡Tenemos una nueva y emocionante rifa para ti!</p>
+                <p><strong>${raffleName}</strong> ya está activa y puedes participar por tan solo <strong>${priceFormatted}</strong> por ticket.</p>
+                <p>No te pierdas la oportunidad de ganar. ¡Haz clic en el botón de abajo para participar ahora!</p>
+                <a href="${raffleUrl}" style="background-color: #f59e0b; color: white; padding: 15px 25px; text-decoration: none; border-radius: 8px; display: inline-block;">
+                    Participar en la Rifa
+                </a>
+                <p>¡Mucha suerte!</p>
+                <p>El equipo de Jorvilaniña.</p>
+                
+                <p style="font-size: 10px; color: #999; margin-top: 30px; text-align: center;">
+                    Si no deseas recibir más correos como este, puedes 
+                    <a href="{{resend_unsubscribe_url}}" style="color: #f59e0b; text-decoration: underline;">desuscribirte aquí</a>.
+                </p>
+                `;
+
+            // --- Preparar mensaje de WhatsApp ---
+            const whatsappText = `¡Hola ${subscriber.name}! 👋\n\n🎉 ¡Ya está disponible nuestra nueva rifa: *${raffleName}*!\n\nPuedes ganar un premio increíble por solo *${priceFormatted}*.\n\n¡No te quedes fuera! Participa ahora mismo entrando a este enlace:\n${raffleUrl}\n\n¡Mucha suerte! 🍀`;
+
+            // --- Enviar notificaciones (con manejo de errores individual) ---
+            try {
+                await sendEmail({ to: subscriber.email, subject: emailSubject, body: emailBody });
+            } catch (e) {
+                console.error(`Error enviando email a ${subscriber.email}:`, e);
+            }
+
+            try {
+                await sendWhatsappMessage(subscriber.whatsapp, whatsappText);
+            } catch (e) {
+                console.error(`Error enviando WhatsApp a ${subscriber.whatsapp}:`, e);
+            }
+        }
+        console.log(`Notificaciones enviadas a ${subscribers.length} suscriptores.`);
+    } catch (error) {
+        console.error("Error masivo al notificar a la lista de espera:", error);
+    }
+}
+
+
+// ================================================================
+// ACTIONS PARA AUTENTICACIÓN
+// ================================================================
+
+const RegisterSchema = z.object({
+    name: z.string().min(2, "El nombre es requerido"),
+    email: z.string().email("Email inválido"),
+    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
+
+export async function registerAction(prevState: ActionState, formData: FormData): Promise<ActionState> {
+    // --- SEGURIDAD: Solo un administrador puede registrar nuevos usuarios ---
+    try {
+        await requireAdmin();
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+
+    const validatedFields = RegisterSchema.safeParse(Object.fromEntries(formData.entries()));
+    if (!validatedFields.success) return { success: false, message: "Error de validación" };
+
+    const { name, email, password } = validatedFields.data;
+
+    try {
+        const existingUser = await db.query.users.findFirst({ where: eq(users.email, email) });
+        if (existingUser) return { success: false, message: "El email ya está registrado" };
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // --- SEGURIDAD: Se asigna el rol 'user' por defecto en el servidor ---
+        const newUser = await db.insert(users).values({ name, email, password: hashedPassword, role: 'user' }).returning({ id: users.id });
+
+        revalidatePath("/usuarios");
+        return { success: true, message: "Usuario registrado exitosamente", data: newUser[0] };
+
+    } catch (error) {
+        console.error("Error al registrar usuario:", error);
+        return { success: false, message: "Error del servidor" };
+    }
+}
+
+// ================================================================
 // ACTIONS PARA COMPRAS Y TICKETS
-// ----------------------------------------------------------------
+// ================================================================
 
 const ReserveTicketsSchema = z.object({
     raffleId: z.string(),
@@ -495,7 +692,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
     const RESERVATION_MINUTES = 2;
 
     try {
-        // ✅ VALIDACIÓN MEJORADA: Verificar disponibilidad antes de proceder
+        // VALIDACIÓN MEJORADA: Verificar disponibilidad antes de proceder
         const availabilityCheck = await verifyTicketAvailability(raffleId, ticketCount);
         if (!availabilityCheck.available) {
             return {
@@ -540,7 +737,7 @@ export async function reserveTicketsAction(formData: FormData): Promise<ActionSt
             // Clean up expired reservations
             await tx.update(tickets).set({ status: 'available', reservedUntil: null, purchaseId: null }).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'reserved'), lt(tickets.reservedUntil, new Date())));
 
-            // ✅ VALIDACIÓN CRÍTICA: Verificar disponibilidad dentro de la transacción
+            // VALIDACIÓN CRÍTICA: Obtener y bloquear tickets disponibles
             const availableTickets = await tx.select({ id: tickets.id, ticketNumber: tickets.ticketNumber }).from(tickets).where(and(eq(tickets.raffleId, raffleId), eq(tickets.status, 'available'))).orderBy(sql`RANDOM()`).limit(ticketCount).for("update", { skipLocked: true });
 
             if (availableTickets.length < ticketCount) {
@@ -596,7 +793,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
     const ticketNumbers = reservedTickets.split(',');
     let paymentScreenshotUrl = '';
 
-    // ✅ VALIDACIÓN CRÍTICA: Verificar disponibilidad antes de procesar
+    // VALIDACIÓN CRÍTICA: Verificar disponibilidad antes de procesar
     console.log(`Iniciando validación de ${ticketNumbers.length} tickets para la rifa ${raffleId}`);
     const availabilityCheck = await verifyTicketAvailability(raffleId, ticketNumbers.length);
     if (!availabilityCheck.available) {
@@ -606,6 +803,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         };
     }
 
+    // Subir captura de pantalla
     if (validatedFields.data.paymentScreenshot && validatedFields.data.paymentScreenshot.size > 0) {
         try {
             const buffer = Buffer.from(await validatedFields.data.paymentScreenshot.arrayBuffer());
@@ -654,6 +852,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         let purchaseStatus: "pending" | "confirmed" = "pending";
         let responseMessage = "¡Solicitud recibida! Te avisaremos por correo y WhatsApp cuando validemos el pago. ¡Mucha suerte!";
 
+        // Intento de verificación automática con Pabilo
         const selectedPaymentMethod = await db.query.paymentMethods.findFirst({ where: eq(paymentMethods.title, paymentMethod) });
         if (selectedPaymentMethod && selectedPaymentMethod.triggersApiVerification) {
             const referenceToSend = paymentReference.slice(-4);
@@ -693,8 +892,9 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             }
         }
 
+        // Crear la compra y asignar/actualizar el estado de los tickets
         const newPurchase = await db.transaction(async (tx) => {
-            // ✅ VALIDACIÓN FINAL: Verificar que los tickets específicos sigan reservados y válidos
+            // VALIDACIÓN FINAL: Verificar que los tickets específicos sigan reservados y válidos
             const ticketsToUpdate = await tx.select({
                 id: tickets.id,
                 ticketNumber: tickets.ticketNumber,
@@ -738,6 +938,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
                 throw new Error(`Los siguientes tickets ya no están disponibles: ${invalidTickets.join(', ')}. Por favor, intenta de nuevo.`);
             }
 
+            // 1. Crear la compra
             const [createdPurchase] = await tx.insert(purchases).values({
                 raffleId, buyerName: name, buyerEmail: email, buyerPhone: phone, ticketCount: ticketNumbers.length,
                 amount: amount.toString(), paymentMethod, paymentReference, paymentScreenshotUrl, status: purchaseStatus,
@@ -745,6 +946,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
                 referralId: referralId,
             }).returning({ id: purchases.id });
 
+            // 2. Marcar los tickets como vendidos o reservados/pendientes de confirmación
             await tx.update(tickets).set({
                 status: purchaseStatus === 'confirmed' ? 'sold' : 'reserved',
                 purchaseId: createdPurchase.id,
@@ -754,14 +956,15 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             return createdPurchase;
         });
 
+        // Revalidaciones de caché
         revalidatePath(`/rifa/${raffle.slug}`);
         revalidatePath("/admin/rifas");
         revalidatePath("/top-compradores");
 
+        // Lógica post-transacción
         if (purchaseStatus === 'confirmed') {
             await sendTicketsEmailAndWhatsapp(newPurchase.id);
 
-            // ▼▼▼ CAMBIO AÑADIDO ▼▼▼
             // Revisa si es un ganador premium en compras automáticas.
             await checkAndNotifyMagicTicketWinner(newPurchase.id);
 
@@ -774,7 +977,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             await sendConfirmationEmail(newPurchase.id);
             await sendConfirmationWhatsapp(newPurchase.id);
 
-            // ✅ Este es el punto clave. Si el estado es "pending", notificamos al admin.
+            // Si el estado es "pending", notificamos al admin.
             try {
                 const purchaseWithRaffle = await db.query.purchases.findFirst({
                     where: eq(purchases.id, newPurchase.id),
@@ -791,10 +994,9 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
         }
 
         console.log(`✅ Compra procesada exitosamente: ${newPurchase.id} con ${ticketNumbers.length} tickets`);
-        
-        // ▼▼▼ RESEND CONTACTS MODIFICATION: Crear/actualizar contacto en Resend después de la compra ▼▼▼
+
+        // RESEND CONTACTS MODIFICATION: Crear/actualizar contacto en Resend después de la compra
         await createResendContact(email, name, phone);
-        // ▲▲▲ FIN DE LA MODIFICACIÓN DE RESEND CONTACTS ▲▲▲
 
         return { success: true, message: responseMessage, data: newPurchase };
 
@@ -865,7 +1067,6 @@ export async function updatePurchaseStatusAction(
                 await tx.update(tickets).set({ status: "sold" }).where(eq(tickets.purchaseId, purchaseId));
                 await sendTicketsEmailAndWhatsapp(purchaseId);
 
-                // ▼▼▼ CAMBIO AÑADIDO ▼▼▼
                 // Si el admin confirma, también revisamos si es un ganador premium.
                 await checkAndNotifyMagicTicketWinner(purchaseId);
 
@@ -895,8 +1096,9 @@ export async function updatePurchaseStatusAction(
     }
 }
 
-// ▼▼▼ FUNCIÓN MODIFICADA ▼▼▼
-// ▼▼▼ FUNCIÓN MODIFICADA ▼▼▼
+/**
+ * Busca un ticket por número y devuelve la información de la compra y el total de tickets comprados por el cliente.
+ */
 export async function findMyTicketsAction(formData: FormData): Promise<ActionState> {
     // 1. Validar el número de ticket
     const schema = z.object({
@@ -934,9 +1136,7 @@ export async function findMyTicketsAction(formData: FormData): Promise<ActionSta
 
         const buyerEmail = ticket.purchase.buyerEmail;
 
-        // 4. ✅ ¡NUEVA LÓGICA! Calcular el total de tickets para ese comprador.
-        // Usamos la función 'sum' de Drizzle para sumar todos los 'ticketCount' de las compras
-        // que coincidan con el email del comprador.
+        // 4. Calcular el total de tickets para ese comprador.
         const totalTicketsResult = await db.select({
             total: sum(purchases.ticketCount)
         }).from(purchases)
@@ -958,7 +1158,6 @@ export async function findMyTicketsAction(formData: FormData): Promise<ActionSta
                         winnerTicket: { with: { purchase: true } }
                     }
                 },
-                // Ya no necesitamos traer los tickets aquí, pues no los vamos a listar
             },
         });
 
@@ -966,8 +1165,7 @@ export async function findMyTicketsAction(formData: FormData): Promise<ActionSta
             return { success: true, message: "No se encontró la compra asociada al ticket.", data: [] };
         }
 
-        // 6. ✅ Añadir el total calculado al objeto de la compra que devolveremos.
-        // Esto crea un nuevo objeto que tiene todos los datos de 'specificPurchase' MÁS el nuevo campo.
+        // 6. Añadir el total calculado al objeto de la compra que devolveremos.
         const purchaseWithTotal = {
             ...specificPurchase,
             totalTicketsFromBuyer: totalTicketsFromBuyer // Añadimos el nuevo dato
@@ -982,9 +1180,10 @@ export async function findMyTicketsAction(formData: FormData): Promise<ActionSta
     }
 }
 
-// ----------------------------------------------------------------
+
+// ================================================================
 // ACTIONS PARA GESTIÓN DE RIFAS (ADMIN)
-// ----------------------------------------------------------------
+// ================================================================
 
 const CreateRaffleSchema = z.object({
     name: z.string().min(5, "El nombre debe tener al menos 5 caracteres."),
@@ -1040,15 +1239,12 @@ export async function createRaffleAction(formData: FormData): Promise<ActionStat
 
         revalidatePath("/rifas");
 
-        // ▼▼▼ ¡AQUÍ ESTÁ LA MAGIA! ▼▼▼
-        // Después de crear la rifa, llamamos a la función de notificación.
-        // Lo hacemos en un try/catch para que, si falla la notificación, no afecte la creación de la rifa.
+        // Después de crear la rifa, llamamos a la función de notificación a la lista de espera.
         try {
             await notifyWaitlistAboutNewRaffle(newRaffle.id, name, price.toString(), currency);
         } catch (notificationError) {
             console.error("La rifa se creó, pero falló el envío de notificaciones a la lista de espera.", notificationError);
         }
-        // ▲▲▲ FIN DE LA MODIFICACIÓN ▲▲▲
 
         return { success: true, message: "Rifa creada con éxito.", data: newRaffle };
     } catch (error) {
@@ -1224,9 +1420,8 @@ export async function drawWinnerAction(prevState: ActionState, formData: FormDat
             winnerProofUrl,
         }).where(eq(raffles.id, raffleId));
 
-        // ✅ --- INICIO DE CAMBIOS: LLAMAR A LA FUNCIÓN DE NOTIFICACIÓN ---
+        // LLAMAR A LA FUNCIÓN DE NOTIFICACIÓN
         await sendWinnerNotification(raffleId, winningTicket.id);
-        // --- FIN DE CAMBIOS ---
 
         revalidatePath("/rifas");
         revalidatePath(`/rifas/${raffleId}`);
@@ -1261,9 +1456,7 @@ export async function postponeRaffleAction(prevState: ActionState, formData: For
         // La rifa debe estar en 'finished' para poder posponerse
         if (!raffle || raffle.status !== 'finished') return { success: false, message: "La rifa no puede ser pospuesta en su estado actual." };
 
-        // --- MEJORA DE LÓGICA AQUÍ ---
-        // En lugar de 'postponed', la cambiamos a 'active' con la nueva fecha.
-        // Esto la "reactiva" para el futuro sorteo.
+        // Se cambia a 'active' con la nueva fecha.
         await db.update(raffles).set({
             status: 'active',
             limitDate: new Date(newLimitDate)
@@ -1278,7 +1471,9 @@ export async function postponeRaffleAction(prevState: ActionState, formData: For
     }
 }
 
-// --- NUEVA FUNCIÓN PARA GENERAR TICKETS EN RIFAS EXISTENTES ---
+/**
+ * Genera 10,000 tickets para una rifa activa que aún no tiene tickets.
+ */
 export async function generateTicketsForRaffle(raffleId: string): Promise<ActionState> {
     try {
         const result = await db.transaction(async (tx) => {
@@ -1335,6 +1530,38 @@ export async function generateTicketsForRaffle(raffleId: string): Promise<Action
     }
 }
 
+/**
+ * Obtiene el Top 5 de compradores de una rifa.
+ */
+export async function getTopBuyers(raffleId: string): Promise<{ buyerName: string | null; buyerEmail: string; totalTickets: number }[]> {
+    try {
+        const topBuyersData = await db
+            .select({
+                buyerName: purchases.buyerName,
+                buyerEmail: purchases.buyerEmail,
+                totalTickets: sql<number>`sum(${purchases.ticketCount})`.mapWith(Number),
+            })
+            .from(purchases)
+            .where(and(
+                eq(purchases.raffleId, raffleId),
+                eq(purchases.status, 'confirmed')
+            ))
+            .groupBy(purchases.buyerName, purchases.buyerEmail)
+            .orderBy(desc(sql`sum(${purchases.ticketCount})`))
+            .limit(5); // Obtenemos el top 5
+
+        return topBuyersData;
+
+    } catch (error) {
+        console.error("Error al obtener top compradores:", error);
+        return []; // Devolver un array vacío en caso de error
+    }
+}
+
+// ================================================================
+// ACTIONS PARA MÉTODOS DE PAGO (ADMIN)
+// ================================================================
+
 const PaymentMethodSchema = z.object({
     title: z.string().min(3, "El título es requerido."),
     icon: z.instanceof(File).optional(),
@@ -1373,7 +1600,7 @@ export async function createPaymentMethodAction(prevState: any, formData: FormDa
         email,
         walletAddress,
         network,
-        binancePayId, // +++ NEW: Extract binancePayId +++
+        binancePayId,
         isActive,
         triggersApiVerification
     } = validatedFields.data;
@@ -1435,7 +1662,7 @@ export async function updatePaymentMethodAction(prevState: any, formData: FormDa
         email,
         walletAddress,
         network,
-        binancePayId, // +++ NEW: Extract binancePayId +++
+        binancePayId,
         isActive,
         triggersApiVerification
     } = validatedFields.data;
@@ -1498,6 +1725,10 @@ export async function deletePaymentMethodAction(prevState: any, formData: FormDa
     }
 }
 
+// ================================================================
+// ACTIONS PARA GESTIÓN DE USUARIOS (ADMIN)
+// ================================================================
+
 const DeleteUserSchema = z.object({
     id: z.string().min(1, "ID de usuario requerido"),
 });
@@ -1531,9 +1762,9 @@ export async function deleteUserAction(prevState: ActionState, formData: FormDat
     }
 }
 
-// ----------------------------------------------------------------
+// ================================================================
 // ACTIONS PARA LA LISTA DE ESPERA (WAITLIST)
-// ----------------------------------------------------------------
+// ================================================================
 
 const WaitlistSchema = z.object({
     name: z.string().min(3, "El nombre es requerido."),
@@ -1560,9 +1791,8 @@ export async function addToWaitlistAction(prevState: ActionState, formData: Form
             whatsapp,
         });
 
-        // ▼▼▼ RESEND CONTACTS MODIFICATION: Crear/actualizar contacto en Resend al unirse a la Waitlist ▼▼▼
+        // RESEND CONTACTS MODIFICATION: Crear/actualizar contacto en Resend al unirse a la Waitlist
         await createResendContact(email, name, whatsapp);
-        // ▲▲▲ FIN DE LA MODIFICACIÓN DE RESEND CONTACTS ▲▲▲
 
         return { success: true, message: "¡Gracias por unirte! Te notificaremos de las próximas rifas." };
     } catch (error: any) {
@@ -1572,219 +1802,5 @@ export async function addToWaitlistAction(prevState: ActionState, formData: Form
         }
         console.error("Error al registrar en la lista de espera:", error);
         return { success: false, message: "Ocurrió un error en el servidor. Inténtalo de nuevo." };
-    }
-}
-
-/**
- * Notifica a todos los suscriptores de la lista de espera sobre una nueva rifa.
- * @param raffleId El ID de la nueva rifa.
- * @param raffleName El nombre de la nueva rifa.
- * @param rafflePrice El precio del ticket de la nueva rifa.
- */
-async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string, rafflePrice: string, raffleCurrency: 'USD' | 'VES') {
-    console.log(`Iniciando notificación a la lista de espera para la rifa: ${raffleName}`);
-
-    try {
-        const subscribers = await db.query.waitlistSubscribers.findMany();
-
-        if (subscribers.length === 0) {
-            console.log("No hay suscriptores en la lista de espera para notificar.");
-            return;
-        }
-
-        const priceFormatted = raffleCurrency === 'USD' ? `$${rafflePrice}` : `Bs. ${rafflePrice}`;
-        const raffleUrl = `https://llevateloconjorvi.com/rifa/${raffleId}`; // <-- CAMBIA ESTO por tu dominio real
-
-        for (const subscriber of subscribers) {
-            // --- Preparar mensaje de Email ---
-            const emailSubject = `🎉 ¡Nueva Rifa Disponible: ${raffleName}!`;
-            const emailBody = `
-                <h1>¡Hola ${subscriber.name}!</h1>
-                <p>¡Tenemos una nueva y emocionante rifa para ti!</p>
-                <p><strong>${raffleName}</strong> ya está activa y puedes participar por tan solo <strong>${priceFormatted}</strong> por ticket.</p>
-                <p>No te pierdas la oportunidad de ganar. ¡Haz clic en el botón de abajo para participar ahora!</p>
-                <a href="${raffleUrl}" style="background-color: #f59e0b; color: white; padding: 15px 25px; text-decoration: none; border-radius: 8px; display: inline-block;">
-                    Participar en la Rifa
-                </a>
-                <p>¡Mucha suerte!</p>
-                <p>El equipo de Jorvilaniña.</p>
-            `;
-
-            // --- Preparar mensaje de WhatsApp ---
-            const whatsappText = `¡Hola ${subscriber.name}! 👋\n\n🎉 ¡Ya está disponible nuestra nueva rifa: *${raffleName}*!\n\nPuedes ganar un premio increíble por solo *${priceFormatted}*.\n\n¡No te quedes fuera! Participa ahora mismo entrando a este enlace:\n${raffleUrl}\n\n¡Mucha suerte! 🍀`;
-
-            // --- Enviar notificaciones (con manejo de errores individual) ---
-            try {
-                await sendEmail({ to: subscriber.email, subject: emailSubject, body: emailBody });
-            } catch (e) {
-                console.error(`Error enviando email a ${subscriber.email}:`, e);
-            }
-
-            try {
-                await sendWhatsappMessage(subscriber.whatsapp, whatsappText);
-            } catch (e) {
-                console.error(`Error enviando WhatsApp a ${subscriber.whatsapp}:`, e);
-            }
-        }
-        console.log(`Notificaciones enviadas a ${subscribers.length} suscriptores.`);
-    } catch (error) {
-        console.error("Error masivo al notificar a la lista de espera:", error);
-    }
-}
-
-// ✅ --- NUEVA FUNCIÓN AUXILIAR PARA OBTENER DATOS DEL TOP 5 ---
-/**
- * Obtiene el Top 5 de compradores con los detalles necesarios para las notificaciones.
- * @param raffleId El ID de la rifa.
- * @returns Una lista de los 5 mejores compradores.
- */
-async function getTopBuyersForNotifications(raffleId: string) {
-    try {
-        const topBuyersData = await db
-            .select({
-                buyerName: purchases.buyerName,
-                buyerEmail: purchases.buyerEmail,
-                buyerPhone: purchases.buyerPhone, // Necesitamos el teléfono para WhatsApp
-                totalTickets: sql<number>`sum(${purchases.ticketCount})`.mapWith(Number),
-            })
-            .from(purchases)
-            .where(and(
-                eq(purchases.raffleId, raffleId),
-                eq(purchases.status, 'confirmed')
-            ))
-            .groupBy(purchases.buyerName, purchases.buyerEmail, purchases.buyerPhone) // Agrupamos por teléfono también
-            .orderBy(desc(sql`sum(${purchases.ticketCount})`))
-            .limit(5); // Obtenemos el top 5
-
-        return topBuyersData;
-
-    } catch (error) {
-        console.error("Error al obtener top compradores para notificaciones:", error);
-        return [];
-    }
-}
-
-/**
- * Revisa el Top 5 después de una compra y envía notificaciones relevantes.
- * @param raffleId - El ID de la rifa afectada.
- * @param currentPurchaseId - El ID de la compra que acaba de ser confirmada.
- */
-async function handleTop5Notifications(raffleId: string, currentPurchaseId: string) {
-    console.log(`Iniciando lógica de notificación Top 5 para la rifa ${raffleId}`);
-
-    // 1. Obtener los detalles del comprador actual
-    const currentPurchase = await db.query.purchases.findFirst({
-        where: eq(purchases.id, currentPurchaseId),
-    });
-    if (!currentPurchase) {
-        console.error("No se encontró la compra para la notificación del Top 5.");
-        return;
-    }
-
-    // 2. Obtener la lista actualizada del Top 5
-    const top5 = await getTopBuyersForNotifications(raffleId);
-    if (top5.length === 0) return; // No hay nadie en el top, no hacemos nada.
-
-    // 3. Encontrar la posición del comprador actual en el Top 5
-    const currentBuyerIndex = top5.findIndex(b => b.buyerEmail === currentPurchase.buyerEmail);
-
-    // Si el comprador actual no entró en el Top 5, terminamos la ejecución.
-    if (currentBuyerIndex === -1) {
-        console.log(`El comprador ${currentPurchase.buyerEmail} no entró en el Top 5.`);
-        return;
-    }
-
-    const currentBuyer = top5[currentBuyerIndex];
-    const leader = top5[0];
-
-    // 4. Notificar al comprador que entró al Top 5
-    if (currentBuyer.buyerEmail === leader.buyerEmail) {
-        // Mensaje si se convierte en el #1
-        const subject = "¡Felicidades! ¡Eres el número 1! 🏆";
-
-        // ▼▼▼ ¡AQUÍ ESTÁ LA MODIFICACIÓN! ▼▼▼
-        const message = `¡Felicidades, ${currentBuyer.buyerName}! Has alcanzado el primer puesto en el Top 5 de compradores. ¡Sigue así para ganar el gran premio de 1000$ al primer lugar!`;
-        // ▲▲▲ FIN DE LA MODIFICACIÓN ▲▲▲
-
-        await sendEmail({ to: currentBuyer.buyerEmail, subject, body: `<p>🏆 ${message}</p>` });
-        if (currentBuyer.buyerPhone) await sendWhatsappMessage(currentBuyer.buyerPhone, `🏆 ${message}`);
-
-    } else {
-        // Mensaje si entra al Top 5 pero no es #1
-        const ticketsToLead = leader.totalTickets - currentBuyer.totalTickets + 1;
-        const subject = "¡Has entrado al Top 5 de compradores! 🔥";
-        const message = `¡Felicidades, ${currentBuyer.buyerName}! Has entrado al Top 5. Para alcanzar el primer lugar y superar al líder, necesitas comprar ${ticketsToLead} ticket(s) más. ¡No te rindas!`;
-        await sendEmail({ to: currentBuyer.buyerEmail, subject, body: `<p>${message}</p>` });
-        if (currentBuyer.buyerPhone) await sendWhatsappMessage(currentBuyer.buyerPhone, `🔥 ${message}`);
-    }
-
-    // 5. Notificar a los usuarios que fueron superados por el comprador actual
-    for (const otherBuyer of top5) {
-        // No nos notificamos a nosotros mismos y solo notificamos a quienes tienen menos tickets que el comprador actual
-        if (otherBuyer.buyerEmail !== currentBuyer.buyerEmail && otherBuyer.totalTickets < currentBuyer.totalTickets) {
-            const ticketsToReclaim = currentBuyer.totalTickets - otherBuyer.totalTickets + 1;
-            const subject = "¡Te han superado en el ranking! ⚔️";
-            const message = `¡Atención, ${otherBuyer.buyerName}! El comprador ${currentBuyer.buyerName} te ha superado en el ranking. Compra ${ticketsToReclaim} ticket(s) para recuperar tu posición. ¡La competencia está reñida!\n\nPuedes ver la clasificación aquí:\nhttps://www.llevateloconjorvi.com/top-compradores`;
-
-            await sendEmail({ to: otherBuyer.buyerEmail, subject, body: `<p>${message}</p>` });
-            if (otherBuyer.buyerPhone) await sendWhatsappMessage(otherBuyer.buyerPhone, `⚔️ ${message}`);
-        }
-    }
-    console.log("Lógica de notificación Top 5 completada.");
-}
-
-/**
- * Revisa si una compra confirmada contiene uno de los "Tickets Premium"
- * y notifica a un número de administrador si se encuentra un ganador.
- * @param purchaseId El ID de la compra que acaba de ser confirmada.
- */
-async function checkAndNotifyMagicTicketWinner(purchaseId: string): Promise<void> {
-    // --- CONFIGURACIÓN DE LA DINÁMICA ---
-    const MAGIC_TICKETS = ['9578', '1988', '0510'];
-    const ADMIN_WHATSAPP_NUMBER = '584123604755'; // Tu número de WhatsApp para recibir el aviso.
-    // ------------------------------------
-
-    console.log(`Verificando Tickets Premium para la compra #${purchaseId}...`);
-
-    try {
-        const purchaseData = await db.query.purchases.findFirst({
-            where: eq(purchases.id, purchaseId),
-            with: {
-                raffle: { columns: { name: true } },
-                tickets: { columns: { ticketNumber: true } },
-            },
-        });
-
-        if (!purchaseData) {
-            console.error(`[Magic Ticket] No se encontró la compra ${purchaseId} para verificar.`);
-            return;
-        }
-
-        // Filtramos para encontrar si alguno de los tickets comprados es un "Ticket Mágico".
-        const winningTickets = purchaseData.tickets.filter(ticket =>
-            MAGIC_TICKETS.includes(ticket.ticketNumber)
-        );
-
-        // Si encontramos al menos un ticket ganador en esta compra...
-        if (winningTickets.length > 0) {
-            const winnerName = purchaseData.buyerName;
-            const raffleName = purchaseData.raffle.name;
-            const winningTicketNumbers = winningTickets.map(t => t.ticketNumber).join(', ');
-
-            console.log(`¡GANADOR ENCONTRADO! Ticket ${winningTicketNumbers} para ${winnerName}. Notificando al admin...`);
-
-            const notificationMessage = `🚨 ¡Alerta de Ganador "Ticket Premium"! 🚨\n\nEl comprador *${winnerName}* acaba de asegurar el ticket ganador número *${winningTicketNumbers}* para la rifa "${raffleName}".\n\n¡Has encontrado a uno de los ganadores de $100! 💸`;
-
-            // Enviamos el mensaje al número del administrador.
-            await sendWhatsappMessage(ADMIN_WHATSAPP_NUMBER, notificationMessage);
-
-            console.log(`Notificación de Ticket Premium enviada a ${ADMIN_WHATSAPP_NUMBER}.`);
-        } else {
-            console.log(`La compra #${purchaseId} no contenía Tickets Premium.`);
-        }
-    } catch (error) {
-        // Es importante capturar el error para que, si esta notificación falla,
-        // no interrumpa el proceso principal de confirmación de la compra para el usuario.
-        console.error(`[ERROR] Falló el proceso de notificación del Ticket Premium para la compra #${purchaseId}:`, error);
     }
 }
