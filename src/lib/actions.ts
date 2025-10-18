@@ -606,7 +606,7 @@ async function notifyWaitlistAboutNewRaffle(raffleId: string, raffleName: string
                 <p>El equipo de Jorvilaniña.</p>
                 
                 <p style="font-size: 10px; color: #999; margin-top: 30px; text-align: center;">
-                    Si no deseas recibir más correos como este, puedes 
+                    Si no deseas recibir más correos como este, puedes 
                     <a href="{{resend_unsubscribe_url}}" style="color: #f59e0b; text-decoration: underline;">desuscribirte aquí</a>.
                 </p>
                 `;
@@ -821,9 +821,11 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
             return { success: false, message: "La rifa seleccionada no existe." };
         }
 
+        // ✅ SOLUCIÓN: Lógica de referidos corregida y con priorización
         let referralLinkId: string | null = null;
         let referralId: string | null = null;
 
+        // Se da prioridad al código de usuario (?r=) por ser más específico
         if (referralUserCode) {
             const referralUser = await db.query.referrals.findFirst({
                 where: and(
@@ -837,7 +839,8 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
                 console.warn(`Código de referido de usuario "${referralUserCode}" no fue encontrado o está inactivo.`);
             }
         }
-        else if (campaignCode) {
+        // Si no se encontró un referido de usuario, se busca el de campaña (?ref=)
+        if (!referralId && campaignCode) {
             const link = await db.query.referralLinks.findFirst({
                 where: eq(referralLinks.code, campaignCode),
             });
@@ -847,6 +850,7 @@ export async function buyTicketsAction(formData: FormData): Promise<ActionState>
                 console.warn(`Código de referido de campaña "${campaignCode}" no fue encontrado.`);
             }
         }
+
 
         const amount = ticketNumbers.length * parseFloat(raffle.price);
         let purchaseStatus: "pending" | "confirmed" = "pending";

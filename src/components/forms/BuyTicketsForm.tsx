@@ -36,7 +36,6 @@ interface PaymentMethod {
     binancePayId?: string | null;
 }
 
-// ✅ ACTUALIZADA: Interfaz de props con información detallada de disponibilidad
 interface BuyTicketsFormProps {
     raffle: {
         id: string;
@@ -50,7 +49,6 @@ interface BuyTicketsFormProps {
     exchangeRate: number | null;
     campaignCode?: string;
     referralUserCode?: string;
-    // ✅ CAMBIO: Ahora recibimos información detallada de disponibilidad
     availabilityInfo?: {
         available: number;
         sold: number;
@@ -64,7 +62,7 @@ interface BuyTicketsFormProps {
 // Constantes y Estado Inicial
 const initialState = { success: false, message: '' };
 const TICKET_AMOUNTS = [1, 5, 10, 25, 50, 100];
-// ✅ LÓGICA LOCALSTORAGE: Clave para guardar los datos en localStorage
+// ✅ SOLUCIÓN LOCALSTORAGE: Clave para guardar los datos en localStorage
 const BUYER_DATA_KEY = 'raffleBuyerData';
 
 
@@ -173,7 +171,6 @@ export function BuyTicketsForm({
     const [verificationProgress, setVerificationProgress] = useState(0);
     const [paymentMethodError, setPaymentMethodError] = useState('');
     
-    // ✅ NUEVO: Estados para manejo de disponibilidad en tiempo real
     const [currentAvailability, setCurrentAvailability] = useState(availabilityInfo);
     const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
     const [availabilityError, setAvailabilityError] = useState('');
@@ -187,7 +184,7 @@ export function BuyTicketsForm({
     });
     const paymentMethodsSectionRef = useRef<HTMLDivElement>(null);
 
-    // ✅ LÓGICA LOCALSTORAGE: Cargar datos del comprador al iniciar el componente.
+    // ✅ SOLUCIÓN LOCALSTORAGE: Cargar datos del comprador al iniciar el componente.
     useEffect(() => {
         try {
             const savedDataString = localStorage.getItem(BUYER_DATA_KEY);
@@ -203,7 +200,7 @@ export function BuyTicketsForm({
         }
     }, []); // El array vacío asegura que este efecto se ejecute solo una vez.
 
-    // ✅ NUEVA FUNCIÓN: Verificar disponibilidad en tiempo real
+    // Función para verificar disponibilidad en tiempo real
     const checkAvailability = useCallback(async () => {
         if (!raffle.id) return;
         
@@ -215,7 +212,6 @@ export function BuyTicketsForm({
             if (result.success) {
                 setCurrentAvailability(result.data);
                 
-                // Si el usuario tiene seleccionados más tickets de los disponibles, ajustar
                 if (ticketCount > result.data.available) {
                     const newCount = Math.max(1, Math.min(ticketCount, result.data.available));
                     setTicketCount(newCount);
@@ -236,31 +232,23 @@ export function BuyTicketsForm({
         }
     }, [raffle.id, ticketCount]);
 
-    // ✅ EFECTO: Verificar disponibilidad periódicamente
+    // Efecto para verificar disponibilidad periódicamente
     useEffect(() => {
-        // Verificar inmediatamente al montar
         checkAvailability();
-        
-        // Verificar cada 30 segundos
         const interval = setInterval(checkAvailability, 30000);
-        
         return () => clearInterval(interval);
     }, [checkAvailability]);
 
-    // ✅ ACTUALIZADO: Tracking con códigos de referido
+    // Efecto para tracking
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
             return;
         }
 
-        // Prioriza el código de usuario para el tracking si ambos existen
         const codeForTracking = referralUserCode || campaignCode;
 
-        // Evento para Meta Pixel
         tracking.trackLead({ content_name: codeForTracking });
-
-        // Evento para Simple Analytics
         tracking.trackSimpleAnalyticsEvent('select_tickets');
 
     }, [ticketCount, campaignCode, referralUserCode]);
@@ -271,8 +259,7 @@ export function BuyTicketsForm({
         , [paymentMethodId, paymentMethods]);
 
     const totalAmount = useMemo(() => ticketCount * parseFloat(raffle.price), [ticketCount, raffle.price]);
-
-    // ✅ CAMBIO: Usar la información de disponibilidad actualizada
+    
     const availableTickets = useMemo(() => {
         return currentAvailability ? Math.max(0, currentAvailability.available) : 0;
     }, [currentAvailability]);
@@ -334,14 +321,10 @@ export function BuyTicketsForm({
         setTicketCount(2); 
         setReservedTickets([]);
         setPaymentMethodId(''); 
-        // No reseteamos los datos del comprador para que pueda comprar de nuevo fácilmente
-        // setBuyerName(''); setBuyerEmail('');
-        // setCountryCode('+58'); setBuyerPhone(''); 
         setPaymentReference('');
         setPaymentScreenshot(null); setPreview(null); setReservationError('');
         setPaymentMethodError('');
         setAvailabilityError('');
-        // Verificar disponibilidad después de resetear
         checkAvailability();
     };
 
@@ -361,12 +344,10 @@ export function BuyTicketsForm({
         const newValue = Math.max(1, Math.min(value, availableTickets));
         setTicketCount(newValue);
         
-        // Limpiar error de reserva si el usuario cambia la cantidad
         if (reservationError) {
             setReservationError('');
         }
         
-        // Verificar disponibilidad cuando cambia la cantidad
         if (newValue !== value) {
             checkAvailability();
         }
@@ -383,12 +364,10 @@ export function BuyTicketsForm({
             return;
         }
 
-        // ✅ MEJORA: Verificar disponibilidad antes de proceder
         setIsCheckingAvailability(true);
         await checkAvailability();
         setIsCheckingAvailability(false);
         
-        // Usar la disponibilidad más reciente
         const latestAvailable = currentAvailability?.available || 0;
         
         if (ticketCount > latestAvailable) {
@@ -401,7 +380,6 @@ export function BuyTicketsForm({
             return;
         }
 
-        // --- Evento de compra ---
         tracking.trackPurchase({
             value: totalAmount,
             currency: raffle.currency,
@@ -415,7 +393,6 @@ export function BuyTicketsForm({
         setApiState(initialState);
 
         try {
-            // 1. Reservar tickets
             const reserveFormData = new FormData();
             reserveFormData.append('raffleId', raffle.id);
             reserveFormData.append('ticketCount', ticketCount.toString());
@@ -427,7 +404,6 @@ export function BuyTicketsForm({
                 return;
             }
 
-            // 2. Construir y enviar datos de compra
             const ticketsToBuy = reserveResult.data.reservedTickets;
             const buyFormData = new FormData();
             buyFormData.append('raffleId', raffle.id);
@@ -438,19 +414,13 @@ export function BuyTicketsForm({
             buyFormData.append('phone', `${countryCode.replace('+', '')}${buyerPhone}`);
             buyFormData.append('paymentReference', paymentReference);
             if (paymentScreenshot) buyFormData.append('paymentScreenshot', paymentScreenshot);
-
-            // ✅ Añadir códigos de referido
-            if (campaignCode) {
-                buyFormData.append('campaignCode', campaignCode);
-            }
-            if (referralUserCode) {
-                buyFormData.append('referralUserCode', referralUserCode);
-            }
+            if (campaignCode) buyFormData.append('campaignCode', campaignCode);
+            if (referralUserCode) buyFormData.append('referralUserCode', referralUserCode);
 
             const buyResult = await buyTicketsAction(buyFormData);
             setApiState(buyResult);
 
-            // ✅ LÓGICA LOCALSTORAGE: Guardar los datos del comprador si la compra es exitosa.
+            // ✅ SOLUCIÓN LOCALSTORAGE: Guardar los datos del comprador si la compra es exitosa.
             if (buyResult.success) {
                 try {
                     const dataToSave = {
@@ -471,8 +441,6 @@ export function BuyTicketsForm({
             setIsPending(false);
         }
     };
-
-    // --- Renderizado del Formulario y Layout ---
 
     return (
         <Card className="bg-transparent border-none shadow-none">
@@ -525,73 +493,32 @@ export function BuyTicketsForm({
                         <div className="space-y-6">
                             <h3 className="text-xl font-bold text-center text-white">1. Elige la cantidad de tickets</h3>
                             
-                            {/* ✅ MEJORADO: Información de tickets disponibles con estados visuales */}
+                            {/* ✅ CAMBIO UI: Bloque de información de disponibilidad simplificado */}
                             <div className={`border rounded-lg p-3 text-center transition-colors ${
                                 availableTickets === 0 
                                     ? 'bg-red-950/30 border-red-400/30' 
                                     : availableTickets < 100 
                                         ? 'bg-amber-950/30 border-amber-400/30' 
-                                        : 'bg-blue-950/30 border-blue-400/30'
+                                        : 'bg-zinc-900/50 border-white/10'
                             }`}>
-                                <div className="flex items-center justify-center gap-2">
-                                    <Ticket className="h-4 w-4" />
-                                    <p className={`text-sm font-medium ${
-                                        availableTickets === 0 
-                                            ? 'text-red-300' 
-                                            : availableTickets < 100 
-                                                ? 'text-amber-300' 
-                                                : 'text-blue-300'
-                                    }`}>
-                                        Tickets disponibles: <span className="font-bold">{availableTickets.toLocaleString()}</span>
-                                        {currentAvailability && (
-                                            <span className="text-xs opacity-75"> de {currentAvailability.total.toLocaleString()}</span>
-                                        )}
-                                    </p>
-                                    {isCheckingAvailability && (
-                                        <RefreshCw className="h-3 w-3 animate-spin" />
-                                    )}
-                                </div>
-                                
-                                {/* Información adicional de estado */}
-                                {currentAvailability && (
-                                    <div className="mt-2 text-xs opacity-75">
-                                        <span className="text-green-400">Vendidos: {currentAvailability.sold.toLocaleString()}</span>
-                                        {currentAvailability.reserved > 0 && (
-                                            <span className="text-yellow-400 ml-3">Reservados: {currentAvailability.reserved.toLocaleString()}</span>
-                                        )}
-                                    </div>
-                                )}
-                                
                                 {/* Mensajes de estado */}
                                 {availableTickets < 100 && availableTickets > 0 && (
-                                    <p className="text-amber-300 text-xs mt-1 font-medium flex items-center justify-center gap-1">
-                                        <AlertTriangle className="h-3 w-3" />
+                                    <p className="text-amber-300 text-sm font-medium flex items-center justify-center gap-2">
+                                        <AlertTriangle className="h-4 w-4" />
                                         ¡Quedan pocos! Apúrate
                                     </p>
                                 )}
                                 {availableTickets === 0 && (
-                                    <p className="text-red-300 text-xs mt-1 font-medium flex items-center justify-center gap-1">
-                                        <X className="h-3 w-3" />
+                                    <p className="text-red-300 text-sm font-medium flex items-center justify-center gap-2">
+                                        <X className="h-4 w-4" />
                                         ¡Agotados!
                                     </p>
                                 )}
-                                
-                                {/* Error de disponibilidad */}
-                                {availabilityError && (
-                                    <div className="mt-2 flex items-center justify-center gap-2">
-                                        <AlertTriangle className="h-3 w-3 text-red-400" />
-                                        <span className="text-red-400 text-xs">{availabilityError}</span>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={checkAvailability}
-                                            disabled={isCheckingAvailability}
-                                            className="h-6 px-2 text-xs"
-                                        >
-                                            {isCheckingAvailability ? <RefreshCw className="h-3 w-3 animate-spin" /> : 'Reintentar'}
-                                        </Button>
-                                    </div>
+                                    {availableTickets > 100 && (
+                                    <p className="text-zinc-300 text-sm font-medium flex items-center justify-center gap-2">
+                                        <CheckCircle className="h-4 w-4 text-green-400" />
+                                        Tickets disponibles para la venta
+                                    </p>
                                 )}
                             </div>
                             
@@ -627,8 +554,6 @@ export function BuyTicketsForm({
                                     );
                                 })}
                             </div>
-                            
-                            
                             
                             <div className="bg-white/[.07] p-4 rounded-lg border border-white/10 text-center">
                                 <div className="flex items-center justify-center space-x-3 mb-4">
@@ -735,7 +660,7 @@ export function BuyTicketsForm({
                             {preview && (<div className="relative mt-2 w-28 h-28 mx-auto"><Image src={preview} alt="Vista previa" layout="fill" className="rounded-lg border-2 border-zinc-500 object-cover" /><button type="button" onClick={() => { setPreview(null); setPaymentScreenshot(null); }} className="absolute -top-2 -right-2 bg-zinc-800 text-white rounded-full p-1 border-2 border-zinc-500"><X className="h-4 w-4" /></button></div>)}
                         </div>
 
-                        {/* ✅ MEJORADO: Botón de Envío Final con estados */}
+                        {/* Botón de Envío Final */}
                         <Button
                             type="submit"
                             disabled={isPending || availableTickets === 0 || isCheckingAvailability}
