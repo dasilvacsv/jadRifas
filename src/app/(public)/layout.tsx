@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // ... (El resto de tus componentes como GlobalStyles, NavLink, FloatingWhatsAppButton, etc., permanecen sin cambios)
 
-const phoneNumber = "584142939088";
+const phoneNumber = "584249408197";
 const message = "¡Hola! Necesito ayuda con mi compra en Jorvilaniña.";
 const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
